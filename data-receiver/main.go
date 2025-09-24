@@ -82,11 +82,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	go msgBroker.consumer.ConsumeData()
-	<-msgBroker.checkReadiness()
 
 	http.HandleFunc("/", wsHandler(msgBroker))
-	logrus.Info("WS:SERVER:STATUS", "Ready")
+	logrus.Info("WS:SERVER:STATUS = ", "Ready")
 	logrus.Infof("WS:PORT %s\n", shared.WSPort)
 	log.Fatal(http.ListenAndServe(shared.WSPort, nil))
 }

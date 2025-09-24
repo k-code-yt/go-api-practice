@@ -9,6 +9,6 @@ const (
 )
 
 var (
-	Kafka_DefaultTopic string = "sensor_data"
+	Kafka_DefaultTopic string = "sensor_data3"
 	WSEndpoint         string = fmt.Sprintf("ws://127.0.0.1%s", WSPort)
 )

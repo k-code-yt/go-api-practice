@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	coordEmitDurr time.Duration = time.Millisecond * 100
-	truckCount    int           = 5
+	coordEmitDurr time.Duration = time.Millisecond * 1000
+	truckCount    int           = 5000
 )
 
 func NewSensorData(id uuid.UUID) *shared.SensorData {

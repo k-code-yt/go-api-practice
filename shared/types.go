@@ -9,3 +9,9 @@ type SensorData struct {
 	Lat      float64   `json:"lat"`
 	Lng      float64   `json:"lng"`
 }
+
+type MsgBrokerType int
+
+const (
+	MsgBrokerType_Kafka MsgBrokerType = iota
+)

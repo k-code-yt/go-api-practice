@@ -14,3 +14,10 @@ build-receiver:
 
 receiver: build-receiver
 	@./bin/data-receiver
+
+build-aggregator:
+	@go build -o ./bin/data-aggregator ./data-aggregator/...
+	@chmod +x ./bin/data-aggregator
+
+aggr: build-aggregator
+	@./bin/data-aggregator
