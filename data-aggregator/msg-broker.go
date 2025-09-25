@@ -13,11 +13,12 @@ import (
 )
 
 type DataConsumer interface {
-	ReadMessageLoop(dataCH chan shared.SensorData)
+	ReadMessageLoop()
 }
 
 type MsgBrokerConfig struct {
 	brokerType shared.MsgBrokerType
+	eb         AggregatorEventBus
 }
 
 type MsgBroker struct {
@@ -30,8 +31,9 @@ func NewMsgBroker(config *MsgBrokerConfig) (*MsgBroker, error) {
 		c   DataConsumer
 		err error
 	)
+
 	if config.brokerType == shared.MsgBrokerType_Kafka {
-		c, err = NewKafkaConsumer()
+		c, err = NewKafkaConsumer(config.eb)
 		if err != nil {
 			return nil, err
 		}
@@ -46,9 +48,10 @@ func NewMsgBroker(config *MsgBrokerConfig) (*MsgBroker, error) {
 type KafkaConsumer struct {
 	consumer *kafka.Consumer
 	IsReady  bool
+	eventBus AggregatorEventBus
 }
 
-func NewKafkaConsumer() (DataConsumer, error) {
+func NewKafkaConsumer(eb AggregatorEventBus) (DataConsumer, error) {
 	err := initializeKafkaTopic(shared.Kafka_DefaultHost, shared.Kafka_DefaultTopic)
 	if err != nil {
 		logrus.Error("error creating topic")
@@ -63,7 +66,7 @@ func NewKafkaConsumer() (DataConsumer, error) {
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": shared.Kafka_DefaultHost,
 		"group.id":          shared.Kafka_DefaultConsumerGroup,
-		"auto.offset.reset": "beginning",
+		"auto.offset.reset": "latest",
 
 		// commit config
 		"enable.auto.commit": true,
@@ -87,13 +90,10 @@ func NewKafkaConsumer() (DataConsumer, error) {
 	consumer := &KafkaConsumer{
 		consumer: c,
 		IsReady:  false,
+		eventBus: eb,
 	}
 
 	go consumer.checkReadyToAccept()
-	// err = consumer.checkReadyToAccept()
-	// if err != nil {
-	// 	return nil, err
-	// }
 	return consumer, nil
 }
 
@@ -211,7 +211,7 @@ func (kc *KafkaConsumer) checkReadyToAccept() error {
 	}
 }
 
-func (kc *KafkaConsumer) ReadMessageLoop(dataCH chan shared.SensorData) {
+func (kc *KafkaConsumer) ReadMessageLoop() {
 	defer func() {
 		kc.consumer.Close()
 	}()
@@ -232,6 +232,6 @@ func (kc *KafkaConsumer) ReadMessageLoop(dataCH chan shared.SensorData) {
 			}).Error("CONSUMER:Error Unmarshalling")
 			continue
 		}
-		dataCH <- data
+		kc.eventBus.Publish(*msg.TopicPartition.Topic, data)
 	}
 }
