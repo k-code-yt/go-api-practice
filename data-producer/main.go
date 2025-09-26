@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	coordEmitDurr time.Duration = time.Millisecond * 1000
+	coordEmitDurr time.Duration = time.Millisecond * 2000
 	truckCount    int           = 5000
 )
 

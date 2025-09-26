@@ -12,6 +12,25 @@ type Distance struct {
 	Timestamp int64
 }
 
+type InvoiceCategory string
+
+const (
+	CategoryDistance InvoiceCategory = "distance"
+	CategoryShipping InvoiceCategory = "shipping"
+)
+
+type Invoice struct {
+	amount   float64
+	category InvoiceCategory
+}
+
+func NewInvoice(amount float64, category InvoiceCategory) *Invoice {
+	return &Invoice{
+		amount,
+		category,
+	}
+}
+
 type SensorData struct {
 	SensorID uuid.UUID `json:"sensorID"`
 	Lat      float64   `json:"lat"`

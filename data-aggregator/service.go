@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	client "go-logistic-api/data-aggregator/transport"
 	"go-logistic-api/shared"
 	"math"
 	"time"
@@ -9,8 +11,9 @@ import (
 )
 
 type Aggregator interface {
-	AggregateDistance(shared.SensorData)
+	AggregateDistance(*shared.SensorData)
 	GetDistance(id string) *shared.Distance
+	AcceptSensorData(*shared.SensorData)
 }
 
 type AggregatorStorer interface {
@@ -19,46 +22,54 @@ type AggregatorStorer interface {
 }
 
 type AggregatorService struct {
-	points   [2][2]float64
-	store    AggregatorStorer
-	eventBus AggregatorEventBus
+	points    [2][2]float64
+	store     AggregatorStorer
+	eventBus  AggregatorEventBus
+	transport client.TransportClient
 }
 
 func NewAggregatorService(store AggregatorStorer, eb AggregatorEventBus) Aggregator {
 	var points [2][2]float64
 	aggServ := &AggregatorService{
-		points:   points,
-		store:    store,
-		eventBus: eb,
+		points:    points,
+		store:     store,
+		eventBus:  eb,
+		transport: client.NewHTTPClient(fmt.Sprintf("http://localhost%s/invoice", shared.HTTPPortInvoice)),
 	}
 
 	return aggServ
 }
 
-func (as *AggregatorService) AggregateDistance(data shared.SensorData) {
-	if len(as.points) == 0 {
-		as.points[0] = [2]float64{data.Lat, data.Lng}
+func (svc *AggregatorService) AggregateDistance(data *shared.SensorData) {
+	if len(svc.points) == 0 {
+		svc.points[0] = [2]float64{data.Lat, data.Lng}
 		return
 	}
 
-	as.points[1] = as.points[0]
-	as.points[0] = [2]float64{data.Lat, data.Lng}
+	svc.points[1] = svc.points[0]
+	svc.points[0] = [2]float64{data.Lat, data.Lng}
 
-	distance := as.getDistanceBetweenPoints(as.points[0], as.points[1])
+	distance := svc.getDistanceBetweenPoints(svc.points[0], svc.points[1])
 	d := shared.Distance{
 		Value:     distance,
 		Timestamp: time.Now().Unix(),
 	}
-	_, err := as.store.Insert(d)
+	_, err := svc.store.Insert(d)
 	if err != nil {
 		logrus.Error("Error saving data ", err)
 	}
+
+	svc.transport.SaveInvoice(d)
 }
 
-func (as *AggregatorService) getDistanceBetweenPoints(p1, p2 [2]float64) float64 {
+func (svc *AggregatorService) AcceptSensorData(d *shared.SensorData) {
+	logrus.Infof("Second subsciber func got triggered with sensorID = %s\n", d.SensorID.String())
+}
+
+func (svc *AggregatorService) getDistanceBetweenPoints(p1, p2 [2]float64) float64 {
 	return math.Sqrt(math.Pow(p1[0]-p2[0], 2) + math.Pow(p1[1]-p2[1], 2))
 }
 
-func (as *AggregatorService) GetDistance(id string) *shared.Distance {
-	return as.store.GetDistance(id)
+func (svc *AggregatorService) GetDistance(id string) *shared.Distance {
+	return svc.store.GetDistance(id)
 }

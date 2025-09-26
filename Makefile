@@ -16,8 +16,15 @@ receiver: build-receiver
 	@./bin/data-receiver
 
 build-aggregator:
-	@go build -o ./bin/data-aggregator ./data-aggregator/...
+	@go build -o ./bin/data-aggregator ./data-aggregator/
 	@chmod +x ./bin/data-aggregator
 
 aggr: build-aggregator
 	@./bin/data-aggregator
+
+build-invoicer:
+	@go build -o ./bin/invoicer ./invoicer/...
+	@chmod +x ./bin/invoicer
+
+inv: build-invoicer
+	@./bin/invoicer

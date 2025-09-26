@@ -3,7 +3,8 @@ package shared
 import "fmt"
 
 const (
-	HTTPPort                   string = ":3000"
+	HTTPPortAggregator         string = ":3000"
+	HTTPPortInvoice            string = ":3100"
 	WSPort                     string = ":30000"
 	Kafka_DefaultConsumerGroup string = "sensor_data_consumer_group"
 	Kafka_DefaultHost          string = "localhost"

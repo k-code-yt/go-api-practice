@@ -224,14 +224,14 @@ func (kc *KafkaConsumer) ReadMessageLoop() {
 			continue
 		}
 
-		var data shared.SensorData
-		err = json.Unmarshal(msg.Value, &data)
+		data := new(shared.SensorData)
+		err = json.Unmarshal(msg.Value, data)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"val": string(msg.Value),
 			}).Error("CONSUMER:Error Unmarshalling")
 			continue
 		}
-		kc.eventBus.Publish(*msg.TopicPartition.Topic, data)
+		kc.eventBus.Publish(data)
 	}
 }

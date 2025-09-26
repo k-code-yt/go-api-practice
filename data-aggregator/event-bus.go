@@ -1,21 +1,33 @@
 package main
 
-import "go-logistic-api/shared"
+import (
+	"go-logistic-api/shared"
+	"sync"
+)
 
 type AggregatorEventBus interface {
-	Subscribe(topic string, handler func(shared.SensorData))
-	Publish(topic string, data shared.SensorData)
+	Subscribe(topic string, handler func(*shared.SensorData))
+	Publish(data *shared.SensorData)
+	CreateTopic(topic string)
+}
+
+type EventBusSub struct {
+	dataCH  chan *shared.SensorData
+	handler func(*shared.SensorData)
+	topic   string
 }
 
 type InMemoryAggregatorEventBus struct {
-	dataCH chan shared.SensorData
+	subs   []*EventBusSub
+	subMap map[string]*EventBusSub
+	mu     *sync.RWMutex
 }
 
-type EventBugConfig struct {
+type EventBusConfig struct {
 	eventBusType shared.EventBusType
 }
 
-func EventBusFactory(c EventBugConfig) AggregatorEventBus {
+func EventBusFactory(c EventBusConfig) AggregatorEventBus {
 	if c.eventBusType == shared.EventBusType_InMemory {
 		return NewInMemoryAggregatorEventBus()
 	}
@@ -23,17 +35,58 @@ func EventBusFactory(c EventBugConfig) AggregatorEventBus {
 }
 
 func NewInMemoryAggregatorEventBus() *InMemoryAggregatorEventBus {
+	var subs []*EventBusSub
 	return &InMemoryAggregatorEventBus{
-		dataCH: make(chan shared.SensorData, 128),
+		subs:   subs,
+		subMap: make(map[string]*EventBusSub),
+		mu:     new(sync.RWMutex),
 	}
 }
 
-func (eb *InMemoryAggregatorEventBus) Publish(topic string, data shared.SensorData) {
-	eb.dataCH <- data
+func (eb *InMemoryAggregatorEventBus) Publish(data *shared.SensorData) {
+	for _, sub := range eb.subs {
+		sub.dataCH <- data
+	}
 }
 
-func (eb *InMemoryAggregatorEventBus) Subscribe(topic string, handler func(shared.SensorData)) {
-	for v := range eb.dataCH {
-		handler(v)
+func (eb *InMemoryAggregatorEventBus) Subscribe(topic string, handler func(*shared.SensorData)) {
+	eb.registerHandler(topic, handler)
+
+	for _, sub := range eb.subs {
+		go func(sub *EventBusSub) {
+			for v := range sub.dataCH {
+				sub.handler(v)
+			}
+		}(sub)
+	}
+}
+
+func (eb *InMemoryAggregatorEventBus) CreateTopic(topic string) {
+	eb.mu.Lock()
+	defer eb.mu.Unlock()
+	_, ok := eb.subMap[topic]
+	if !ok {
+		sub := &EventBusSub{
+			topic:  topic,
+			dataCH: make(chan *shared.SensorData, 64),
+		}
+		eb.subMap[topic] = sub
+		eb.subs = append(eb.subs, sub)
+	}
+}
+
+func (eb *InMemoryAggregatorEventBus) registerHandler(topic string, handler func(*shared.SensorData)) {
+	eb.mu.Lock()
+	defer eb.mu.Unlock()
+	sub, ok := eb.subMap[topic]
+	if !ok {
+		sub := &EventBusSub{
+			topic:   topic,
+			handler: handler,
+			dataCH:  make(chan *shared.SensorData, 64),
+		}
+		eb.subMap[topic] = sub
+	} else {
+		sub.handler = handler
 	}
 }

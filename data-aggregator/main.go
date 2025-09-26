@@ -27,7 +27,7 @@ func writeJSON(rw http.ResponseWriter, status int, v any) error {
 }
 
 func main() {
-	eventBus := EventBusFactory(EventBugConfig{
+	eventBus := EventBusFactory(EventBusConfig{
 		eventBusType: shared.EventBusType_InMemory,
 	})
 	msgBroker, err := NewMsgBroker(&MsgBrokerConfig{
@@ -41,9 +41,12 @@ func main() {
 	aggrStore := NewInMemoryStore()
 	aggrService := NewAggregatorService(aggrStore, eventBus)
 
+	eventBus.CreateTopic("invoice-calculator")
+	eventBus.CreateTopic("distance-calculator")
 	go msgBroker.consumer.ReadMessageLoop()
-	go eventBus.Subscribe(shared.Kafka_DefaultTopic, aggrService.AggregateDistance)
+	go eventBus.Subscribe("invoice-calculator", aggrService.AcceptSensorData)
+	go eventBus.Subscribe("distance-calculator", aggrService.AggregateDistance)
 
 	http.HandleFunc("/get-distance", handleGetDistance(aggrService))
-	log.Fatal(http.ListenAndServe(shared.HTTPPort, nil))
+	log.Fatal(http.ListenAndServe(shared.HTTPPortAggregator, nil))
 }
