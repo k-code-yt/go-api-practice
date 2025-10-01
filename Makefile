@@ -23,11 +23,11 @@ aggr: build-aggregator
 	@./bin/data-aggregator
 
 build-invoicer:
-	@go build -o ./bin/invoicer ./invoicer/...
+	@go build -o ./bin/invoicer ./invoicer/
 	@chmod +x ./bin/invoicer
 
 inv: build-invoicer
 	@./bin/invoicer
 
 proto:
-	protoc --go_out=. --go_opt=paths=source_relative shared/ptypes.proto
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto

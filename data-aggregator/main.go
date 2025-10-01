@@ -2,10 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 
+	grpcclient "github.com/k-code-yt/go-api-practice/data-aggregator/transport/grpc"
 	"github.com/k-code-yt/go-api-practice/shared"
+	"github.com/sirupsen/logrus"
 )
 
 func handleGetDistance(svc Aggregator) http.HandlerFunc {
@@ -40,7 +44,12 @@ func main() {
 	}
 
 	aggrStore := NewInMemoryStore()
-	aggrService := NewAggregatorService(aggrStore, eventBus)
+	transport, err := grpcclient.NewGRPCClient(fmt.Sprintf("localhost%s", shared.HTTPPortInvoice))
+	if err != nil {
+		logrus.Error(err)
+		os.Exit(1)
+	}
+	aggrService := NewAggregatorService(aggrStore, eventBus, transport)
 
 	eventBus.CreateTopic("invoice-calculator")
 	eventBus.CreateTopic("distance-calculator")

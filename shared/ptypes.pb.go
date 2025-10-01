@@ -21,27 +21,29 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Test struct {
+type DistanceProto struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Testint       int32                  `protobuf:"varint,1,opt,name=testint,proto3" json:"testint,omitempty"`
+	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Value         float64                `protobuf:"fixed64,2,opt,name=Value,proto3" json:"Value,omitempty"`
+	Timestamp     int32                  `protobuf:"varint,3,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Test) Reset() {
-	*x = Test{}
+func (x *DistanceProto) Reset() {
+	*x = DistanceProto{}
 	mi := &file_shared_ptypes_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Test) String() string {
+func (x *DistanceProto) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Test) ProtoMessage() {}
+func (*DistanceProto) ProtoMessage() {}
 
-func (x *Test) ProtoReflect() protoreflect.Message {
+func (x *DistanceProto) ProtoReflect() protoreflect.Message {
 	mi := &file_shared_ptypes_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -53,25 +55,144 @@ func (x *Test) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Test.ProtoReflect.Descriptor instead.
-func (*Test) Descriptor() ([]byte, []int) {
+// Deprecated: Use DistanceProto.ProtoReflect.Descriptor instead.
+func (*DistanceProto) Descriptor() ([]byte, []int) {
 	return file_shared_ptypes_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Test) GetTestint() int32 {
+func (x *DistanceProto) GetID() string {
 	if x != nil {
-		return x.Testint
+		return x.ID
+	}
+	return ""
+}
+
+func (x *DistanceProto) GetValue() float64 {
+	if x != nil {
+		return x.Value
 	}
 	return 0
+}
+
+func (x *DistanceProto) GetTimestamp() int32 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+type SaveInvoiceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Distance      *DistanceProto         `protobuf:"bytes,1,opt,name=distance,proto3" json:"distance,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveInvoiceRequest) Reset() {
+	*x = SaveInvoiceRequest{}
+	mi := &file_shared_ptypes_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveInvoiceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveInvoiceRequest) ProtoMessage() {}
+
+func (x *SaveInvoiceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_shared_ptypes_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveInvoiceRequest.ProtoReflect.Descriptor instead.
+func (*SaveInvoiceRequest) Descriptor() ([]byte, []int) {
+	return file_shared_ptypes_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SaveInvoiceRequest) GetDistance() *DistanceProto {
+	if x != nil {
+		return x.Distance
+	}
+	return nil
+}
+
+type SaveInvoiceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=Success,proto3" json:"Success,omitempty"`
+	Msg           string                 `protobuf:"bytes,2,opt,name=Msg,proto3" json:"Msg,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveInvoiceResponse) Reset() {
+	*x = SaveInvoiceResponse{}
+	mi := &file_shared_ptypes_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveInvoiceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveInvoiceResponse) ProtoMessage() {}
+
+func (x *SaveInvoiceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_shared_ptypes_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveInvoiceResponse.ProtoReflect.Descriptor instead.
+func (*SaveInvoiceResponse) Descriptor() ([]byte, []int) {
+	return file_shared_ptypes_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SaveInvoiceResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SaveInvoiceResponse) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
 }
 
 var File_shared_ptypes_proto protoreflect.FileDescriptor
 
 const file_shared_ptypes_proto_rawDesc = "" +
 	"\n" +
-	"\x13shared/ptypes.proto\" \n" +
-	"\x04Test\x12\x18\n" +
-	"\atestint\x18\x01 \x01(\x05R\atestintB-Z+github.com/k-code-yt/go-api-practice/sharedb\x06proto3"
+	"\x13shared/ptypes.proto\"S\n" +
+	"\rDistanceProto\x12\x0e\n" +
+	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x14\n" +
+	"\x05Value\x18\x02 \x01(\x01R\x05Value\x12\x1c\n" +
+	"\tTimestamp\x18\x03 \x01(\x05R\tTimestamp\"@\n" +
+	"\x12SaveInvoiceRequest\x12*\n" +
+	"\bdistance\x18\x01 \x01(\v2\x0e.DistanceProtoR\bdistance\"A\n" +
+	"\x13SaveInvoiceResponse\x12\x18\n" +
+	"\aSuccess\x18\x01 \x01(\bR\aSuccess\x12\x10\n" +
+	"\x03Msg\x18\x02 \x01(\tR\x03Msg2S\n" +
+	"\x17InvoiceTransportService\x128\n" +
+	"\vSaveInvoice\x12\x13.SaveInvoiceRequest\x1a\x14.SaveInvoiceResponseB-Z+github.com/k-code-yt/go-api-practice/sharedb\x06proto3"
 
 var (
 	file_shared_ptypes_proto_rawDescOnce sync.Once
@@ -85,16 +206,21 @@ func file_shared_ptypes_proto_rawDescGZIP() []byte {
 	return file_shared_ptypes_proto_rawDescData
 }
 
-var file_shared_ptypes_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_shared_ptypes_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_shared_ptypes_proto_goTypes = []any{
-	(*Test)(nil), // 0: Test
+	(*DistanceProto)(nil),       // 0: DistanceProto
+	(*SaveInvoiceRequest)(nil),  // 1: SaveInvoiceRequest
+	(*SaveInvoiceResponse)(nil), // 2: SaveInvoiceResponse
 }
 var file_shared_ptypes_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: SaveInvoiceRequest.distance:type_name -> DistanceProto
+	1, // 1: InvoiceTransportService.SaveInvoice:input_type -> SaveInvoiceRequest
+	2, // 2: InvoiceTransportService.SaveInvoice:output_type -> SaveInvoiceResponse
+	2, // [2:3] is the sub-list for method output_type
+	1, // [1:2] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_shared_ptypes_proto_init() }
@@ -108,9 +234,9 @@ func file_shared_ptypes_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_shared_ptypes_proto_rawDesc), len(file_shared_ptypes_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   3,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_shared_ptypes_proto_goTypes,
 		DependencyIndexes: file_shared_ptypes_proto_depIdxs,

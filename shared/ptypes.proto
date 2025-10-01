@@ -2,6 +2,22 @@ syntax = "proto3";
 
 option go_package = "github.com/k-code-yt/go-api-practice/shared";
 
-message Test {
-	int32 testint = 1;
+message DistanceProto {
+	string ID = 1;
+	double Value = 2;
+	int32 Timestamp = 3;
+};
+
+message SaveInvoiceRequest {
+	DistanceProto distance = 1;
+};
+
+message SaveInvoiceResponse {
+	bool Success = 1;
+	string Msg = 2;
+};
+
+
+service InvoiceTransportService {
+	rpc SaveInvoice(SaveInvoiceRequest) returns (SaveInvoiceResponse);
 };

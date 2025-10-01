@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -29,13 +28,13 @@ type AggregatorService struct {
 	transport client.TransportClient
 }
 
-func NewAggregatorService(store AggregatorStorer, eb AggregatorEventBus) Aggregator {
+func NewAggregatorService(store AggregatorStorer, eb AggregatorEventBus, transport client.TransportClient) Aggregator {
 	var points [2][2]float64
 	aggServ := &AggregatorService{
 		points:    points,
 		store:     store,
 		eventBus:  eb,
-		transport: client.NewHTTPClient(fmt.Sprintf("http://localhost%s/invoice", shared.HTTPPortInvoice)),
+		transport: transport,
 	}
 
 	return aggServ

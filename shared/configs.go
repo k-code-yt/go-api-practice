@@ -2,12 +2,17 @@ package shared
 
 import "fmt"
 
+type TransportType string
+
 const (
-	HTTPPortAggregator         string = ":3000"
-	HTTPPortInvoice            string = ":3100"
-	WSPort                     string = ":30000"
-	Kafka_DefaultConsumerGroup string = "sensor_data_consumer_group"
-	Kafka_DefaultHost          string = "localhost"
+	HTTPPortAggregator            string        = ":3000"
+	HTTPPortInvoice               string        = ":3100"
+	WSPort                        string        = ":30000"
+	Kafka_DefaultConsumerGroup    string        = "sensor_data_consumer_group"
+	Kafka_DefaultHost             string        = "localhost"
+	Invoicer_GRPCTransportType    TransportType = "GRPC"
+	Invoicer_HTTPTransportType    TransportType = "HTTP"
+	Invoicer_DefaultTransportType TransportType = Invoicer_GRPCTransportType
 )
 
 var (

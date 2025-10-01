@@ -20,8 +20,8 @@ const (
 )
 
 type Invoice struct {
-	amount   float64
-	category InvoiceCategory
+	Amount   float64
+	Category InvoiceCategory
 }
 
 func NewInvoice(amount float64, category InvoiceCategory) *Invoice {
