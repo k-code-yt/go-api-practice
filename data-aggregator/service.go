@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	client "go-logistic-api/data-aggregator/transport"
-	"go-logistic-api/shared"
 	"math"
 	"time"
+
+	client "github.com/k-code-yt/go-api-practice/data-aggregator/transport"
+	"github.com/k-code-yt/go-api-practice/shared"
 
 	"github.com/sirupsen/logrus"
 )

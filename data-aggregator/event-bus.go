@@ -1,10 +1,12 @@
 package main
 
 import (
-	"go-logistic-api/shared"
 	"sync"
+
+	"github.com/k-code-yt/go-api-practice/shared"
 )
 
+// TODO -> rework to be generic with any type
 type AggregatorEventBus interface {
 	Subscribe(topic string, handler func(*shared.SensorData))
 	Publish(data *shared.SensorData)

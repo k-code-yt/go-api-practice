@@ -1,7 +1,7 @@
 package main
 
 import (
-	"go-logistic-api/shared"
+	"github.com/k-code-yt/go-api-practice/shared"
 
 	log "github.com/sirupsen/logrus"
 )

@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"go-logistic-api/shared"
 	"net/http"
+
+	"github.com/k-code-yt/go-api-practice/shared"
 
 	"github.com/sirupsen/logrus"
 )

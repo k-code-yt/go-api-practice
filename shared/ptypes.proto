@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+option go_package = "github.com/k-code-yt/go-api-practice";
+
+message Test {
+	int32 testint = 1;
+};

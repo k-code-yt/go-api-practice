@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"go-logistic-api/shared"
 	"log"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"github.com/k-code-yt/go-api-practice/shared"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"

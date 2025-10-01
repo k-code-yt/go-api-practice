@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go-logistic-api/shared"
 	"log"
 	"time"
+
+	"github.com/k-code-yt/go-api-practice/shared"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/sirupsen/logrus"

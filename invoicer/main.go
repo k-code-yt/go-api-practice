@@ -3,10 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"go-logistic-api/shared"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/k-code-yt/go-api-practice/shared"
 
 	"github.com/sirupsen/logrus"
 )

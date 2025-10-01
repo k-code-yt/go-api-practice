@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"go-logistic-api/shared"
 	"log"
 	"net/http"
+
+	"github.com/k-code-yt/go-api-practice/shared"
 )
 
 func handleGetDistance(svc Aggregator) http.HandlerFunc {
