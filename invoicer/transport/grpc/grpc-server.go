@@ -1,4 +1,4 @@
-package grpcserver
+package transport
 
 import (
 	"context"
@@ -15,6 +15,7 @@ type GRPCServer struct {
 	port string
 	svc  ports.Invoicer
 	shared.UnimplementedInvoiceTransportServiceServer
+	shared.UnimplementedGetterInvoiceTransportServiceServer
 }
 
 func NewGRPCServer() ports.ServerTransport {
@@ -31,9 +32,26 @@ func (s *GRPCServer) Listen(svc ports.Invoicer) error {
 	s.svc = svc
 	server := grpc.NewServer(grpc.EmptyServerOption{})
 	shared.RegisterInvoiceTransportServiceServer(server, s)
+	shared.RegisterGetterInvoiceTransportServiceServer(server, s)
 	logrus.Infof("Registered GRPC Server on port = %s, info = %v\n", s.port, server.GetServiceInfo())
 
 	return server.Serve(l)
+}
+
+func (s *GRPCServer) GetInvoice(ctx context.Context, req *shared.GetInvoiceRequest) (*shared.GetInvoiceResponse, error) {
+	id := req.GetID()
+	inv, err := s.svc.GetInvoice(id)
+	if inv == nil {
+		return nil, fmt.Errorf("invoice does not exist")
+	}
+
+	return &shared.GetInvoiceResponse{
+		Invoice: &shared.InvoiceProto{
+			ID:       inv.ID,
+			Amount:   inv.Amount,
+			Category: string(inv.Category),
+		},
+	}, err
 }
 
 func (s *GRPCServer) SaveInvoice(ctx context.Context, req *shared.SaveInvoiceRequest) (*shared.SaveInvoiceResponse, error) {
@@ -56,7 +74,8 @@ func (s *GRPCServer) SaveInvoice(ctx context.Context, req *shared.SaveInvoiceReq
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"success": true,
+		"success":   true,
+		"InvoiceID": i.ID,
 	}).Infof("GRPC:SaveInvoice")
 
 	return &shared.SaveInvoiceResponse{

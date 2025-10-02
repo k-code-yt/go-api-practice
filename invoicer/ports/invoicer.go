@@ -4,4 +4,5 @@ import "github.com/k-code-yt/go-api-practice/shared"
 
 type Invoicer interface {
 	SaveInvoice(d *shared.Distance) *shared.Invoice
+	GetInvoice(id string) (*shared.Invoice, error)
 }

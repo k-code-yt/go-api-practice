@@ -1,4 +1,4 @@
-package grpcclient
+package client
 
 import (
 	"context"
@@ -11,9 +11,10 @@ import (
 )
 
 type GRPCClient struct {
-	Endpoint string
-	conn     *grpc.ClientConn
-	client   shared.InvoiceTransportServiceClient
+	Endpoint     string
+	conn         *grpc.ClientConn
+	client       shared.InvoiceTransportServiceClient
+	getterClient shared.GetterInvoiceTransportServiceClient
 }
 
 func NewGRPCClient(endpoint string) (*GRPCClient, error) {
@@ -23,13 +24,34 @@ func NewGRPCClient(endpoint string) (*GRPCClient, error) {
 	}
 
 	client := shared.NewInvoiceTransportServiceClient(conn)
+	getterClient := shared.NewGetterInvoiceTransportServiceClient(conn)
 	logrus.Infof("Registered GRPC client on port %s\n", endpoint)
 
 	return &GRPCClient{
-		Endpoint: endpoint,
-		conn:     conn,
-		client:   client,
+		Endpoint:     endpoint,
+		conn:         conn,
+		client:       client,
+		getterClient: getterClient,
 	}, nil
+}
+
+func (c *GRPCClient) GetInvoice(id string) (*shared.Invoice, error) {
+
+	resp, err := c.getterClient.GetInvoice(context.Background(), &shared.GetInvoiceRequest{
+		ID: id,
+	})
+
+	if err != nil {
+		logrus.Errorf("Error GetInvoice GRPC %v", err)
+		return nil, err
+	}
+
+	return &shared.Invoice{
+		ID:       resp.Invoice.GetID(),
+		Amount:   resp.Invoice.GetAmount(),
+		Category: shared.InvoiceCategory(resp.Invoice.Category),
+	}, nil
+
 }
 
 func (c *GRPCClient) SaveInvoice(distance shared.Distance) error {

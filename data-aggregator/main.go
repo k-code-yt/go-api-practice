@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	client "github.com/k-code-yt/go-api-practice/data-aggregator/transport"
 	grpcclient "github.com/k-code-yt/go-api-practice/data-aggregator/transport/grpc"
 	"github.com/k-code-yt/go-api-practice/shared"
 	"github.com/sirupsen/logrus"
@@ -18,6 +19,23 @@ func handleGetDistance(svc Aggregator) http.HandlerFunc {
 		id := queryParams.Get("id")
 		d := svc.GetDistance(id)
 		err := writeJSON(w, http.StatusOK, d)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "request failed, unable to marshal payload"})
+			return
+		}
+	}
+}
+
+func handleGetInvoice(intergation client.TransportClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		queryParams := r.URL.Query()
+		id := queryParams.Get("id")
+		d, err := intergation.GetInvoice(id)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "request failed to fetch invoice"})
+			return
+		}
+		err = writeJSON(w, http.StatusOK, d)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "request failed, unable to marshal payload"})
 			return
@@ -44,12 +62,12 @@ func main() {
 	}
 
 	aggrStore := NewInMemoryStore()
-	transport, err := grpcclient.NewGRPCClient(fmt.Sprintf("localhost%s", shared.HTTPPortInvoice))
+	intergrationTransport, err := grpcclient.NewGRPCClient(fmt.Sprintf("localhost%s", shared.HTTPPortInvoice))
 	if err != nil {
 		logrus.Error(err)
 		os.Exit(1)
 	}
-	aggrService := NewAggregatorService(aggrStore, eventBus, transport)
+	aggrService := NewAggregatorService(aggrStore, eventBus, intergrationTransport)
 
 	eventBus.CreateTopic("invoice-calculator")
 	eventBus.CreateTopic("distance-calculator")
@@ -58,5 +76,7 @@ func main() {
 	go eventBus.Subscribe("distance-calculator", aggrService.AggregateDistance)
 
 	http.HandleFunc("/get-distance", handleGetDistance(aggrService))
+	http.HandleFunc("/get-invoice", handleGetInvoice(intergrationTransport))
+	logrus.Infof("Starting Aggregator HTTP listener at: %s\n", shared.HTTPPortAggregator)
 	log.Fatal(http.ListenAndServe(shared.HTTPPortAggregator, nil))
 }

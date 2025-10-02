@@ -21,3 +21,24 @@ message SaveInvoiceResponse {
 service InvoiceTransportService {
 	rpc SaveInvoice(SaveInvoiceRequest) returns (SaveInvoiceResponse);
 };
+
+
+message GetInvoiceRequest {
+	string ID = 1;
+};
+
+message InvoiceProto {
+	string ID = 1;       
+	double Amount   =2;
+	string Category = 3;
+};
+
+
+message GetInvoiceResponse {
+	InvoiceProto invoice = 1;
+};
+
+
+service GetterInvoiceTransportService {
+	rpc GetInvoice(GetInvoiceRequest) returns (GetInvoiceResponse);
+};

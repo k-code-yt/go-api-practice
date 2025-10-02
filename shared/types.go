@@ -20,14 +20,17 @@ const (
 )
 
 type Invoice struct {
+	ID       string
 	Amount   float64
 	Category InvoiceCategory
 }
 
 func NewInvoice(amount float64, category InvoiceCategory) *Invoice {
+	id := uuid.New()
 	return &Invoice{
-		amount,
-		category,
+		ID:       id.String(),
+		Amount:   amount,
+		Category: category,
 	}
 }
 
