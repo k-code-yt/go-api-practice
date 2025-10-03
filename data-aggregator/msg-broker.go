@@ -233,6 +233,22 @@ func (kc *KafkaConsumer) ReadMessageLoop() {
 			}).Error("CONSUMER:Error Unmarshalling")
 			continue
 		}
-		kc.eventBus.Publish(data)
+		de, err := kc.mapTopicToDomainEvent(*msg.TopicPartition.Topic)
+		// TODO add err chan
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
+		for _, eventName := range de {
+			go kc.eventBus.Publish(eventName, data)
+		}
 	}
+}
+
+func (kc *KafkaConsumer) mapTopicToDomainEvent(topic string) ([]shared.DomainEvent, error) {
+	if topic == shared.Kafka_DefaultTopic {
+		return []shared.DomainEvent{shared.AggregateDistanceDomainEvent, shared.CalculatePaymentDomainEvent}, nil
+	}
+
+	return nil, fmt.Errorf("domain event for %s kafka topic does not exist", topic)
 }

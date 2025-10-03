@@ -19,6 +19,13 @@ const (
 	CategoryShipping InvoiceCategory = "shipping"
 )
 
+type DomainEvent string
+
+const (
+	AggregateDistanceDomainEvent DomainEvent = "aggregate-distance-domain-event"
+	CalculatePaymentDomainEvent  DomainEvent = "calculate-payment-domain-event"
+)
+
 type Invoice struct {
 	ID       string
 	Amount   float64

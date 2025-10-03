@@ -67,13 +67,11 @@ func main() {
 		logrus.Error(err)
 		os.Exit(1)
 	}
-	aggrService := NewAggregatorService(aggrStore, eventBus, intergrationTransport)
+	aggrService := NewAggregatorService(aggrStore, intergrationTransport)
 
-	eventBus.CreateTopic("invoice-calculator")
-	eventBus.CreateTopic("distance-calculator")
 	go msgBroker.consumer.ReadMessageLoop()
-	go eventBus.Subscribe("invoice-calculator", aggrService.AcceptSensorData)
-	go eventBus.Subscribe("distance-calculator", aggrService.AggregateDistance)
+	eventBus.Subscribe(shared.CalculatePaymentDomainEvent, aggrService.AcceptSensorData)
+	eventBus.Subscribe(shared.AggregateDistanceDomainEvent, aggrService.AggregateDistance)
 
 	http.HandleFunc("/get-distance", handleGetDistance(aggrService))
 	http.HandleFunc("/get-invoice", handleGetInvoice(intergrationTransport))

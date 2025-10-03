@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"math"
+	"math/rand"
 	"time"
 
 	client "github.com/k-code-yt/go-api-practice/data-aggregator/transport"
@@ -11,9 +13,9 @@ import (
 )
 
 type Aggregator interface {
-	AggregateDistance(*shared.SensorData)
+	AggregateDistance(*shared.SensorData) error
+	AcceptSensorData(*shared.SensorData) error
 	GetDistance(id string) *shared.Distance
-	AcceptSensorData(*shared.SensorData)
 }
 
 type AggregatorStorer interface {
@@ -24,26 +26,24 @@ type AggregatorStorer interface {
 type AggregatorService struct {
 	points    [2][2]float64
 	store     AggregatorStorer
-	eventBus  AggregatorEventBus
 	transport client.TransportClient
 }
 
-func NewAggregatorService(store AggregatorStorer, eb AggregatorEventBus, transport client.TransportClient) Aggregator {
+func NewAggregatorService(store AggregatorStorer, transport client.TransportClient) Aggregator {
 	var points [2][2]float64
 	aggServ := &AggregatorService{
 		points:    points,
 		store:     store,
-		eventBus:  eb,
 		transport: transport,
 	}
 
 	return aggServ
 }
 
-func (svc *AggregatorService) AggregateDistance(data *shared.SensorData) {
+func (svc *AggregatorService) AggregateDistance(data *shared.SensorData) error {
 	if len(svc.points) == 0 {
 		svc.points[0] = [2]float64{data.Lat, data.Lng}
-		return
+		return nil
 	}
 
 	svc.points[1] = svc.points[0]
@@ -60,10 +60,17 @@ func (svc *AggregatorService) AggregateDistance(data *shared.SensorData) {
 	}
 
 	svc.transport.SaveInvoice(d)
+	return nil
 }
 
-func (svc *AggregatorService) AcceptSensorData(d *shared.SensorData) {
+func (svc *AggregatorService) AcceptSensorData(d *shared.SensorData) error {
 	logrus.Infof("Second subsciber func got triggered with sensorID = %s\n", d.SensorID.String())
+	errVal := rand.Intn(10)
+	if errVal < 5 {
+		return fmt.Errorf("random error for testing")
+	}
+
+	return nil
 }
 
 func (svc *AggregatorService) getDistanceBetweenPoints(p1, p2 [2]float64) float64 {
