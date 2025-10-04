@@ -36,7 +36,6 @@ func NewGRPCClient(endpoint string) (*GRPCClient, error) {
 }
 
 func (c *GRPCClient) GetInvoice(id string) (*shared.Invoice, error) {
-
 	resp, err := c.getterClient.GetInvoice(context.Background(), &shared.GetInvoiceRequest{
 		ID: id,
 	})

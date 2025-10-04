@@ -39,6 +39,14 @@ func (s *GRPCServer) Listen(svc ports.Invoicer) error {
 }
 
 func (s *GRPCServer) GetInvoice(ctx context.Context, req *shared.GetInvoiceRequest) (*shared.GetInvoiceResponse, error) {
+	// TODO -> inspect headers
+	// md, ok := metadata.FromIncomingContext(ctx)
+	// TODO -> review on the client
+	// header := metadata.Pairs(
+	//     "received-at", time.Now().Format(time.RFC3339),
+	// )
+	// _ = grpc.SetHeader(ctx, header)
+
 	id := req.GetID()
 	inv, err := s.svc.GetInvoice(id)
 	if inv == nil {

@@ -8,28 +8,35 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO -> rework to be generic with any type
-type AggregatorEventBus interface {
-	Subscribe(topic shared.DomainEvent, handler func(*shared.SensorData) error)
-	Publish(topic shared.DomainEvent, data *shared.SensorData)
+type EventBusConfig struct {
+	eventBusType shared.EventBusType
 }
 
-type EventBusSub struct {
-	dataCH  chan *shared.SensorData
-	handler func(*shared.SensorData) error
+type EventHandler[T any] func(ctx context.Context, event T) error
+
+type AggregatorEventBus[T any] interface {
+	Subscribe(topic shared.DomainEvent, handler EventHandler[T])
+	Publish(topic shared.DomainEvent, data T)
+	Close()
+	IsActive() bool
+}
+
+type EventBusSub[T any] struct {
+	dataCH  chan T
+	handler EventHandler[T]
 	topic   shared.DomainEvent
 	ctx     context.Context
 	cancel  context.CancelFunc
 }
 
-func NewEventBusSub(
+func NewEventBusSub[T any](
 	topic shared.DomainEvent,
-	handler func(*shared.SensorData) error,
-) *EventBusSub {
+	handler EventHandler[T],
+) *EventBusSub[T] {
 
 	ctx, cancel := context.WithCancel(context.Background())
-	dataCH := make(chan *shared.SensorData)
-	return &EventBusSub{
+	dataCH := make(chan T, 32)
+	return &EventBusSub[T]{
 		dataCH:  dataCH,
 		topic:   topic,
 		ctx:     ctx,
@@ -38,33 +45,31 @@ func NewEventBusSub(
 	}
 }
 
-type InMemoryAggregatorEventBus struct {
-	subs   []*EventBusSub
-	subMap map[shared.DomainEvent]*EventBusSub
-	mu     *sync.RWMutex
+type InMemoryAggregatorEventBus[T any] struct {
+	subs     []*EventBusSub[T]
+	subMap   map[shared.DomainEvent]*EventBusSub[T]
+	mu       *sync.RWMutex
+	isActive bool
 }
 
-type EventBusConfig struct {
-	eventBusType shared.EventBusType
+func NewInMemoryAggregatorEventBus[T any]() *InMemoryAggregatorEventBus[T] {
+	var subs []*EventBusSub[T]
+	return &InMemoryAggregatorEventBus[T]{
+		subs:     subs,
+		subMap:   make(map[shared.DomainEvent]*EventBusSub[T]),
+		mu:       new(sync.RWMutex),
+		isActive: true,
+	}
 }
 
-func EventBusFactory(c EventBusConfig) AggregatorEventBus {
+func EventBusFactory[T any](c EventBusConfig) AggregatorEventBus[T] {
 	if c.eventBusType == shared.EventBusType_InMemory {
-		return NewInMemoryAggregatorEventBus()
+		return NewInMemoryAggregatorEventBus[T]()
 	}
 	return nil
 }
 
-func NewInMemoryAggregatorEventBus() *InMemoryAggregatorEventBus {
-	var subs []*EventBusSub
-	return &InMemoryAggregatorEventBus{
-		subs:   subs,
-		subMap: make(map[shared.DomainEvent]*EventBusSub),
-		mu:     new(sync.RWMutex),
-	}
-}
-
-func (eb *InMemoryAggregatorEventBus) Publish(topic shared.DomainEvent, data *shared.SensorData) {
+func (eb *InMemoryAggregatorEventBus[T]) Publish(topic shared.DomainEvent, data T) {
 	eb.mu.RLock()
 	defer eb.mu.RUnlock()
 
@@ -77,13 +82,7 @@ func (eb *InMemoryAggregatorEventBus) Publish(topic shared.DomainEvent, data *sh
 	sub.dataCH <- data
 }
 
-func (eb *InMemoryAggregatorEventBus) PublishAll(data *shared.SensorData) {
-	for _, sub := range eb.subs {
-		sub.dataCH <- data
-	}
-}
-
-func (eb *InMemoryAggregatorEventBus) Subscribe(topic shared.DomainEvent, handler func(*shared.SensorData) error) {
+func (eb *InMemoryAggregatorEventBus[T]) Subscribe(topic shared.DomainEvent, handler EventHandler[T]) {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 
@@ -101,20 +100,39 @@ func (eb *InMemoryAggregatorEventBus) Subscribe(topic shared.DomainEvent, handle
 	go eb.processEvent(sub)
 }
 
-func (eb *InMemoryAggregatorEventBus) processEvent(sub *EventBusSub) {
-	defer close(sub.dataCH)
+func (eb *InMemoryAggregatorEventBus[T]) processEvent(sub *EventBusSub[T]) {
+	defer func() {
+		logrus.Info("No more events to process -> closing eventBus Chan")
+		eb.isActive = false
+		close(sub.dataCH)
+	}()
 
 	for {
 		select {
 		case v := <-sub.dataCH:
-			err := sub.handler(v)
+			err := sub.handler(sub.ctx, v)
 			if err != nil {
 				logrus.Errorf("error eventbus handler %v\n", err)
 				continue
 			}
 		case <-sub.ctx.Done():
-			logrus.Warnf("Exiting InternalEventBus Topic =  %s\n", sub.topic)
+			logrus.WithField("event", sub.topic).Warn("Exiting InternalEventBus on SIGTERM")
 			return
 		}
 	}
+
+}
+
+func (eb *InMemoryAggregatorEventBus[T]) Close() {
+	for _, sub := range eb.subs {
+		logrus.WithFields(logrus.Fields{
+			"event": sub.topic,
+		}).Warn("Close chan on SIGTERM")
+		sub.cancel()
+
+	}
+}
+
+func (eb *InMemoryAggregatorEventBus[T]) IsActive() bool {
+	return eb.isActive
 }

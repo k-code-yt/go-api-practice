@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/k-code-yt/go-api-practice/shared"
@@ -19,7 +20,7 @@ type DataConsumer interface {
 
 type MsgBrokerConfig struct {
 	brokerType shared.MsgBrokerType
-	eb         AggregatorEventBus
+	eb         AggregatorEventBus[*shared.SensorData]
 }
 
 type MsgBroker struct {
@@ -49,10 +50,10 @@ func NewMsgBroker(config *MsgBrokerConfig) (*MsgBroker, error) {
 type KafkaConsumer struct {
 	consumer *kafka.Consumer
 	IsReady  bool
-	eventBus AggregatorEventBus
+	eventBus AggregatorEventBus[*shared.SensorData]
 }
 
-func NewKafkaConsumer(eb AggregatorEventBus) (DataConsumer, error) {
+func NewKafkaConsumer(eb AggregatorEventBus[*shared.SensorData]) (DataConsumer, error) {
 	err := initializeKafkaTopic(shared.Kafka_DefaultHost, shared.Kafka_DefaultTopic)
 	if err != nil {
 		logrus.Error("error creating topic")
@@ -214,9 +215,11 @@ func (kc *KafkaConsumer) checkReadyToAccept() error {
 
 func (kc *KafkaConsumer) ReadMessageLoop() {
 	defer func() {
+		logrus.WithField("Status", "Exiting").Warn("KAKFA:CONSUMER")
 		kc.consumer.Close()
+		os.Exit(0)
 	}()
-	for {
+	for kc.eventBus.IsActive() {
 		msg, err := kc.consumer.ReadMessage(time.Millisecond * 100)
 		if err != nil {
 			if !err.(kafka.Error).IsTimeout() {

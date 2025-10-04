@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	client "github.com/k-code-yt/go-api-practice/data-aggregator/transport"
 	grpcclient "github.com/k-code-yt/go-api-practice/data-aggregator/transport/grpc"
@@ -50,9 +52,18 @@ func writeJSON(rw http.ResponseWriter, status int, v any) error {
 }
 
 func main() {
-	eventBus := EventBusFactory(EventBusConfig{
+	sigChan := make(chan os.Signal, 1)
+	go signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	eventBus := EventBusFactory[*shared.SensorData](EventBusConfig{
 		eventBusType: shared.EventBusType_InMemory,
 	})
+
+	go func() {
+		fmt.Println("waiting for SIGTERM")
+		<-sigChan
+		eventBus.Close()
+	}()
+
 	msgBroker, err := NewMsgBroker(&MsgBrokerConfig{
 		brokerType: shared.MsgBrokerType_Kafka,
 		eb:         eventBus,
@@ -70,7 +81,7 @@ func main() {
 	aggrService := NewAggregatorService(aggrStore, intergrationTransport)
 
 	go msgBroker.consumer.ReadMessageLoop()
-	eventBus.Subscribe(shared.CalculatePaymentDomainEvent, aggrService.AcceptSensorData)
+	eventBus.Subscribe(shared.CalculatePaymentDomainEvent, aggrService.ProcessSensorDataForPayment)
 	eventBus.Subscribe(shared.AggregateDistanceDomainEvent, aggrService.AggregateDistance)
 
 	http.HandleFunc("/get-distance", handleGetDistance(aggrService))

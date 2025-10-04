@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -13,8 +14,8 @@ import (
 )
 
 type Aggregator interface {
-	AggregateDistance(*shared.SensorData) error
-	AcceptSensorData(*shared.SensorData) error
+	AggregateDistance(context.Context, *shared.SensorData) error
+	ProcessSensorDataForPayment(context.Context, *shared.SensorData) error
 	GetDistance(id string) *shared.Distance
 }
 
@@ -40,7 +41,7 @@ func NewAggregatorService(store AggregatorStorer, transport client.TransportClie
 	return aggServ
 }
 
-func (svc *AggregatorService) AggregateDistance(data *shared.SensorData) error {
+func (svc *AggregatorService) AggregateDistance(ctx context.Context, data *shared.SensorData) error {
 	if len(svc.points) == 0 {
 		svc.points[0] = [2]float64{data.Lat, data.Lng}
 		return nil
@@ -63,11 +64,11 @@ func (svc *AggregatorService) AggregateDistance(data *shared.SensorData) error {
 	return nil
 }
 
-func (svc *AggregatorService) AcceptSensorData(d *shared.SensorData) error {
-	logrus.Infof("Second subsciber func got triggered with sensorID = %s\n", d.SensorID.String())
+func (svc *AggregatorService) ProcessSensorDataForPayment(ctx context.Context, d *shared.SensorData) error {
+	logrus.Infof("ProcessSensorDataForPayment func got triggered with sensorID = %s\n", d.SensorID.String())
 	errVal := rand.Intn(10)
 	if errVal < 5 {
-		return fmt.Errorf("random error for testing")
+		return fmt.Errorf("random error for testing in ProcessSensorDataForPayment")
 	}
 
 	return nil
