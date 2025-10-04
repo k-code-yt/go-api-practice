@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,47 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	client "github.com/k-code-yt/go-api-practice/data-aggregator/transport"
 	grpcclient "github.com/k-code-yt/go-api-practice/data-aggregator/transport/grpc"
 	"github.com/k-code-yt/go-api-practice/shared"
 	"github.com/sirupsen/logrus"
 )
-
-func handleGetDistance(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		queryParams := r.URL.Query()
-		id := queryParams.Get("id")
-		d := svc.GetDistance(id)
-		err := writeJSON(w, http.StatusOK, d)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "request failed, unable to marshal payload"})
-			return
-		}
-	}
-}
-
-func handleGetInvoice(intergation client.TransportClient) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		queryParams := r.URL.Query()
-		id := queryParams.Get("id")
-		d, err := intergation.GetInvoice(id)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "request failed to fetch invoice"})
-			return
-		}
-		err = writeJSON(w, http.StatusOK, d)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "request failed, unable to marshal payload"})
-			return
-		}
-	}
-}
-
-func writeJSON(rw http.ResponseWriter, status int, v any) error {
-	rw.WriteHeader(status)
-	rw.Header().Add("Content-Type", "applicaiton/json")
-	return json.NewEncoder(rw).Encode(v)
-}
 
 func main() {
 	sigChan := make(chan os.Signal, 1)
@@ -73,17 +35,22 @@ func main() {
 	}
 
 	aggrStore := NewInMemoryStore()
-	intergrationTransport, err := grpcclient.NewGRPCClient(fmt.Sprintf("localhost%s", shared.HTTPPortInvoice))
+	dataCH := make(chan *shared.SensorDataProto, 128)
+	intergrationTransport, err := grpcclient.NewGRPCClient(fmt.Sprintf("localhost%s", shared.HTTPPortInvoice), dataCH)
 	if err != nil {
 		logrus.Error(err)
 		os.Exit(1)
 	}
+	go intergrationTransport.AcceptWSLoop()
+	go intergrationTransport.ReadServerLoop()
+
 	aggrService := NewAggregatorService(aggrStore, intergrationTransport)
 
 	go msgBroker.consumer.ReadMessageLoop()
 	eventBus.Subscribe(shared.CalculatePaymentDomainEvent, aggrService.ProcessSensorDataForPayment)
 	eventBus.Subscribe(shared.AggregateDistanceDomainEvent, aggrService.AggregateDistance)
 
+	http.HandleFunc("/ws", handleWS(dataCH))
 	http.HandleFunc("/get-distance", handleGetDistance(aggrService))
 	http.HandleFunc("/get-invoice", handleGetInvoice(intergrationTransport))
 	logrus.Infof("Starting Aggregator HTTP listener at: %s\n", shared.HTTPPortAggregator)

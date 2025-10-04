@@ -7,4 +7,6 @@ import (
 type TransportClient interface {
 	SaveInvoice(distance shared.Distance) error
 	GetInvoice(id string) (*shared.Invoice, error)
+	AcceptWSLoop()
+	ReadServerLoop()
 }

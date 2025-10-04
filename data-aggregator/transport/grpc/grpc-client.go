@@ -11,13 +11,16 @@ import (
 )
 
 type GRPCClient struct {
-	Endpoint     string
-	conn         *grpc.ClientConn
-	client       shared.InvoiceTransportServiceClient
-	getterClient shared.GetterInvoiceTransportServiceClient
+	Endpoint        string
+	conn            *grpc.ClientConn
+	client          shared.InvoiceTransportServiceClient
+	getterClient    shared.GetterInvoiceTransportServiceClient
+	streamingClient shared.StreamingTransportSerivceClient
+	dataCH          chan *shared.SensorDataProto
+	stream          grpc.BidiStreamingClient[shared.SensorDataRequest, shared.SensorDataResponse]
 }
 
-func NewGRPCClient(endpoint string) (*GRPCClient, error) {
+func NewGRPCClient(endpoint string, dataCH chan *shared.SensorDataProto) (*GRPCClient, error) {
 	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
@@ -25,13 +28,20 @@ func NewGRPCClient(endpoint string) (*GRPCClient, error) {
 
 	client := shared.NewInvoiceTransportServiceClient(conn)
 	getterClient := shared.NewGetterInvoiceTransportServiceClient(conn)
+	streamingClient := shared.NewStreamingTransportSerivceClient(conn)
 	logrus.Infof("Registered GRPC client on port %s\n", endpoint)
-
+	stream, err := streamingClient.SensorDataStream(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	return &GRPCClient{
-		Endpoint:     endpoint,
-		conn:         conn,
-		client:       client,
-		getterClient: getterClient,
+		Endpoint:        endpoint,
+		conn:            conn,
+		client:          client,
+		getterClient:    getterClient,
+		streamingClient: streamingClient,
+		dataCH:          dataCH,
+		stream:          stream,
 	}, nil
 }
 
@@ -77,4 +87,47 @@ func (c *GRPCClient) SaveInvoice(distance shared.Distance) error {
 	}).Infof("GRPC:SaveInvoice")
 
 	return nil
+}
+
+func (c *GRPCClient) AcceptWSLoop() {
+	defer close(c.dataCH)
+	for data := range c.dataCH {
+		err := c.SendMsgStream(data)
+		if err != nil {
+			logrus.Errorf("error sending data to GRPC %v", err)
+			continue
+		}
+	}
+
+}
+
+func (c *GRPCClient) SendMsgStream(data *shared.SensorDataProto) error {
+	// TODO -> each message || entire stream?
+	// defer stream.CloseSend()
+	err := c.stream.Send(&shared.SensorDataRequest{
+		Data: data,
+	})
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *GRPCClient) ReadServerLoop() {
+	for {
+		resp, err := c.stream.Recv()
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"ID":     resp.GetData().GetID(),
+				"STATUS": "receive::error",
+			}).Errorf("error receiving data from GRPC %v", err)
+			continue
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"ID":     resp.GetData().GetID(),
+			"STATUS": "receive::success",
+		}).Info("GRPC client")
+	}
 }

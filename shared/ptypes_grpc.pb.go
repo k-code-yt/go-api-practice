@@ -223,3 +223,100 @@ var GetterInvoiceTransportService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "shared/ptypes.proto",
 }
+
+const (
+	StreamingTransportSerivce_SensorDataStream_FullMethodName = "/StreamingTransportSerivce/SensorDataStream"
+)
+
+// StreamingTransportSerivceClient is the client API for StreamingTransportSerivce service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type StreamingTransportSerivceClient interface {
+	SensorDataStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SensorDataRequest, SensorDataResponse], error)
+}
+
+type streamingTransportSerivceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewStreamingTransportSerivceClient(cc grpc.ClientConnInterface) StreamingTransportSerivceClient {
+	return &streamingTransportSerivceClient{cc}
+}
+
+func (c *streamingTransportSerivceClient) SensorDataStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SensorDataRequest, SensorDataResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &StreamingTransportSerivce_ServiceDesc.Streams[0], StreamingTransportSerivce_SensorDataStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SensorDataRequest, SensorDataResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StreamingTransportSerivce_SensorDataStreamClient = grpc.BidiStreamingClient[SensorDataRequest, SensorDataResponse]
+
+// StreamingTransportSerivceServer is the server API for StreamingTransportSerivce service.
+// All implementations must embed UnimplementedStreamingTransportSerivceServer
+// for forward compatibility.
+type StreamingTransportSerivceServer interface {
+	SensorDataStream(grpc.BidiStreamingServer[SensorDataRequest, SensorDataResponse]) error
+	mustEmbedUnimplementedStreamingTransportSerivceServer()
+}
+
+// UnimplementedStreamingTransportSerivceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedStreamingTransportSerivceServer struct{}
+
+func (UnimplementedStreamingTransportSerivceServer) SensorDataStream(grpc.BidiStreamingServer[SensorDataRequest, SensorDataResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method SensorDataStream not implemented")
+}
+func (UnimplementedStreamingTransportSerivceServer) mustEmbedUnimplementedStreamingTransportSerivceServer() {
+}
+func (UnimplementedStreamingTransportSerivceServer) testEmbeddedByValue() {}
+
+// UnsafeStreamingTransportSerivceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to StreamingTransportSerivceServer will
+// result in compilation errors.
+type UnsafeStreamingTransportSerivceServer interface {
+	mustEmbedUnimplementedStreamingTransportSerivceServer()
+}
+
+func RegisterStreamingTransportSerivceServer(s grpc.ServiceRegistrar, srv StreamingTransportSerivceServer) {
+	// If the following call pancis, it indicates UnimplementedStreamingTransportSerivceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&StreamingTransportSerivce_ServiceDesc, srv)
+}
+
+func _StreamingTransportSerivce_SensorDataStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(StreamingTransportSerivceServer).SensorDataStream(&grpc.GenericServerStream[SensorDataRequest, SensorDataResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StreamingTransportSerivce_SensorDataStreamServer = grpc.BidiStreamingServer[SensorDataRequest, SensorDataResponse]
+
+// StreamingTransportSerivce_ServiceDesc is the grpc.ServiceDesc for StreamingTransportSerivce service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var StreamingTransportSerivce_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "StreamingTransportSerivce",
+	HandlerType: (*StreamingTransportSerivceServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SensorDataStream",
+			Handler:       _StreamingTransportSerivce_SensorDataStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "shared/ptypes.proto",
+}

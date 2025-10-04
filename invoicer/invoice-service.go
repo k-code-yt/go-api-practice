@@ -5,6 +5,7 @@ import (
 
 	"github.com/k-code-yt/go-api-practice/invoicer/ports"
 	"github.com/k-code-yt/go-api-practice/shared"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -30,6 +31,18 @@ func (svc *InvoiceService) GetInvoice(id string) (*shared.Invoice, error) {
 		}
 	}
 	return nil, fmt.Errorf("invoice with ID: %s does not exists", id)
+}
+
+func (svc *InvoiceService) SensorDataStream(id string, lat, lng float64) error {
+	logrus.WithFields(logrus.Fields{
+		"ID": id,
+	}).Info("Received GRPC steam data into SVC")
+
+	// randVal := rand.Intn(10)
+	// if randVal > 5 {
+	// 	return fmt.Errorf("generating random err in GRPC stream for ID = %s", id)
+	// }
+	return nil
 }
 
 func NewInvoiceService() ports.Invoicer {

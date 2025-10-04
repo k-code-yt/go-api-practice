@@ -42,3 +42,23 @@ message GetInvoiceResponse {
 service GetterInvoiceTransportService {
 	rpc GetInvoice(GetInvoiceRequest) returns (GetInvoiceResponse);
 };
+
+
+// ---STREAMING---
+message SensorDataProto {
+	string ID = 1;
+	double lat = 2;
+	double lng = 3;
+};
+
+message SensorDataRequest {
+	SensorDataProto data = 1;
+};
+
+message SensorDataResponse {
+	SensorDataProto data = 1;
+};
+
+service StreamingTransportSerivce {
+	rpc SensorDataStream(stream SensorDataRequest) returns (stream SensorDataResponse);
+};

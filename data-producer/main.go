@@ -56,7 +56,9 @@ func main() {
 		HandshakeTimeout:  45 * time.Second,
 	}
 
-	conn, resp, err := dialer.Dial(shared.WSEndpoint, nil)
+	conn, resp, err := dialer.Dial("ws://localhost:3000/ws", nil)
+	// TODO -> revert
+	// conn, resp, err := dialer.Dial(shared.WSEndpoint, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -78,5 +80,4 @@ func main() {
 		}
 		time.Sleep(coordEmitDurr)
 	}
-
 }
