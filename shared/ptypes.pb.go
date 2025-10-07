@@ -474,6 +474,142 @@ func (x *SensorDataResponse) GetData() *SensorDataProto {
 	return nil
 }
 
+type FileChunk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Filename      string                 `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
+	Content       []byte                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	ChunkIndex    int64                  `protobuf:"varint,3,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
+	TotalSize     int64                  `protobuf:"varint,4,opt,name=total_size,json=totalSize,proto3" json:"total_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileChunk) Reset() {
+	*x = FileChunk{}
+	mi := &file_shared_ptypes_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileChunk) ProtoMessage() {}
+
+func (x *FileChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_shared_ptypes_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileChunk.ProtoReflect.Descriptor instead.
+func (*FileChunk) Descriptor() ([]byte, []int) {
+	return file_shared_ptypes_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *FileChunk) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+func (x *FileChunk) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *FileChunk) GetChunkIndex() int64 {
+	if x != nil {
+		return x.ChunkIndex
+	}
+	return 0
+}
+
+func (x *FileChunk) GetTotalSize() int64 {
+	if x != nil {
+		return x.TotalSize
+	}
+	return 0
+}
+
+type FileUploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	SavePath      string                 `protobuf:"bytes,3,opt,name=save_path,json=savePath,proto3" json:"save_path,omitempty"`
+	BytesReceived int64                  `protobuf:"varint,4,opt,name=bytes_received,json=bytesReceived,proto3" json:"bytes_received,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileUploadResponse) Reset() {
+	*x = FileUploadResponse{}
+	mi := &file_shared_ptypes_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileUploadResponse) ProtoMessage() {}
+
+func (x *FileUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_shared_ptypes_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileUploadResponse.ProtoReflect.Descriptor instead.
+func (*FileUploadResponse) Descriptor() ([]byte, []int) {
+	return file_shared_ptypes_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *FileUploadResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *FileUploadResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *FileUploadResponse) GetSavePath() string {
+	if x != nil {
+		return x.SavePath
+	}
+	return ""
+}
+
+func (x *FileUploadResponse) GetBytesReceived() int64 {
+	if x != nil {
+		return x.BytesReceived
+	}
+	return 0
+}
+
 var File_shared_ptypes_proto protoreflect.FileDescriptor
 
 const file_shared_ptypes_proto_rawDesc = "" +
@@ -503,14 +639,29 @@ const file_shared_ptypes_proto_rawDesc = "" +
 	"\x11SensorDataRequest\x12$\n" +
 	"\x04data\x18\x01 \x01(\v2\x10.SensorDataProtoR\x04data\":\n" +
 	"\x12SensorDataResponse\x12$\n" +
-	"\x04data\x18\x01 \x01(\v2\x10.SensorDataProtoR\x04data2S\n" +
+	"\x04data\x18\x01 \x01(\v2\x10.SensorDataProtoR\x04data\"\x81\x01\n" +
+	"\tFileChunk\x12\x1a\n" +
+	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\fR\acontent\x12\x1f\n" +
+	"\vchunk_index\x18\x03 \x01(\x03R\n" +
+	"chunkIndex\x12\x1d\n" +
+	"\n" +
+	"total_size\x18\x04 \x01(\x03R\ttotalSize\"\x8c\x01\n" +
+	"\x12FileUploadResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1b\n" +
+	"\tsave_path\x18\x03 \x01(\tR\bsavePath\x12%\n" +
+	"\x0ebytes_received\x18\x04 \x01(\x03R\rbytesReceived2S\n" +
 	"\x17InvoiceTransportService\x128\n" +
 	"\vSaveInvoice\x12\x13.SaveInvoiceRequest\x1a\x14.SaveInvoiceResponse2V\n" +
 	"\x1dGetterInvoiceTransportService\x125\n" +
 	"\n" +
-	"GetInvoice\x12\x12.GetInvoiceRequest\x1a\x13.GetInvoiceResponse2\\\n" +
+	"GetInvoice\x12\x12.GetInvoiceRequest\x1a\x13.GetInvoiceResponse2\x8d\x01\n" +
 	"\x19StreamingTransportSerivce\x12?\n" +
-	"\x10SensorDataStream\x12\x12.SensorDataRequest\x1a\x13.SensorDataResponse(\x010\x01B-Z+github.com/k-code-yt/go-api-practice/sharedb\x06proto3"
+	"\x10SensorDataStream\x12\x12.SensorDataRequest\x1a\x13.SensorDataResponse(\x010\x01\x12/\n" +
+	"\n" +
+	"UploadFile\x12\n" +
+	".FileChunk\x1a\x13.FileUploadResponse(\x01B-Z+github.com/k-code-yt/go-api-practice/sharedb\x06proto3"
 
 var (
 	file_shared_ptypes_proto_rawDescOnce sync.Once
@@ -524,7 +675,7 @@ func file_shared_ptypes_proto_rawDescGZIP() []byte {
 	return file_shared_ptypes_proto_rawDescData
 }
 
-var file_shared_ptypes_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_shared_ptypes_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_shared_ptypes_proto_goTypes = []any{
 	(*DistanceProto)(nil),       // 0: DistanceProto
 	(*SaveInvoiceRequest)(nil),  // 1: SaveInvoiceRequest
@@ -535,23 +686,27 @@ var file_shared_ptypes_proto_goTypes = []any{
 	(*SensorDataProto)(nil),     // 6: SensorDataProto
 	(*SensorDataRequest)(nil),   // 7: SensorDataRequest
 	(*SensorDataResponse)(nil),  // 8: SensorDataResponse
+	(*FileChunk)(nil),           // 9: FileChunk
+	(*FileUploadResponse)(nil),  // 10: FileUploadResponse
 }
 var file_shared_ptypes_proto_depIdxs = []int32{
-	0, // 0: SaveInvoiceRequest.distance:type_name -> DistanceProto
-	4, // 1: GetInvoiceResponse.invoice:type_name -> InvoiceProto
-	6, // 2: SensorDataRequest.data:type_name -> SensorDataProto
-	6, // 3: SensorDataResponse.data:type_name -> SensorDataProto
-	1, // 4: InvoiceTransportService.SaveInvoice:input_type -> SaveInvoiceRequest
-	3, // 5: GetterInvoiceTransportService.GetInvoice:input_type -> GetInvoiceRequest
-	7, // 6: StreamingTransportSerivce.SensorDataStream:input_type -> SensorDataRequest
-	2, // 7: InvoiceTransportService.SaveInvoice:output_type -> SaveInvoiceResponse
-	5, // 8: GetterInvoiceTransportService.GetInvoice:output_type -> GetInvoiceResponse
-	8, // 9: StreamingTransportSerivce.SensorDataStream:output_type -> SensorDataResponse
-	7, // [7:10] is the sub-list for method output_type
-	4, // [4:7] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0,  // 0: SaveInvoiceRequest.distance:type_name -> DistanceProto
+	4,  // 1: GetInvoiceResponse.invoice:type_name -> InvoiceProto
+	6,  // 2: SensorDataRequest.data:type_name -> SensorDataProto
+	6,  // 3: SensorDataResponse.data:type_name -> SensorDataProto
+	1,  // 4: InvoiceTransportService.SaveInvoice:input_type -> SaveInvoiceRequest
+	3,  // 5: GetterInvoiceTransportService.GetInvoice:input_type -> GetInvoiceRequest
+	7,  // 6: StreamingTransportSerivce.SensorDataStream:input_type -> SensorDataRequest
+	9,  // 7: StreamingTransportSerivce.UploadFile:input_type -> FileChunk
+	2,  // 8: InvoiceTransportService.SaveInvoice:output_type -> SaveInvoiceResponse
+	5,  // 9: GetterInvoiceTransportService.GetInvoice:output_type -> GetInvoiceResponse
+	8,  // 10: StreamingTransportSerivce.SensorDataStream:output_type -> SensorDataResponse
+	10, // 11: StreamingTransportSerivce.UploadFile:output_type -> FileUploadResponse
+	8,  // [8:12] is the sub-list for method output_type
+	4,  // [4:8] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_shared_ptypes_proto_init() }
@@ -565,7 +720,7 @@ func file_shared_ptypes_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_shared_ptypes_proto_rawDesc), len(file_shared_ptypes_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

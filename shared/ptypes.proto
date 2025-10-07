@@ -55,10 +55,26 @@ message SensorDataRequest {
 	SensorDataProto data = 1;
 };
 
+
 message SensorDataResponse {
 	SensorDataProto data = 1;
 };
 
+message FileChunk {
+	string filename = 1;
+	bytes content = 2;
+	int64 chunk_index = 3;
+	int64 total_size = 4;
+};
+
+message FileUploadResponse {
+	bool success = 1;
+	string message = 2;
+	string save_path = 3;
+	int64 bytes_received = 4;
+};
+
 service StreamingTransportSerivce {
 	rpc SensorDataStream(stream SensorDataRequest) returns (stream SensorDataResponse);
+	rpc UploadFile(stream FileChunk) returns(FileUploadResponse);
 };

@@ -29,5 +29,13 @@ build-invoicer:
 inv: build-invoicer
 	@./bin/invoicer
 
+
+build-file-sender:
+	@go build -o ./bin/file-sender ./file-sender/
+	@chmod +x ./bin/file-sender
+
+file: build-file-sender
+	@./bin/file-sender
+
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto

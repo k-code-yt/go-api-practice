@@ -52,7 +52,6 @@ func (kp *KafkaProducer) ProduceData(data shared.SensorData) error {
 		return err
 	}
 
-	// TODO -> remove || for dev purposes only(for now)
 	go func() {
 		for e := range kp.producer.Events() {
 			switch ev := e.(type) {

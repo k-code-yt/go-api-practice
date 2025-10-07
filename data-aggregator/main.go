@@ -36,15 +36,15 @@ func main() {
 
 	aggrStore := NewInMemoryStore()
 	dataCH := make(chan *shared.SensorDataProto, 128)
-	intergrationTransport, err := grpcclient.NewGRPCClient(fmt.Sprintf("localhost%s", shared.HTTPPortInvoice), dataCH)
+	integrationTransport, err := grpcclient.NewGRPCClient(fmt.Sprintf("localhost%s", shared.HTTPPortInvoice), dataCH)
 	if err != nil {
 		logrus.Error(err)
 		os.Exit(1)
 	}
-	go intergrationTransport.AcceptWSLoop()
-	go intergrationTransport.ReadServerLoop()
+	go integrationTransport.AcceptWSLoop()
+	go integrationTransport.ReadServerLoop()
 
-	aggrService := NewAggregatorService(aggrStore, intergrationTransport)
+	aggrService := NewAggregatorService(aggrStore, integrationTransport)
 
 	go msgBroker.consumer.ReadMessageLoop()
 	eventBus.Subscribe(shared.CalculatePaymentDomainEvent, aggrService.ProcessSensorDataForPayment)
@@ -52,7 +52,7 @@ func main() {
 
 	http.HandleFunc("/ws", handleWS(dataCH))
 	http.HandleFunc("/get-distance", handleGetDistance(aggrService))
-	http.HandleFunc("/get-invoice", handleGetInvoice(intergrationTransport))
+	http.HandleFunc("/get-invoice", handleGetInvoice(integrationTransport))
 	logrus.Infof("Starting Aggregator HTTP listener at: %s\n", shared.HTTPPortAggregator)
 	log.Fatal(http.ListenAndServe(shared.HTTPPortAggregator, nil))
 }

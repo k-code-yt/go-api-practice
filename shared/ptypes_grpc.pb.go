@@ -226,6 +226,7 @@ var GetterInvoiceTransportService_ServiceDesc = grpc.ServiceDesc{
 
 const (
 	StreamingTransportSerivce_SensorDataStream_FullMethodName = "/StreamingTransportSerivce/SensorDataStream"
+	StreamingTransportSerivce_UploadFile_FullMethodName       = "/StreamingTransportSerivce/UploadFile"
 )
 
 // StreamingTransportSerivceClient is the client API for StreamingTransportSerivce service.
@@ -233,6 +234,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type StreamingTransportSerivceClient interface {
 	SensorDataStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SensorDataRequest, SensorDataResponse], error)
+	UploadFile(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[FileChunk, FileUploadResponse], error)
 }
 
 type streamingTransportSerivceClient struct {
@@ -256,11 +258,25 @@ func (c *streamingTransportSerivceClient) SensorDataStream(ctx context.Context, 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type StreamingTransportSerivce_SensorDataStreamClient = grpc.BidiStreamingClient[SensorDataRequest, SensorDataResponse]
 
+func (c *streamingTransportSerivceClient) UploadFile(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[FileChunk, FileUploadResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &StreamingTransportSerivce_ServiceDesc.Streams[1], StreamingTransportSerivce_UploadFile_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[FileChunk, FileUploadResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StreamingTransportSerivce_UploadFileClient = grpc.ClientStreamingClient[FileChunk, FileUploadResponse]
+
 // StreamingTransportSerivceServer is the server API for StreamingTransportSerivce service.
 // All implementations must embed UnimplementedStreamingTransportSerivceServer
 // for forward compatibility.
 type StreamingTransportSerivceServer interface {
 	SensorDataStream(grpc.BidiStreamingServer[SensorDataRequest, SensorDataResponse]) error
+	UploadFile(grpc.ClientStreamingServer[FileChunk, FileUploadResponse]) error
 	mustEmbedUnimplementedStreamingTransportSerivceServer()
 }
 
@@ -273,6 +289,9 @@ type UnimplementedStreamingTransportSerivceServer struct{}
 
 func (UnimplementedStreamingTransportSerivceServer) SensorDataStream(grpc.BidiStreamingServer[SensorDataRequest, SensorDataResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method SensorDataStream not implemented")
+}
+func (UnimplementedStreamingTransportSerivceServer) UploadFile(grpc.ClientStreamingServer[FileChunk, FileUploadResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method UploadFile not implemented")
 }
 func (UnimplementedStreamingTransportSerivceServer) mustEmbedUnimplementedStreamingTransportSerivceServer() {
 }
@@ -303,6 +322,13 @@ func _StreamingTransportSerivce_SensorDataStream_Handler(srv interface{}, stream
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type StreamingTransportSerivce_SensorDataStreamServer = grpc.BidiStreamingServer[SensorDataRequest, SensorDataResponse]
 
+func _StreamingTransportSerivce_UploadFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(StreamingTransportSerivceServer).UploadFile(&grpc.GenericServerStream[FileChunk, FileUploadResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StreamingTransportSerivce_UploadFileServer = grpc.ClientStreamingServer[FileChunk, FileUploadResponse]
+
 // StreamingTransportSerivce_ServiceDesc is the grpc.ServiceDesc for StreamingTransportSerivce service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -315,6 +341,11 @@ var StreamingTransportSerivce_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "SensorDataStream",
 			Handler:       _StreamingTransportSerivce_SensorDataStream_Handler,
 			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "UploadFile",
+			Handler:       _StreamingTransportSerivce_UploadFile_Handler,
 			ClientStreams: true,
 		},
 	},

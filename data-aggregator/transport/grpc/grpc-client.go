@@ -7,7 +7,10 @@ import (
 	"github.com/k-code-yt/go-api-practice/shared"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type GRPCClient struct {
@@ -29,8 +32,16 @@ func NewGRPCClient(endpoint string, dataCH chan *shared.SensorDataProto) (*GRPCC
 	client := shared.NewInvoiceTransportServiceClient(conn)
 	getterClient := shared.NewGetterInvoiceTransportServiceClient(conn)
 	streamingClient := shared.NewStreamingTransportSerivceClient(conn)
+
+	md := metadata.Pairs(
+		"authorization", "Bearer token123",
+		"request-id", "abc-def-ghi",
+		"tenant-id", "acme-corp",
+	)
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+	stream, err := streamingClient.SensorDataStream(ctx)
+
 	logrus.Infof("Registered GRPC client on port %s\n", endpoint)
-	stream, err := streamingClient.SensorDataStream(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -117,17 +128,42 @@ func (c *GRPCClient) SendMsgStream(data *shared.SensorDataProto) error {
 func (c *GRPCClient) ReadServerLoop() {
 	for {
 		resp, err := c.stream.Recv()
+
+		if err != nil {
+			st, ok := status.FromError(err)
+			if !ok {
+				continue
+			}
+
+			code := st.Code()
+			if code == codes.Unavailable || code == codes.DeadlineExceeded {
+				logrus.Errorf("GRPC EOF error %v", err)
+				return
+			} else {
+				logrus.WithFields(logrus.Fields{
+					"ID":     resp.GetData().GetID(),
+					"STATUS": "receive::error",
+				}).Errorf("error receiving data from GRPC %v", err)
+				continue
+			}
+
+		}
+
+		h, err := c.stream.Header()
+		tr := c.stream.Trailer()
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"ID":     resp.GetData().GetID(),
 				"STATUS": "receive::error",
-			}).Errorf("error receiving data from GRPC %v", err)
+			}).Errorf("error getting GRPC Headers %v", err)
 			continue
 		}
 
 		logrus.WithFields(logrus.Fields{
-			"ID":     resp.GetData().GetID(),
-			"STATUS": "receive::success",
+			"ID":      resp.GetData().GetID(),
+			"STATUS":  "receive::success",
+			"Headers": h,
+			"Trailer": tr,
 		}).Info("GRPC client")
 	}
 }
