@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	grpcclient "github.com/k-code-yt/go-api-practice/data-aggregator/transport/grpc"
+	grpcclient "github.com/k-code-yt/go-api-practice/protocol-playground/data-aggregator/transport/grpc"
 	"github.com/k-code-yt/go-api-practice/shared"
 	"github.com/sirupsen/logrus"
 )

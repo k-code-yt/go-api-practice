@@ -10,8 +10,10 @@
     <input type="text" id="messageInput" placeholder="Type a message" />
     <button onclick="sendMessage()">Send</button>
 
+    <button onclick="disconnect()">Disconnect</button>
+
     <script>
-      const ws = new WebSocket("ws://localhost:3000/ws");
+      const ws = new WebSocket("ws://localhost:3231");
 
       ws.onopen = function (event) {
         document.getElementById("status").innerHTML = "Connected!";
@@ -36,8 +38,16 @@
 
       function sendMessage() {
         const input = document.getElementById("messageInput");
-        ws.send(input.value);
+        const msg = JSON.stringify({
+          data: input.value,
+          type: "direct",
+        });
+        ws.send(msg);
         input.value = "";
+      }
+
+      function disconnect() {
+        ws.close();
       }
     </script>
   </body>
