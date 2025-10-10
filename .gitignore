@@ -1,2 +1,4 @@
-bin/*
+*/bin/*
+*/*.xlsx
 go.sum
+*/go.sum

@@ -54,6 +54,7 @@ func handleWS(dataCH chan *shared.SensorDataProto) http.HandlerFunc {
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},
+			EnableCompression: true,
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
