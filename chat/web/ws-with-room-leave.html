@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Connection Manager</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .header {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .header h1 {
+        color: #333;
+        margin-bottom: 15px;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .controls input {
+        flex: 1;
+        min-width: 200px;
+        padding: 10px;
+        border: 2px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+      }
+
+      .controls button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.3s;
+      }
+
+      .controls button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-primary {
+        background: #667eea;
+        color: white;
+      }
+
+      .btn-success {
+        background: #48bb78;
+        color: white;
+      }
+
+      .btn-danger {
+        background: #f56565;
+        color: white;
+      }
+
+      .btn-secondary {
+        background: #718096;
+        color: white;
+      }
+
+      .stats {
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .stat-item {
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 32px;
+        font-weight: bold;
+        color: #667eea;
+      }
+
+      .stat-label {
+        color: #718096;
+        font-size: 14px;
+        margin-top: 5px;
+      }
+
+      .global-messages {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .global-messages h3 {
+        margin-bottom: 15px;
+        color: #333;
+      }
+
+      #globalMessages {
+        max-height: 200px;
+        overflow-y: auto;
+        background: #f7fafc;
+        padding: 10px;
+        border-radius: 5px;
+      }
+
+      #connectionsContainer {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+        gap: 20px;
+      }
+
+      .connection-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s;
+      }
+
+      .connection-card.connecting {
+        border-left: 5px solid #ed8936;
+      }
+
+      .connection-card.connected {
+        border-left: 5px solid #48bb78;
+      }
+
+      .connection-card.disconnected {
+        border-left: 5px solid #f56565;
+      }
+
+      .connection-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+
+      .connection-id {
+        font-weight: bold;
+        font-size: 18px;
+        color: #333;
+      }
+
+      .status {
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+      }
+
+      .status.connecting {
+        background: #feebc8;
+        color: #c05621;
+      }
+
+      .status.connected {
+        background: #c6f6d5;
+        color: #22543d;
+      }
+
+      .status.disconnected {
+        background: #fed7d7;
+        color: #742a2a;
+      }
+
+      .connection-controls {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+      }
+
+      .connection-controls button {
+        flex: 1;
+        padding: 8px 12px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        transition: all 0.3s;
+      }
+
+      .connection-controls button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .connect-btn {
+        background: #48bb78;
+        color: white;
+      }
+
+      .disconnect-btn {
+        background: #f56565;
+        color: white;
+      }
+
+      .send-btn {
+        background: #667eea;
+        color: white;
+      }
+
+      .remove-btn {
+        background: #718096;
+        color: white;
+      }
+
+      .room-controls {
+        background: #edf2f7;
+        padding: 12px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        display: none;
+      }
+
+      .room-controls.active {
+        display: block;
+      }
+
+      .room-input-group {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .room-input-group input {
+        flex: 1;
+        padding: 8px;
+        border: 2px solid #cbd5e0;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+
+      .room-input-group button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 12px;
+        background: #4299e1;
+        color: white;
+      }
+
+      .room-input-group button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .active-rooms {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+
+      .room-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #4299e1;
+        color: white;
+        padding: 6px 10px;
+        border-radius: 15px;
+        font-size: 12px;
+        font-weight: bold;
+      }
+
+      .room-badge button {
+        background: transparent;
+        border: none;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 0;
+        margin-left: 4px;
+      }
+
+      .pod-info {
+        background: #edf2f7;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        font-size: 13px;
+      }
+
+      .pod-detail {
+        margin: 5px 0;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .pod-detail strong {
+        color: #4a5568;
+      }
+
+      .pod-detail span {
+        color: #667eea;
+        font-family: monospace;
+      }
+
+      .messages-section {
+        margin-bottom: 10px;
+      }
+
+      .messages-tabs {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #e2e8f0;
+      }
+
+      .message-tab {
+        padding: 8px 12px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 12px;
+        color: #718096;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+      }
+
+      .message-tab.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+      }
+
+      .messages {
+        max-height: 250px;
+        overflow-y: auto;
+        background: #f7fafc;
+        padding: 10px;
+        border-radius: 5px;
+        display: none;
+      }
+
+      .messages.active {
+        display: block;
+      }
+
+      .message {
+        margin: 5px 0;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .timestamp {
+        color: #718096;
+        font-weight: bold;
+      }
+
+      .ping-status {
+        font-size: 11px;
+        color: #718096;
+        margin-top: 5px;
+      }
+
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: #edf2f7;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 4px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: #a0aec0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🔌 WebSocket Connection Manager</h1>
+        <div class="controls">
+          <input
+            type="text"
+            id="serverUrl"
+            placeholder="WebSocket Server URL"
+            value="ws://localhost:3231"
+          />
+          <button id="addConnectionBtn" class="btn-primary">
+            ➕ Add Connection
+          </button>
+          <button id="connectAllBtn" class="btn-success">🔗 Connect All</button>
+          <button id="disconnectAllBtn" class="btn-danger">
+            🔌 Disconnect All
+          </button>
+          <button id="clearAllBtn" class="btn-secondary">
+            🗑️ Clear Messages
+          </button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat-item">
+          <div class="stat-value" id="totalConnections">0</div>
+          <div class="stat-label">Total Connections</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="activeConnections">0</div>
+          <div class="stat-label">Active Connections</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="totalMessages">0</div>
+          <div class="stat-label">Total Messages</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="uniquePods">0</div>
+          <div class="stat-label">Unique Pods</div>
+        </div>
+      </div>
+
+      <div class="global-messages">
+        <h3>📊 Global Activity Log</h3>
+        <div id="globalMessages"></div>
+      </div>
+
+      <div id="connectionsContainer"></div>
+    </div>
+
+    <script>
+      let connectionCounter = 0;
+      let connections = new Map();
+      let totalMessageCount = 0;
+      let connectedPods = new Set();
+
+      const serverUrlInput = document.getElementById("serverUrl");
+      const connectionsContainer = document.getElementById(
+        "connectionsContainer"
+      );
+      const globalMessages = document.getElementById("globalMessages");
+
+      const totalConnectionsEl = document.getElementById("totalConnections");
+      const activeConnectionsEl = document.getElementById("activeConnections");
+      const totalMessagesEl = document.getElementById("totalMessages");
+      const uniquePodsEl = document.getElementById("uniquePods");
+
+      function addGlobalMessage(text, type = "info") {
+        const timestamp = new Date().toLocaleTimeString();
+        const messageEl = document.createElement("div");
+        messageEl.className = "message";
+        messageEl.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${text}`;
+        globalMessages.appendChild(messageEl);
+        globalMessages.scrollTop = globalMessages.scrollHeight;
+      }
+
+      function addConnectionMessage(connectionId, text, roomId = null) {
+        const targetClass = roomId
+          ? `room-${roomId}-messages`
+          : "general-messages";
+        const messagesDiv = document.querySelector(
+          `#conn-${connectionId} .${targetClass}`
+        );
+        if (messagesDiv) {
+          const timestamp = new Date().toLocaleTimeString();
+          const messageEl = document.createElement("div");
+          messageEl.className = "message";
+          messageEl.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${text}`;
+          messagesDiv.appendChild(messageEl);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+      }
+
+      function updateGlobalStats() {
+        totalConnectionsEl.textContent = connections.size;
+
+        let activeCount = 0;
+        connections.forEach((conn) => {
+          if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+            activeCount++;
+          }
+        });
+        activeConnectionsEl.textContent = activeCount;
+        totalMessagesEl.textContent = totalMessageCount;
+        uniquePodsEl.textContent = connectedPods.size;
+      }
+
+      function updateConnectionStatus(connectionId, status) {
+        const card = document.getElementById(`conn-${connectionId}`);
+        const statusEl = card.querySelector(".status");
+
+        card.className = `connection-card ${status}`;
+        statusEl.textContent = status.toUpperCase();
+        statusEl.className = `status ${status}`;
+
+        updateGlobalStats();
+      }
+
+      function updatePodInfo(connectionId, data) {
+        const podInfoEl = document.querySelector(
+          `#conn-${connectionId} .pod-info`
+        );
+        if (data.podName && data.podIp && podInfoEl) {
+          const conn = connections.get(connectionId);
+          podInfoEl.innerHTML = `
+            <div class="pod-detail">
+              <strong>Pod:</strong> <span>${data.podName}</span>
+            </div>
+            <div class="pod-detail">
+              <strong>IP:</strong> <span>${data.podIp}</span>
+            </div>
+            <div class="pod-detail">
+              <strong>Connection ID:</strong> <span>${conn.wsId || "N/A"}</span>
+            </div>
+            <div class="ping-status">Last ping: <span class="last-ping">Never</span></div>
+          `;
+          podInfoEl.style.display = "block";
+
+          connectedPods.add(data.podName);
+          updateGlobalStats();
+        }
+      }
+
+      function switchTab(connectionId, tabName) {
+        const card = document.getElementById(`conn-${connectionId}`);
+
+        card.querySelectorAll(".message-tab").forEach((tab) => {
+          tab.classList.remove("active");
+        });
+
+        card.querySelectorAll(".messages").forEach((msg) => {
+          msg.classList.remove("active");
+        });
+
+        card.querySelector(`.tab-${tabName}`).classList.add("active");
+        card.querySelector(`.${tabName}-messages`).classList.add("active");
+      }
+
+      function addRoomTab(connectionId, roomId) {
+        const card = document.getElementById(`conn-${connectionId}`);
+        const tabsContainer = card.querySelector(".messages-tabs");
+        const messagesSection = card.querySelector(".messages-section");
+
+        if (card.querySelector(`.tab-room-${roomId}`)) {
+          return;
+        }
+
+        const tab = document.createElement("button");
+        tab.className = "message-tab tab-room-" + roomId;
+        tab.textContent = "Room " + roomId;
+        tab.onclick = () => switchTab(connectionId, "room-" + roomId);
+        tabsContainer.appendChild(tab);
+
+        const messagesDiv = document.createElement("div");
+        messagesDiv.className = "messages room-" + roomId + "-messages";
+        messagesSection.appendChild(messagesDiv);
+      }
+
+      function removeRoomTab(connectionId, roomId) {
+        const card = document.getElementById(`conn-${connectionId}`);
+
+        const tab = card.querySelector(`.tab-room-${roomId}`);
+        if (tab) tab.remove();
+
+        const messagesDiv = card.querySelector(`.room-${roomId}-messages`);
+        if (messagesDiv) messagesDiv.remove();
+
+        switchTab(connectionId, "general");
+      }
+
+      function updateActiveRooms(connectionId) {
+        const conn = connections.get(connectionId);
+        const card = document.getElementById(`conn-${connectionId}`);
+        const activeRoomsDiv = card.querySelector(".active-rooms");
+
+        activeRoomsDiv.innerHTML = "";
+
+        conn.rooms.forEach((roomId) => {
+          const badge = document.createElement("div");
+          badge.className = "room-badge";
+          badge.innerHTML = `
+            Room ${roomId}
+            <button onclick="leaveRoom(${connectionId}, '${roomId}')">×</button>
+          `;
+          activeRoomsDiv.appendChild(badge);
+        });
+      }
+
+      function joinRoom(connectionId, roomId) {
+        const conn = connections.get(connectionId);
+        if (!conn || !conn.ws || conn.ws.readyState !== WebSocket.OPEN) return;
+
+        if (conn.rooms.has(roomId)) {
+          addConnectionMessage(connectionId, `⚠️ Already in room ${roomId}`);
+          return;
+        }
+
+        const message = JSON.stringify({
+          type: "join-room",
+          roomId: roomId,
+        });
+
+        conn.ws.send(message);
+        conn.rooms.add(roomId);
+
+        addRoomTab(connectionId, roomId);
+        updateActiveRooms(connectionId);
+
+        addConnectionMessage(connectionId, `🚪 Joined room ${roomId}`);
+        addGlobalMessage(
+          `🚪 Connection #${connectionId} joined room ${roomId}`
+        );
+      }
+
+      function leaveRoom(connectionId, roomId) {
+        const conn = connections.get(connectionId);
+        if (!conn || !conn.ws || conn.ws.readyState !== WebSocket.OPEN) return;
+
+        if (!conn.rooms.has(roomId)) return;
+
+        const message = JSON.stringify({
+          type: "leave-room",
+          roomId: roomId,
+        });
+
+        conn.ws.send(message);
+        conn.rooms.delete(roomId);
+
+        removeRoomTab(connectionId, roomId);
+        updateActiveRooms(connectionId);
+
+        addConnectionMessage(connectionId, `🚪 Left room ${roomId}`);
+        addGlobalMessage(`🚪 Connection #${connectionId} left room ${roomId}`);
+      }
+
+      function startPingInterval(connectionId) {
+        const conn = connections.get(connectionId);
+        if (!conn) return;
+
+        conn.pingInterval = setInterval(() => {
+          if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+            const pingMessage = JSON.stringify({ type: "ping" });
+            conn.ws.send(pingMessage);
+
+            const card = document.getElementById(`conn-${connectionId}`);
+            const lastPingEl = card.querySelector(".last-ping");
+            if (lastPingEl) {
+              lastPingEl.textContent = new Date().toLocaleTimeString();
+            }
+
+            addConnectionMessage(connectionId, `🏓 Sent ping`);
+          }
+        }, 30000);
+      }
+
+      function stopPingInterval(connectionId) {
+        const conn = connections.get(connectionId);
+        if (conn && conn.pingInterval) {
+          clearInterval(conn.pingInterval);
+          conn.pingInterval = null;
+        }
+      }
+
+      function createConnection() {
+        connectionCounter++;
+        const connectionId = connectionCounter;
+        const url = serverUrlInput.value.trim();
+
+        const connectionCard = document.createElement("div");
+        connectionCard.className = "connection-card disconnected";
+        connectionCard.id = `conn-${connectionId}`;
+
+        connectionCard.innerHTML = `
+          <div class="connection-header">
+            <div class="connection-id">Connection #${connectionId}</div>
+            <div class="status disconnected">DISCONNECTED</div>
+          </div>
+
+          <div class="connection-controls">
+            <button class="connect-btn">Connect</button>
+            <button class="disconnect-btn" disabled>Disconnect</button>
+            <button class="send-btn" disabled>SendBroadcast</button>
+            <button class="remove-btn">Remove</button>
+          </div>
+
+          <div class="room-controls">
+            <div class="room-input-group">
+              <input type="text" class="room-id-input" placeholder="Enter room ID" />
+              <button class="join-room-btn" disabled>Join Room</button>
+            </div>
+            <div class="active-rooms"></div>
+          </div>
+
+          <div class="pod-info" style="display: none;"></div>
+
+          <div class="messages-section">
+            <div class="messages-tabs">
+              <button class="message-tab tab-general active" onclick="switchTab(${connectionId}, 'general')">General</button>
+            </div>
+            <div class="messages general-messages active">
+              <div class="message">
+                <span class="timestamp">[Ready]</span> Connection ${connectionId} ready to connect to ${url}
+              </div>
+            </div>
+          </div>
+        `;
+
+        connectionsContainer.appendChild(connectionCard);
+
+        connections.set(connectionId, {
+          ws: null,
+          url: url,
+          connected: false,
+          messageCount: 0,
+          wsId: null,
+          rooms: new Set(),
+          pingInterval: null,
+        });
+
+        const connectBtn = connectionCard.querySelector(".connect-btn");
+        const disconnectBtn = connectionCard.querySelector(".disconnect-btn");
+        const sendBtn = connectionCard.querySelector(".send-btn");
+        const removeBtn = connectionCard.querySelector(".remove-btn");
+        const joinRoomBtn = connectionCard.querySelector(".join-room-btn");
+        const roomIdInput = connectionCard.querySelector(".room-id-input");
+
+        connectBtn.addEventListener("click", () =>
+          connectConnection(connectionId)
+        );
+        disconnectBtn.addEventListener("click", () =>
+          disconnectConnection(connectionId)
+        );
+        sendBtn.addEventListener("click", () =>
+          sendBroadcastMessage(connectionId)
+        );
+        removeBtn.addEventListener("click", () =>
+          removeConnection(connectionId)
+        );
+        joinRoomBtn.addEventListener("click", () => {
+          const roomId = roomIdInput.value.trim();
+          if (roomId) {
+            joinRoom(connectionId, roomId);
+            roomIdInput.value = "";
+          }
+        });
+
+        roomIdInput.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            const roomId = roomIdInput.value.trim();
+            if (roomId) {
+              joinRoom(connectionId, roomId);
+              roomIdInput.value = "";
+            }
+          }
+        });
+
+        updateGlobalStats();
+        addGlobalMessage(
+          `➕ Added Connection #${connectionId} targeting ${url}`
+        );
+      }
+
+      function connectConnection(connectionId) {
+        const conn = connections.get(connectionId);
+        if (!conn || conn.connected) return;
+
+        updateConnectionStatus(connectionId, "connecting");
+        addConnectionMessage(connectionId, `🔄 Connecting to ${conn.url}...`);
+        addGlobalMessage(
+          `🔄 Connection #${connectionId} attempting to connect`
+        );
+
+        try {
+          const ws = new WebSocket(conn.url);
+
+          ws.onopen = () => {
+            conn.ws = ws;
+            conn.connected = true;
+            updateConnectionStatus(connectionId, "connected");
+            addConnectionMessage(connectionId, `✅ Connected!`);
+            addGlobalMessage(`✅ Connection #${connectionId} established`);
+
+            const card = document.getElementById(`conn-${connectionId}`);
+            card.querySelector(".connect-btn").disabled = true;
+            card.querySelector(".disconnect-btn").disabled = false;
+            card.querySelector(".send-btn").disabled = false;
+            card.querySelector(".join-room-btn").disabled = false;
+            card.querySelector(".room-controls").classList.add("active");
+
+            startPingInterval(connectionId);
+          };
+
+          ws.onclose = () => {
+            conn.connected = false;
+            conn.ws = null;
+            conn.rooms.clear();
+            updateConnectionStatus(connectionId, "disconnected");
+            addConnectionMessage(connectionId, "❌ Disconnected from server");
+            addGlobalMessage(`❌ Connection #${connectionId} disconnected`);
+
+            stopPingInterval(connectionId);
+
+            const card = document.getElementById(`conn-${connectionId}`);
+            if (card) {
+              card.querySelector(".connect-btn").disabled = false;
+              card.querySelector(".disconnect-btn").disabled = true;
+              card.querySelector(".send-btn").disabled = true;
+              card.querySelector(".join-room-btn").disabled = true;
+              card.querySelector(".room-controls").classList.remove("active");
+              card.querySelector(".pod-info").style.display = "none";
+              card.querySelector(".active-rooms").innerHTML = "";
+
+              card
+                .querySelectorAll(".message-tab:not(.tab-general)")
+                .forEach((tab) => tab.remove());
+              card
+                .querySelectorAll(".messages:not(.general-messages)")
+                .forEach((msg) => msg.remove());
+              switchTab(connectionId, "general");
+            }
+          };
+
+          ws.onerror = (error) => {
+            updateConnectionStatus(connectionId, "disconnected");
+            addConnectionMessage(connectionId, `❌ Connection error`);
+            addGlobalMessage(`❌ Connection #${connectionId} error`);
+          };
+
+          ws.onmessage = (event) => {
+            conn.messageCount++;
+            totalMessageCount++;
+
+            try {
+              const data = JSON.parse(event.data);
+
+              if (data.wsId) {
+                conn.wsId = data.wsId;
+              }
+
+              if (data.type === "pong") {
+                addConnectionMessage(connectionId, `🏓 Received pong`);
+              } else if (data.roomId) {
+                addConnectionMessage(
+                  connectionId,
+                  `📩 ${JSON.stringify(data)}`,
+                  data.roomId
+                );
+              } else {
+                addConnectionMessage(
+                  connectionId,
+                  `📩 ${JSON.stringify(data)}`
+                );
+              }
+
+              addGlobalMessage(
+                `📩 Connection #${connectionId} received message from ${
+                  data.podName || "server"
+                }`
+              );
+
+              updatePodInfo(connectionId, data);
+              updateGlobalStats();
+            } catch (e) {
+              addConnectionMessage(connectionId, `📩 ${event.data}`);
+              totalMessageCount++;
+              updateGlobalStats();
+            }
+          };
+        } catch (error) {
+          updateConnectionStatus(connectionId, "disconnected");
+          addConnectionMessage(connectionId, `❌ Error: ${error.message}`);
+          addGlobalMessage(
+            `❌ Connection #${connectionId} error: ${error.message}`
+          );
+        }
+      }
+
+      function disconnectConnection(connectionId) {
+        const conn = connections.get(connectionId);
+        if (conn && conn.ws) {
+          conn.ws.close();
+          conn.ws = null;
+          conn.connected = false;
+          addGlobalMessage(
+            `🔌 Connection #${connectionId} manually disconnected`
+          );
+        }
+      }
+
+      function sendBroadcastMessage(connectionId) {
+        const conn = connections.get(connectionId);
+        if (conn && conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+          const testMessage = JSON.stringify({
+            type: "broadcast",
+            data: {
+              message: `Test from Connection #${connectionId} at ${new Date().toISOString()}`,
+              connectionId: connectionId,
+              messageId: Math.random().toString(36).substr(2, 9),
+            },
+          });
+
+          conn.ws.send(testMessage);
+          addConnectionMessage(connectionId, `📤 Sent: ${testMessage}`);
+          addGlobalMessage(`📤 Connection #${connectionId} sent test message`);
+        }
+      }
+
+      function removeConnection(connectionId) {
+        const conn = connections.get(connectionId);
+        if (conn) {
+          if (conn.ws) {
+            conn.ws.close();
+          }
+          stopPingInterval(connectionId);
+          connections.delete(connectionId);
+
+          const card = document.getElementById(`conn-${connectionId}`);
+          card.remove();
+
+          updateGlobalStats();
+          addGlobalMessage(`🗑️ Connection #${connectionId} removed`);
+        }
+      }
+
+      document
+        .getElementById("addConnectionBtn")
+        .addEventListener("click", createConnection);
+
+      document.getElementById("connectAllBtn").addEventListener("click", () => {
+        connections.forEach((conn, id) => {
+          if (!conn.connected) {
+            connectConnection(id);
+          }
+        });
+      });
+
+      document
+        .getElementById("disconnectAllBtn")
+        .addEventListener("click", () => {
+          connections.forEach((conn, id) => {
+            if (conn.connected) {
+              disconnectConnection(id);
+            }
+          });
+        });
+
+      document.getElementById("clearAllBtn").addEventListener("click", () => {
+        globalMessages.innerHTML =
+          '<div class="message"><span class="timestamp">[Cleared]</span> All messages cleared</div>';
+
+        connections.forEach((conn, id) => {
+          const card = document.getElementById(`conn-${id}`);
+          if (card) {
+            card.querySelectorAll(".messages").forEach((messagesDiv) => {
+              messagesDiv.innerHTML = `<div class="message"><span class="timestamp">[Cleared]</span> Messages cleared</div>`;
+            });
+          }
+        });
+
+        totalMessageCount = 0;
+        updateGlobalStats();
+      });
+
+      // Initialize with one connection
+      createConnection();
+    </script>
+  </body>
+</html>
