@@ -286,7 +286,7 @@ func (svr *WSServer) BroadcastMSG(msg interface{}) {
 	}
 }
 
-func (svr *WSServer) SendRoomMSG(msg interface{}, clientID string, roomID string) error {
+func (svr *WSServer) SendRoomMSG(data interface{}, clientID string, roomID string) error {
 	svr.mu.RLock()
 	room, ok := svr.Rooms[roomID]
 	if !ok {
@@ -310,9 +310,14 @@ func (svr *WSServer) SendRoomMSG(msg interface{}, clientID string, roomID string
 			clientsToNotify = append(clientsToNotify, v)
 		}
 	}
-	room.mu.Unlock()
+	room.mu.RUnlock()
 	if !validClient {
 		return fmt.Errorf("cliendID: %s does not belong to this roomID: %s", clientID, roomID)
+	}
+	msg := ClientMSG{
+		MsgType: MsgType_RoomMessage,
+		Data:    data,
+		RoomID:  roomID,
 	}
 
 	for _, c := range clientsToNotify {

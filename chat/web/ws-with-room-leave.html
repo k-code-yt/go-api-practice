@@ -390,6 +390,36 @@
         margin-top: 5px;
       }
 
+      .message-input-group {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .message-input-group input {
+        flex: 1;
+        padding: 8px;
+        border: 2px solid #cbd5e0;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+
+      .message-input-group button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 12px;
+        background: #667eea;
+        color: white;
+      }
+
+      .message-input-group button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
       ::-webkit-scrollbar {
         width: 8px;
       }
@@ -722,6 +752,10 @@
                     <button class="join-room-btn" disabled>Join Room</button>
                   </div>
                   <div class="active-rooms"></div>
+				  <div class="message-input-group" style="margin-top: 10px;">
+					<input type="text" class="message-input" placeholder="Type message..." style="flex: 1; padding: 8px; border: 2px solid #cbd5e0; border-radius: 4px; font-size: 13px;" disabled />
+					<button class="send-message-btn" style="padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; background: #667eea; color: white; margin-left: 8px;" disabled>Send</button>
+				  </div>
                 </div>
 
                 <div class="pod-info" style="display: none;"></div>
@@ -786,11 +820,76 @@
             }
           }
         });
+        const messageInput = connectionCard.querySelector(".message-input");
+        const sendMessageBtn =
+          connectionCard.querySelector(".send-message-btn");
+
+        sendMessageBtn.addEventListener("click", () => {
+          sendMessageToCurrentTab(connectionId);
+        });
+
+        messageInput.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            sendMessageToCurrentTab(connectionId);
+          }
+        });
 
         updateGlobalStats();
         addGlobalMessage(
           `➕ Added Connection #${connectionId} targeting ${url}`
         );
+      }
+
+      function sendMessageToCurrentTab(connectionId) {
+        const conn = connections.get(connectionId);
+        const card = document.getElementById(`conn-${connectionId}`);
+        const messageInput = card.querySelector(".message-input");
+        const message = messageInput.value.trim();
+
+        if (
+          !message ||
+          !conn ||
+          !conn.ws ||
+          conn.ws.readyState !== WebSocket.OPEN
+        )
+          return;
+
+        const activeTab = card.querySelector(".message-tab.active");
+        const isGeneralTab = activeTab.classList.contains("tab-general");
+
+        let messageData;
+
+        if (isGeneralTab) {
+          messageData = JSON.stringify({
+            type: "broadcast",
+            data: {
+              message: message,
+              connectionId: connectionId,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        } else {
+          const roomId = activeTab.textContent.replace("Room ", "").trim();
+          messageData = JSON.stringify({
+            type: "room-message",
+            roomId: roomId,
+            data: {
+              message: message,
+              connectionId: connectionId,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        }
+
+        conn.ws.send(messageData);
+        addConnectionMessage(
+          connectionId,
+          `📤 Sent: ${message}`,
+          isGeneralTab
+            ? null
+            : activeTab.textContent.replace("Room ", "").trim()
+        );
+        messageInput.value = "";
       }
 
       function connectConnection(connectionId) {
@@ -820,6 +919,9 @@
             card.querySelector(".join-room-btn").disabled = false;
             card.querySelector(".room-controls").classList.add("active");
 
+            card.querySelector(".message-input").disabled = false;
+            card.querySelector(".send-message-btn").disabled = false;
+
             startPingInterval(connectionId);
           };
 
@@ -839,6 +941,9 @@
               card.querySelector(".disconnect-btn").disabled = true;
               card.querySelector(".send-btn").disabled = true;
               card.querySelector(".join-room-btn").disabled = true;
+
+              card.querySelector(".message-input").disabled = true;
+              card.querySelector(".send-message-btn").disabled = true;
               card.querySelector(".room-controls").classList.remove("active");
               card.querySelector(".pod-info").style.display = "none";
               card.querySelector(".active-rooms").innerHTML = "";
@@ -872,11 +977,12 @@
 
               if (data.type === "pong") {
                 addConnectionMessage(connectionId, `🏓 Received pong`);
-              } else if (data.roomId) {
+              } else if (data.roomId || data.roomID) {
+                const roomId = data.roomId || data.roomID;
                 addConnectionMessage(
                   connectionId,
                   `📩 ${JSON.stringify(data)}`,
-                  data.roomId
+                  roomId
                 );
               } else {
                 addConnectionMessage(
