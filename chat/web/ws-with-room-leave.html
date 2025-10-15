@@ -534,17 +534,19 @@
         if (data.podName && data.podIp && podInfoEl) {
           const conn = connections.get(connectionId);
           podInfoEl.innerHTML = `
-            <div class="pod-detail">
-              <strong>Pod:</strong> <span>${data.podName}</span>
-            </div>
-            <div class="pod-detail">
-              <strong>IP:</strong> <span>${data.podIp}</span>
-            </div>
-            <div class="pod-detail">
-              <strong>Connection ID:</strong> <span>${conn.wsId || "N/A"}</span>
-            </div>
-            <div class="ping-status">Last ping: <span class="last-ping">Never</span></div>
-          `;
+                  <div class="pod-detail">
+                    <strong>Pod:</strong> <span>${data.podName}</span>
+                  </div>
+                  <div class="pod-detail">
+                    <strong>IP:</strong> <span>${data.podIp}</span>
+                  </div>
+                  <div class="pod-detail">
+                    <strong>Connection ID:</strong> <span>${
+                      conn.wsId || "N/A"
+                    }</span>
+                  </div>
+                  <div class="ping-status">Last ping: <span class="last-ping">Never</span></div>
+                `;
           podInfoEl.style.display = "block";
 
           connectedPods.add(data.podName);
@@ -610,9 +612,9 @@
           const badge = document.createElement("div");
           badge.className = "room-badge";
           badge.innerHTML = `
-            Room ${roomId}
-            <button onclick="leaveRoom(${connectionId}, '${roomId}')">×</button>
-          `;
+                  Room ${roomId}
+                  <button onclick="leaveRoom(${connectionId}, '${roomId}')">×</button>
+                `;
           activeRoomsDiv.appendChild(badge);
         });
       }
@@ -670,7 +672,7 @@
 
         conn.pingInterval = setInterval(() => {
           if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
-            const pingMessage = JSON.stringify({ type: "ping" });
+            const pingMessage = new ArrayBuffer(1);
             conn.ws.send(pingMessage);
 
             const card = document.getElementById(`conn-${connectionId}`);
@@ -681,7 +683,7 @@
 
             addConnectionMessage(connectionId, `🏓 Sent ping`);
           }
-        }, 30000);
+        }, 20000);
       }
 
       function stopPingInterval(connectionId) {
@@ -702,39 +704,39 @@
         connectionCard.id = `conn-${connectionId}`;
 
         connectionCard.innerHTML = `
-          <div class="connection-header">
-            <div class="connection-id">Connection #${connectionId}</div>
-            <div class="status disconnected">DISCONNECTED</div>
-          </div>
+                <div class="connection-header">
+                  <div class="connection-id">Connection #${connectionId}</div>
+                  <div class="status disconnected">DISCONNECTED</div>
+                </div>
 
-          <div class="connection-controls">
-            <button class="connect-btn">Connect</button>
-            <button class="disconnect-btn" disabled>Disconnect</button>
-            <button class="send-btn" disabled>SendBroadcast</button>
-            <button class="remove-btn">Remove</button>
-          </div>
+                <div class="connection-controls">
+                  <button class="connect-btn">Connect</button>
+                  <button class="disconnect-btn" disabled>Disconnect</button>
+                  <button class="send-btn" disabled>SendBroadcast</button>
+                  <button class="remove-btn">Remove</button>
+                </div>
 
-          <div class="room-controls">
-            <div class="room-input-group">
-              <input type="text" class="room-id-input" placeholder="Enter room ID" />
-              <button class="join-room-btn" disabled>Join Room</button>
-            </div>
-            <div class="active-rooms"></div>
-          </div>
+                <div class="room-controls">
+                  <div class="room-input-group">
+                    <input type="text" class="room-id-input" placeholder="Enter room ID" />
+                    <button class="join-room-btn" disabled>Join Room</button>
+                  </div>
+                  <div class="active-rooms"></div>
+                </div>
 
-          <div class="pod-info" style="display: none;"></div>
+                <div class="pod-info" style="display: none;"></div>
 
-          <div class="messages-section">
-            <div class="messages-tabs">
-              <button class="message-tab tab-general active" onclick="switchTab(${connectionId}, 'general')">General</button>
-            </div>
-            <div class="messages general-messages active">
-              <div class="message">
-                <span class="timestamp">[Ready]</span> Connection ${connectionId} ready to connect to ${url}
-              </div>
-            </div>
-          </div>
-        `;
+                <div class="messages-section">
+                  <div class="messages-tabs">
+                    <button class="message-tab tab-general active" onclick="switchTab(${connectionId}, 'general')">General</button>
+                  </div>
+                  <div class="messages general-messages active">
+                    <div class="message">
+                      <span class="timestamp">[Ready]</span> Connection ${connectionId} ready to connect to ${url}
+                    </div>
+                  </div>
+                </div>
+              `;
 
         connectionsContainer.appendChild(connectionCard);
 
@@ -930,7 +932,11 @@
             },
           });
 
-          conn.ws.send(testMessage);
+          const count = 5;
+          for (let i = 0; i < count; i++) {
+            conn.ws.send(testMessage);
+          }
+
           addConnectionMessage(connectionId, `📤 Sent: ${testMessage}`);
           addGlobalMessage(`📤 Connection #${connectionId} sent test message`);
         }

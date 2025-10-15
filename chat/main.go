@@ -1,46 +1,34 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 )
 
-var CloseSignalToHandle = []int{
-	websocket.CloseNormalClosure,
-	websocket.CloseGoingAway,
-	websocket.CloseProtocolError,
-	websocket.CloseUnsupportedData,
-	websocket.CloseNoStatusReceived,
-	websocket.CloseAbnormalClosure,
-	websocket.CloseInvalidFramePayloadData,
-	websocket.ClosePolicyViolation,
-	websocket.CloseMessageTooBig,
-	websocket.CloseMandatoryExtension,
-	websocket.CloseInternalServerErr,
-	websocket.CloseServiceRestart,
-	websocket.CloseTryAgainLater,
-	websocket.CloseTLSHandshake,
-}
-
 type MsgType string
 
 const (
-	// TODO -> move somewhere else?
 	MsgType_JoinRoom  MsgType = "join-room"
 	MsgType_LeaveRoom MsgType = "leave-room"
 
 	MsgType_RoomMessage MsgType = "room-message"
 	MsgType_Broadcast   MsgType = "broadcast"
 	MsgType_Direct      MsgType = "direct"
-	// TODO -> change min possible msg size, 1byte?
+	// TODO -> change min possible msg size, how to read 1byte or 1bit?
 	MsgType_Ping MsgType = "ping"
 	MsgType_Pong MsgType = "pong"
 )
@@ -56,12 +44,11 @@ const (
 
 type Client struct {
 	conn      *websocket.Conn
-	msgChan   chan *ClientMSG
+	msgChan   chan []byte
 	wsID      string
 	rooms     map[string]*Room
 	mu        *sync.Mutex
-	pingCount int
-	closeCH   chan struct{}
+	pingCount atomic.Int32
 }
 
 func NewClient(conn *websocket.Conn) *Client {
@@ -69,8 +56,7 @@ func NewClient(conn *websocket.Conn) *Client {
 	logrus.Infof("new client conn %s", wsID)
 	return &Client{
 		conn:    conn,
-		msgChan: make(chan *ClientMSG, 64),
-		closeCH: make(chan struct{}),
+		msgChan: make(chan []byte, 64),
 		wsID:    wsID,
 		rooms:   make(map[string]*Room),
 		mu:      new(sync.Mutex),
@@ -98,18 +84,32 @@ type RegisterPayload struct {
 }
 
 type WSServer struct {
-	Clients    map[string]*Client
-	Rooms      map[string]*Room
-	mu         *sync.RWMutex
-	registerCH chan *RegisterPayload
+	Clients          map[string]*Client
+	Rooms            map[string]*Room
+	registerCH       chan *RegisterPayload
+	clientCH         chan *Client
+	BroadcastWorkers []*BroadcastWorker
+
+	mu *sync.RWMutex
+	wg *sync.WaitGroup
+
+	ctx    context.Context
+	Cancel context.CancelFunc
 }
 
 func NewWSServer() *WSServer {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &WSServer{
 		Clients:    make(map[string]*Client),
 		Rooms:      make(map[string]*Room),
-		mu:         new(sync.RWMutex),
 		registerCH: make(chan *RegisterPayload, 16),
+		clientCH:   make(chan *Client, 16),
+
+		mu: new(sync.RWMutex),
+		wg: new(sync.WaitGroup),
+
+		ctx:    ctx,
+		Cancel: cancel,
 	}
 }
 
@@ -117,11 +117,15 @@ func (svr *WSServer) RegisterBroadcast(client *Client) {
 	svr.mu.Lock()
 	svr.Clients[client.wsID] = client
 	svr.mu.Unlock()
+
+	svr.clientCH <- client
+	// TODO -> wait for close signal and close clientCH
+	// i.e. cleanup
+
 	logrus.WithFields(logrus.Fields{
 		"clientsCount": len(svr.Clients),
 		"newClientID":  client.wsID,
 	}).Info("client joined broadcast")
-
 }
 
 func (svr *WSServer) Unregister(c *Client) {
@@ -134,6 +138,7 @@ func (svr *WSServer) Unregister(c *Client) {
 	_, ok := svr.Clients[c.wsID]
 	if !ok {
 		logrus.Warnf("wsID %s is not registered, no one to unregister", c.wsID)
+		svr.mu.Unlock()
 		return
 	}
 	delete(svr.Clients, c.wsID)
@@ -150,20 +155,125 @@ func (svr *WSServer) Unregister(c *Client) {
 
 func (svr *WSServer) RegisterLoop() {
 	defer close(svr.registerCH)
+
 	for {
-		v := <-svr.registerCH
-		switch v.cmd {
-		case RegisterCmd_RegisterBroadcast:
-			svr.RegisterBroadcast(v.client)
-		case RegisterCmd_RegisterRoom:
-			svr.JoinRoom(v.client, v.roomID)
-		case RegisterCmd_Unregister:
-			svr.Unregister(v.client)
-		case RegisterCmd_UnregisterRoom:
-			svr.LeaveRoom(v.client, v.roomID)
+		select {
+		case <-svr.ctx.Done():
+			logrus.Info("received server close -> exiting RegisterLoop")
+			return
+		case v := <-svr.registerCH:
+			switch v.cmd {
+			case RegisterCmd_RegisterBroadcast:
+				svr.RegisterBroadcast(v.client)
+			case RegisterCmd_RegisterRoom:
+				svr.JoinRoom(v.client, v.roomID)
+			case RegisterCmd_Unregister:
+				svr.Unregister(v.client)
+			case RegisterCmd_UnregisterRoom:
+				svr.LeaveRoom(v.client, v.roomID)
+			}
 		}
 	}
 }
+
+func (svr *WSServer) initUnregisterOnError(err error, c *Client) {
+	if websocket.IsCloseError(err,
+		websocket.CloseNormalClosure,
+		websocket.CloseGoingAway,
+		websocket.CloseAbnormalClosure) {
+
+		svr.registerCH <- &RegisterPayload{
+			client: c,
+			cmd:    RegisterCmd_Unregister,
+		}
+	}
+
+}
+
+type BroadcastWorker struct {
+	clients []*Client
+	mu      *sync.RWMutex
+	msgCh   chan interface{}
+	idx     int
+}
+
+func NewBroadcastWorker(idx int) *BroadcastWorker {
+	return &BroadcastWorker{
+		clients: []*Client{},
+		mu:      &sync.RWMutex{},
+		msgCh:   make(chan interface{}, 64),
+		idx:     idx,
+	}
+}
+
+func (brw *BroadcastWorker) acceptClientLoop(clientCH <-chan *Client) {
+	for c := range clientCH {
+		brw.mu.Lock()
+		brw.clients = append(brw.clients, c)
+		brw.mu.Unlock()
+		logrus.WithFields(logrus.Fields{
+			"wsID":     c.wsID,
+			"workerID": brw.idx,
+		}).Info("worker added client")
+	}
+}
+
+func (brw *BroadcastWorker) handleBroadcast() {
+	for {
+		msg := <-brw.msgCh
+		logrus.WithFields(logrus.Fields{
+			"workerID": brw.idx,
+		}).Info("worker received msg")
+
+		for _, c := range brw.clients {
+			err := c.conn.WriteJSON(msg)
+			if err != nil {
+				// TODO -> provide this func here
+				// go svr.initUnregisterOnError(err, c)
+
+				logrus.Errorf("error sending msg to client %s, %v", c.wsID, err)
+				continue
+			}
+			logrus.WithFields(logrus.Fields{
+				"wsID": c.wsID,
+			}).Info("send msg success")
+		}
+	}
+
+}
+
+func (svr *WSServer) initBroadcastHub(numWorkers int) {
+	for idx := range numWorkers {
+		brw := NewBroadcastWorker(idx)
+		svr.BroadcastWorkers = append(svr.BroadcastWorkers, brw)
+		go brw.acceptClientLoop(svr.clientCH)
+		go brw.handleBroadcast()
+	}
+}
+
+// func (svr *WSServer) BroadcastMSG(msg interface{}) {
+// 	logrus.WithFields(logrus.Fields{
+// 		"ClientsCount": len(svr.Clients),
+// 		"msg":          msg,
+// 	}).Infof("broadcasting msg to all clients")
+
+// 	clientsToNotify := []*Client{}
+// 	svr.mu.RLock()
+// 	for _, c := range svr.Clients {
+// 		clientsToNotify = append(clientsToNotify, c)
+// 	}
+// 	svr.mu.RUnlock()
+
+//		for _, c := range clientsToNotify {
+//			err := c.conn.WriteJSON(msg)
+//			if err != nil {
+//				go svr.initUnregisterOnError(err, c)
+//				logrus.Errorf("error sending msg to client %s, %v", c.wsID, err)
+//				continue
+//			}
+//			logrus.WithField("wsID", c.wsID).Info("send msg success")
+//		}
+//	}
 
 func (svr *WSServer) BroadcastMSG(msg interface{}) {
 	logrus.WithFields(logrus.Fields{
@@ -171,13 +281,8 @@ func (svr *WSServer) BroadcastMSG(msg interface{}) {
 		"msg":          msg,
 	}).Infof("broadcasting msg to all clients")
 
-	for _, c := range svr.Clients {
-		err := c.conn.WriteJSON(msg)
-		if err != nil {
-			logrus.Errorf("error sending msg to client %s, %v", c.wsID, err)
-			continue
-		}
-		logrus.WithField("wsID", c.wsID).Info("send msg success")
+	for _, worker := range svr.BroadcastWorkers {
+		worker.msgCh <- msg
 	}
 }
 
@@ -197,6 +302,7 @@ func (svr *WSServer) SendRoomMSG(msg interface{}, clientID string, roomID string
 
 	validClient := false
 	clientsToNotify := []*Client{}
+	room.mu.RLock()
 	for _, v := range room.Clients {
 		if v.wsID == clientID {
 			validClient = true
@@ -204,6 +310,7 @@ func (svr *WSServer) SendRoomMSG(msg interface{}, clientID string, roomID string
 			clientsToNotify = append(clientsToNotify, v)
 		}
 	}
+	room.mu.Unlock()
 	if !validClient {
 		return fmt.Errorf("cliendID: %s does not belong to this roomID: %s", clientID, roomID)
 	}
@@ -211,6 +318,7 @@ func (svr *WSServer) SendRoomMSG(msg interface{}, clientID string, roomID string
 	for _, c := range clientsToNotify {
 		err := c.conn.WriteJSON(msg)
 		if err != nil {
+			go svr.initUnregisterOnError(err, c)
 			logrus.Errorf("error sending msg to client %s, %v", c.wsID, err)
 			continue
 		}
@@ -248,22 +356,18 @@ func (svr *WSServer) JoinRoom(client *Client, roomID string) {
 }
 
 func (svr *WSServer) LeaveRoom(client *Client, roomID string) {
-	svr.mu.Lock()
+	svr.mu.RLock()
 	room, ok := svr.Rooms[roomID]
-
-	if !ok {
-		logrus.Warnf("Error leaving non-registered room -> %s does not exist", roomID)
-	}
-	delete(svr.Rooms, roomID)
-	svr.mu.Unlock()
+	svr.mu.RUnlock()
 
 	if ok {
 		room.mu.Lock()
 		client, ok := room.Clients[client.wsID]
 		if !ok {
 			logrus.Warnf("client %s does not belong to the room %s we are trying to leave", client.wsID, roomID)
+		} else {
+			delete(room.Clients, client.wsID)
 		}
-		delete(room.Clients, client.wsID)
 		room.mu.Unlock()
 	}
 
@@ -284,14 +388,17 @@ func (svr *WSServer) Ping(client *Client) {
 	msg := &ClientMSG{
 		MsgType: MsgType_Pong,
 	}
-	client.conn.WriteJSON(msg)
+	err := client.conn.WriteJSON(msg)
+	if err != nil {
+		go svr.initUnregisterOnError(err, client)
+		logrus.Errorf("err sending ping to the client %v", err)
+	}
 }
 
 type ClientMSG struct {
-	MsgType MsgType `json:"type"`
-	// TODO -> how to make generic type here? or any is the right way?
-	Data   interface{} `json:"data"`
-	RoomID string      `json:"roomID"`
+	MsgType MsgType     `json:"type"`
+	Data    interface{} `json:"data"`
+	RoomID  string      `json:"roomID"`
 }
 
 func (svr *WSServer) handleWS() func(w http.ResponseWriter, r *http.Request) {
@@ -321,7 +428,6 @@ func (svr *WSServer) handleWS() func(w http.ResponseWriter, r *http.Request) {
 
 		go svr.processCMD(client, parsedCMD)
 		go client.readMsgLoop(svr)
-		time.Sleep(time.Millisecond * 50)
 		go client.wsAcceptLoop()
 	}
 
@@ -352,59 +458,79 @@ func (svr *WSServer) processCMD(client *Client, cmd *ParsedCMD) {
 		}
 		return
 	}
-
 }
 
 func (c *Client) wsAcceptLoop() {
 	defer func() {
-		logrus.Info("exiting wsAcceptLoop")
+		logrus.WithField("wsID", c.wsID).Info("exiting wsAcceptLoop")
 		close(c.msgChan)
 	}()
 
-	readCH := make(chan *ClientMSG, 64)
+	readCH := make(chan []byte, 64)
 	readErrCH := make(chan error, 16)
 
 	go func() {
 		defer close(readCH)
 		defer close(readErrCH)
 		for {
-			msg := new(ClientMSG)
-			err := c.conn.ReadJSON(msg)
+			_, b, err := c.conn.ReadMessage()
+
 			if err != nil {
 				logrus.Errorf("error reading conn %v", err)
 				readErrCH <- err
 				return
 			}
-			readCH <- msg
+
+			select {
+			case readCH <- b:
+				logrus.WithField("wsID", c.wsID).Info("readCH -> sending")
+			default:
+				// TODO -> add rate limit instead of disconnect
+				logrus.WithField("wsID", c.wsID).Error("readCH full -> disconnecting")
+				err := c.conn.Close()
+				if err != nil {
+					logrus.Errorf("err closing connection %v", err)
+				}
+			}
+
 		}
 	}()
 
 	for {
-		logrus.Infof("accept loop -> receiving")
-
 		select {
 		case <-readErrCH:
-			logrus.Errorf("exiting wsAcceptLoop, due to err")
+			logrus.Warn("exiting wsAcceptLoop, due to err")
 			return
-		case msg := <-readCH:
-			logrus.Infof("sending msg %v", msg)
-			c.msgChan <- msg
+		case b := <-readCH:
+			c.msgChan <- b
 		}
 	}
 }
 
 func (c *Client) readMsgLoop(svr *WSServer) {
+	defer svr.wg.Done()
+	svr.wg.Add(1)
+
 	t := time.NewTicker(time.Second * 30)
 	for {
 		select {
+		case <-svr.ctx.Done():
+			logrus.Info("received svr close -> starting gracefull shutdown")
+			err := c.conn.Close()
+			if err != nil {
+				logrus.Errorf("err closing connection %v", err)
+			}
+			return
+
 		case <-t.C:
-			logrus.Infof("current ping count = %d", c.pingCount)
-			c.pingCount--
-			if c.pingCount < -2 {
+			count := c.pingCount.Add(-1)
+			logrus.Infof("current ping count = %d", count)
+			if count < -2 {
 				err := c.conn.Close()
 				if err != nil {
 					logrus.Errorf("err closing connection %v", err)
 				}
+				return
 			}
 		case v, ok := <-c.msgChan:
 			if !ok {
@@ -418,22 +544,35 @@ func (c *Client) readMsgLoop(svr *WSServer) {
 				}
 				return
 			}
-			switch v.MsgType {
+
+			msg := new(ClientMSG)
+			if len(v) == 1 {
+				logrus.Infof("received 1 byte msg -> most likely ping")
+				msg.MsgType = MsgType_Ping
+			} else {
+				err := json.Unmarshal(v, msg)
+				if err != nil {
+					logrus.Errorf("error unmarshaling data %v", err)
+					continue
+				}
+			}
+
+			switch msg.MsgType {
 			case MsgType_Broadcast:
-				svr.BroadcastMSG(v.Data)
+				go svr.BroadcastMSG(msg.Data)
 			case MsgType_RoomMessage:
-				svr.SendRoomMSG(v.Data, c.wsID, v.RoomID)
+				go svr.SendRoomMSG(msg.Data, c.wsID, msg.RoomID)
 			case MsgType_JoinRoom:
-				svr.JoinRoom(c, v.RoomID)
+				svr.JoinRoom(c, msg.RoomID)
 			case MsgType_LeaveRoom:
-				svr.LeaveRoom(c, v.RoomID)
+				svr.LeaveRoom(c, msg.RoomID)
 			case MsgType_Ping:
-				c.pingCount++
+				c.pingCount.Add(1)
 				svr.Ping(c)
 			}
 			logrus.WithFields(logrus.Fields{
 				"wsID":    c.wsID,
-				"msgType": v.MsgType,
+				"msgType": msg.MsgType,
 			}).Info("received WS msg")
 		}
 	}
@@ -485,15 +624,28 @@ func parseURLToCmd(val string) (*ParsedCMD, error) {
 }
 
 // TODOs
-// - add ping/pong
-// - add different rooms
-// - check socket.io -> what can be borrowed
-
+//   - 4.add Write Buffering
+//   - 5.add rate limiter for clients
 func main() {
 	svr := NewWSServer()
-	go svr.RegisterLoop()
+	svr.initBroadcastHub(3)
 
-	http.HandleFunc("/", svr.handleWS())
-	logrus.Info("starting to listen on localhost:3231")
-	log.Fatal(http.ListenAndServe("localhost:3231", nil))
+	sigChan := make(chan os.Signal, 1)
+	go signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		logrus.Info("received exit signal -> init shutdown")
+		svr.Cancel()
+	}()
+
+	go func() {
+		http.HandleFunc("/", svr.handleWS())
+		logrus.Info("starting to listen on localhost:3231")
+		log.Fatal(http.ListenAndServe("localhost:3231", nil))
+	}()
+
+	svr.RegisterLoop()
+	logrus.Info("left RegisterLoop -> waiting for all clients to disconnect")
+	svr.wg.Wait()
+	logrus.Info("EXIT MAIN")
 }
