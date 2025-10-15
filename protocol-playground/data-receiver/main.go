@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/k-code-yt/go-api-practice/shared"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/shared"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"

@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/k-code-yt/go-api-practice/invoicer/ports"
-	"github.com/k-code-yt/go-api-practice/shared"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/invoicer/ports"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/shared"
 	"github.com/sirupsen/logrus"
 )
 

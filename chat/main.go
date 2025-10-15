@@ -626,6 +626,7 @@ func parseURLToCmd(val string) (*ParsedCMD, error) {
 // TODOs
 //   - 4.add Write Buffering
 //   - 5.add rate limiter for clients
+//   - 6.make dynamic workers && worker rebalnce on client disconnect
 func main() {
 	svr := NewWSServer()
 	svr.initBroadcastHub(3)

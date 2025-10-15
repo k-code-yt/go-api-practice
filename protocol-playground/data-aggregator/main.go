@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	grpcclient "github.com/k-code-yt/go-api-practice/protocol-playground/data-aggregator/transport/grpc"
-	"github.com/k-code-yt/go-api-practice/shared"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/shared"
 	"github.com/sirupsen/logrus"
 )
 

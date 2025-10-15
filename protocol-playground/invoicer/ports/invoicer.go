@@ -1,6 +1,6 @@
 package ports
 
-import "github.com/k-code-yt/go-api-practice/shared"
+import "github.com/k-code-yt/go-api-practice/protocol-playground/shared"
 
 type Invoicer interface {
 	SaveInvoice(d *shared.Distance) *shared.Invoice

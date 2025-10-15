@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/k-code-yt/go-api-practice/invoicer/transport"
-	"github.com/k-code-yt/go-api-practice/shared"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/invoicer/transport"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/shared"
 )
 
 func main() {

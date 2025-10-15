@@ -8,9 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/k-code-yt/go-api-practice/shared"
-
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/shared"
 	"github.com/sirupsen/logrus"
 )
 

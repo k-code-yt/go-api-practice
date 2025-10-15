@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"time"
 
-	client "github.com/k-code-yt/go-api-practice/data-aggregator/transport"
-	"github.com/k-code-yt/go-api-practice/shared"
+	client "github.com/k-code-yt/go-api-practice/protocol-playground/data-aggregator/transport"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/shared"
 
 	"github.com/sirupsen/logrus"
 )

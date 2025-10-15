@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/k-code-yt/go-api-practice/shared"
+	"github.com/k-code-yt/go-api-practice/protocol-playground/shared"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
