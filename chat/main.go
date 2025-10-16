@@ -22,15 +22,13 @@ import (
 type MsgType string
 
 const (
-	MsgType_JoinRoom  MsgType = "join-room"
-	MsgType_LeaveRoom MsgType = "leave-room"
-
+	MsgType_JoinRoom    MsgType = "join-room"
+	MsgType_LeaveRoom   MsgType = "leave-room"
 	MsgType_RoomMessage MsgType = "room-message"
 	MsgType_Broadcast   MsgType = "broadcast"
 	MsgType_Direct      MsgType = "direct"
-	// TODO -> change min possible msg size, how to read 1byte or 1bit?
-	MsgType_Ping MsgType = "ping"
-	MsgType_Pong MsgType = "pong"
+	MsgType_Ping        MsgType = "ping"
+	MsgType_Pong        MsgType = "pong"
 )
 
 type RegisterCmd string
@@ -145,9 +143,20 @@ func (svr *WSServer) Unregister(c *Client) {
 	svr.mu.Unlock()
 
 	c.mu.Lock()
+	roomsToLeave := make([]*Room, 0, len(c.rooms))
 	for _, r := range c.rooms {
-		delete(r.Clients, c.wsID)
+		roomsToLeave = append(roomsToLeave, r)
 	}
+	c.mu.Unlock()
+
+	for _, r := range roomsToLeave {
+		r.mu.Lock()
+		delete(r.Clients, c.wsID)
+		r.mu.Unlock()
+	}
+
+	c.mu.Lock()
+	c.rooms = make(map[string]*Room)
 	c.mu.Unlock()
 
 	logrus.Infof("client removed from server %s", c.wsID)
