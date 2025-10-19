@@ -45,6 +45,10 @@ build-chat:
 chat: build-chat
 	@./chat/bin/chat
 
+test-chat-race:
+	@go clean -testcache
+	@echo "Running tests with race detector..."
+	@go test -race -v ./chat/...
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto

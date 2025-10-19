@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
@@ -67,58 +69,55 @@ func NewClient(conn *websocket.Conn) *Client {
 }
 
 func (c *Client) readMsgLoop(ctx context.Context, srv *WSServer) {
-	defer c.conn.Close()
+	defer func() {
+		srv.leaveServerCH <- c
+	}()
 
 	go func() {
-		for {
-			_, b, err := c.conn.ReadMessage()
-			if err != nil {
-				logrus.Errorf("error reading msg loop for client = %s", c.id)
-				srv.leaveServerCH <- c
-				return
-			}
-
-			msg := NewMessage(c)
-			if len(b) == 1 {
-				// TODO -> ping/pong
-				logrus.WithField("clientID", c.id).Info("received pong")
-				continue
-			}
-
-			err = json.Unmarshal(b, msg)
-			if err != nil {
-				logrus.Error("error unmarshaling msg", err)
-				continue
-			}
-
-			if msg.MsgType == "" && msg.RoomID != "" {
-				logrus.Error("invalid msg format, msgType is required ", err)
-				continue
-			}
-
-			if msg.RoomID != "" {
-				switch msg.MsgType {
-				case MsgType_JoinRoom:
-					srv.joinRoomCH <- msg
-					continue
-				case MsgType_LeaveRoom:
-					srv.leaveRoomCH <- msg
-					continue
-				case MsgType_SendRoomMsg:
-					srv.sendRoomMsgCH <- msg
-					continue
-				}
-			} else {
-				srv.sendBroadcastMsgCH <- msg
-			}
-		}
+		<-srv.closingCH
+		c.conn.Close()
 	}()
 
 	for {
-		select {
-		case <-ctx.Done():
-			logrus.Infof("received DONE signal for client %s", c.id)
+		_, b, err := c.conn.ReadMessage()
+		if err != nil {
+			// TODO add test .env to enable/disable
+			// logrus.Errorf("error reading msg loop for client = %s, err = %v", c.id, err)
 			return
+		}
+
+		msg := NewMessage(c)
+		if len(b) == 1 {
+			// TODO -> ping/pong
+			logrus.WithField("clientID", c.id).Info("received pong")
+			continue
+		}
+
+		err = json.Unmarshal(b, msg)
+		if err != nil {
+			logrus.Error("error unmarshaling msg", err)
+			continue
+		}
+
+		if msg.MsgType == "" && msg.RoomID != "" {
+			logrus.Error("invalid msg format, msgType is required ", err)
+			continue
+		}
+
+		if msg.RoomID != "" {
+			switch msg.MsgType {
+			case MsgType_JoinRoom:
+				srv.joinRoomCH <- msg
+				continue
+			case MsgType_LeaveRoom:
+				srv.leaveRoomCH <- msg
+				continue
+			case MsgType_SendRoomMsg:
+				srv.sendRoomMsgCH <- msg
+				continue
+			}
+		} else {
+			srv.sendBroadcastMsgCH <- msg
 		}
 	}
 }
@@ -149,9 +148,15 @@ type WSServer struct {
 	leaveRoomCH        chan *Message
 	sendRoomMsgCH      chan *Message
 	errCh              chan error
+	closingCH          chan struct{}
+	shutdownCH         chan struct{}
 
 	ctx      context.Context
 	cancelFN context.CancelFunc
+	wg       *sync.WaitGroup
+
+	// for testing
+	activeClients atomic.Int64
 }
 
 func NewWSServer(ctx context.Context, cancelFN context.CancelFunc) *WSServer {
@@ -167,11 +172,19 @@ func NewWSServer(ctx context.Context, cancelFN context.CancelFunc) *WSServer {
 		leaveRoomCH:        make(chan *Message, 64),
 		sendRoomMsgCH:      make(chan *Message, 64),
 		errCh:              make(chan error, 64),
+		closingCH:          make(chan struct{}),
+		shutdownCH:         make(chan struct{}),
 
 		ctx:      ctx,
 		cancelFN: cancelFN,
+		wg:       new(sync.WaitGroup),
 	}
+}
 
+// for testing
+func (srv *WSServer) GetClientCount() int {
+	<-srv.shutdownCH
+	return int(srv.activeClients.Load())
 }
 
 func (srv *WSServer) wsHandler() func(http.ResponseWriter, *http.Request) {
@@ -197,13 +210,19 @@ func (srv *WSServer) wsHandler() func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+func (srv *WSServer) ShutdowLoop() {
+	srv.wg.Wait()
+	close(srv.shutdownCH)
+}
+
 func (srv *WSServer) AcceptLoop() {
+	go srv.ShutdowLoop()
 	for {
 		select {
-		case <-srv.ctx.Done():
-			logrus.Info("received DONE")
+		case <-srv.shutdownCH:
 			return
-
+		case <-srv.ctx.Done():
+			close(srv.closingCH)
 		case err := <-srv.errCh:
 			logrus.Error(err)
 		case client := <-srv.leaveServerCH:
@@ -223,14 +242,19 @@ func (srv *WSServer) AcceptLoop() {
 }
 
 func (srv *WSServer) LeaveServer(client *Client) {
-	delete(srv.clients, client.id)
+	_, ok := srv.clients[client.id]
+	if ok {
+		defer srv.wg.Done()
+		srv.activeClients.Add(-1)
+		delete(srv.clients, client.id)
+	}
+
 	for _, r := range client.rooms {
 		delete(r.clients, client.id)
 	}
-	// TODO -> check how to remove from mem
 	client.rooms = nil
-	// msg.Client.rooms = make(map[string]*Room, 0)
 	logrus.WithField("id", client.id).Info("client left server")
+	fmt.Println("client count after leave =", len(srv.clients))
 }
 
 func (srv *WSServer) JoinServer(client *Client) {
@@ -239,8 +263,10 @@ func (srv *WSServer) JoinServer(client *Client) {
 		logrus.WithField("id", client.id).Info("cleint already exists")
 		return
 	}
+	srv.wg.Add(1)
 
 	srv.clients[client.id] = client
+	srv.activeClients.Add(1)
 	logrus.WithField("id", client.id).Info("client joined server")
 }
 
@@ -301,14 +327,14 @@ func (srv *WSServer) SendRoomMsg(msg *Message) {
 	}
 
 	cls := []*Client{}
-	msg.Client.mu.RLock()
+	room.mu.RLock()
 	for _, c := range room.clients {
 		if c.id == msg.Client.id {
 			continue
 		}
 		cls = append(cls, c)
 	}
-	msg.Client.mu.RUnlock()
+	room.mu.RUnlock()
 
 	for _, c := range cls {
 		resp := NewResponse(msg)
@@ -374,8 +400,12 @@ func (srv *WSServer) SendBroadcastMsg(msg *Message) {
 	).Info("sent broadcast")
 }
 
+// read about logrus perf-ce
+// read about sync.Map vs Map + mu.Lock
+// research queue to remove mu.Lock
 func chatServer() {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	wsSrv := NewWSServer(ctx, cancel)
 	http.HandleFunc("/", wsSrv.wsHandler())
 	go wsSrv.AcceptLoop()
