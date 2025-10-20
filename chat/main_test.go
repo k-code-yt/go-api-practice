@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,7 +15,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func CreateClientAndDial(isClientClose bool) {
+type TestConfig struct {
+	isClientClose bool
+	isBroadcast   bool
+	msgCount      atomic.Int64
+	wg            *sync.WaitGroup
+}
+
+// how to do perf testing?
+func CreateClientAndDial(cfg *TestConfig) (*websocket.Conn, error) {
+	// defer cfg.wg.Done()
 	dialer := websocket.Dialer{
 		EnableCompression: true,
 		Proxy:             http.ProxyFromEnvironment,
@@ -24,10 +35,32 @@ func CreateClientAndDial(isClientClose bool) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if isClientClose {
+	if cfg.isClientClose {
 		defer conn.Close()
 	}
 	time.Sleep(time.Millisecond * 100)
+
+	if cfg.isBroadcast {
+
+		go func() {
+			for {
+				_, b, err := conn.ReadMessage()
+				if err != nil {
+					fmt.Println("err read loop = ", err)
+					return
+				}
+				msg := string(b)
+				if strings.Contains(msg, "close 1006") {
+					fmt.Println("Conn terminated by server")
+					return
+				}
+				cfg.msgCount.Add(1)
+				fmt.Printf("received msg, new count = %d\n", cfg.msgCount.Load())
+			}
+		}()
+	}
+
+	return conn, nil
 }
 
 func TestConcurrentClientAdd(t *testing.T) {
@@ -45,22 +78,44 @@ func TestConcurrentClientAdd(t *testing.T) {
 	time.Sleep(time.Millisecond * 200)
 	defer server.Shutdown(ctx)
 	// ----
+	broadcastsToSend := 5
+	clientCount := 5
+	cfg := &TestConfig{
+		isClientClose: false,
+		isBroadcast:   true,
+		msgCount:      atomic.Int64{},
+		wg:            new(sync.WaitGroup),
+	}
+	// cfg.wg.Add((clientCount - 1) * broadcastsToSend)
 
-	clientCount := 10000
-	wg := new(sync.WaitGroup)
-	clients := make([]*Client, clientCount)
-	wg.Add(clientCount)
-
-	for range clients {
-		go func() {
-			defer wg.Done()
-			CreateClientAndDial(false)
-		}()
+	brConn, err := CreateClientAndDial(cfg)
+	if err != nil {
+		fmt.Println("err connecting via WS = ", err)
+	}
+	for i := 0; i < clientCount-1; i++ {
+		go CreateClientAndDial(cfg)
 	}
 
-	wg.Wait()
-	cancel()
+	time.Sleep(2 * time.Second)
 
-	actualCount := wsSrv.GetClientCount()
-	assert.Equal(t, 0, actualCount, "All clients left")
+	for i := 0; i < broadcastsToSend; i++ {
+		time.Sleep(100 * time.Millisecond)
+		msg := Message{
+			RoomID:  "",
+			Data:    "hello from test",
+			MsgType: "broadcast",
+		}
+		brConn.WriteJSON(&msg)
+	}
+
+	// cfg.wg.Wait()
+	time.Sleep(5 * time.Second)
+	msgCount := int(cfg.msgCount.Load())
+	assert.Equal(t, (clientCount-1)*broadcastsToSend, msgCount, "All clients received broadcast")
+
+	cancel()
+	<-wsSrv.shutdownCH
+
+	actualClientsCount := wsSrv.GetClientCount()
+	assert.Equal(t, 0, actualClientsCount, "All clients left")
 }

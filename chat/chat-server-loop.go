@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
@@ -70,11 +71,12 @@ func NewClient(conn *websocket.Conn) *Client {
 
 func (c *Client) readMsgLoop(ctx context.Context, srv *WSServer) {
 	defer func() {
+		c.conn.Close()
 		srv.leaveServerCH <- c
 	}()
 
 	go func() {
-		<-srv.closingCH
+		<-ctx.Done()
 		c.conn.Close()
 	}()
 
@@ -93,7 +95,7 @@ func (c *Client) readMsgLoop(ctx context.Context, srv *WSServer) {
 			continue
 		}
 
-		err = json.Unmarshal(b, msg)
+		err = json.Unmarshal(b, &msg)
 		if err != nil {
 			logrus.Error("error unmarshaling msg", err)
 			continue
@@ -103,7 +105,7 @@ func (c *Client) readMsgLoop(ctx context.Context, srv *WSServer) {
 			logrus.Error("invalid msg format, msgType is required ", err)
 			continue
 		}
-
+		msg.Client = c
 		if msg.RoomID != "" {
 			switch msg.MsgType {
 			case MsgType_JoinRoom:
@@ -148,7 +150,6 @@ type WSServer struct {
 	leaveRoomCH        chan *Message
 	sendRoomMsgCH      chan *Message
 	errCh              chan error
-	closingCH          chan struct{}
 	shutdownCH         chan struct{}
 
 	ctx      context.Context
@@ -172,7 +173,6 @@ func NewWSServer(ctx context.Context, cancelFN context.CancelFunc) *WSServer {
 		leaveRoomCH:        make(chan *Message, 64),
 		sendRoomMsgCH:      make(chan *Message, 64),
 		errCh:              make(chan error, 64),
-		closingCH:          make(chan struct{}),
 		shutdownCH:         make(chan struct{}),
 
 		ctx:      ctx,
@@ -183,7 +183,6 @@ func NewWSServer(ctx context.Context, cancelFN context.CancelFunc) *WSServer {
 
 // for testing
 func (srv *WSServer) GetClientCount() int {
-	<-srv.shutdownCH
 	return int(srv.activeClients.Load())
 }
 
@@ -210,19 +209,13 @@ func (srv *WSServer) wsHandler() func(http.ResponseWriter, *http.Request) {
 	}
 }
 
-func (srv *WSServer) ShutdowLoop() {
-	srv.wg.Wait()
-	close(srv.shutdownCH)
-}
-
 func (srv *WSServer) AcceptLoop() {
-	go srv.ShutdowLoop()
 	for {
 		select {
-		case <-srv.shutdownCH:
-			return
 		case <-srv.ctx.Done():
-			close(srv.closingCH)
+			fmt.Println("exiting accept loop")
+			go srv.ShutdownLoopAtomic()
+			return
 		case err := <-srv.errCh:
 			logrus.Error(err)
 		case client := <-srv.leaveServerCH:
@@ -241,10 +234,58 @@ func (srv *WSServer) AcceptLoop() {
 	}
 }
 
+func (srv *WSServer) ShutdownLoop() {
+	defer close(srv.shutdownCH)
+	fmt.Println("starting shutdown")
+	// timeout := time.After(60 * time.Second)
+	closeCH := make(chan struct{})
+
+	go func() {
+		srv.wg.Wait()
+		close(closeCH)
+		fmt.Println("exiting shutdown")
+	}()
+
+	for {
+		select {
+		case <-closeCH:
+			return
+		// case <-timeout:
+		// 	fmt.Println("EXIT DUE TO TIMEOUT")
+		// return
+		case client := <-srv.leaveServerCH:
+			srv.LeaveServer(client)
+		}
+	}
+}
+
+func (srv *WSServer) ShutdownLoopAtomic() {
+	defer close(srv.shutdownCH)
+	fmt.Println("starting shutdown")
+	timeout := time.After(60 * time.Second)
+
+	for {
+		select {
+		case <-timeout:
+			fmt.Println("EXIT DUE TO TIMEOUT")
+			return
+		case client := <-srv.leaveServerCH:
+			srv.LeaveServer(client)
+			if srv.activeClients.Load() == 0 {
+				return
+			}
+			// default:
+			// 	if srv.activeClients.Load() == 0 {
+			// 		return
+			// 	}
+		}
+	}
+}
+
 func (srv *WSServer) LeaveServer(client *Client) {
 	_, ok := srv.clients[client.id]
 	if ok {
-		defer srv.wg.Done()
+		// defer srv.wg.Done()
 		srv.activeClients.Add(-1)
 		delete(srv.clients, client.id)
 	}
@@ -253,8 +294,8 @@ func (srv *WSServer) LeaveServer(client *Client) {
 		delete(r.clients, client.id)
 	}
 	client.rooms = nil
-	logrus.WithField("id", client.id).Info("client left server")
-	fmt.Println("client count after leave =", len(srv.clients))
+	// logrus.WithField("id", client.id).Info("client left server")
+	fmt.Printf("client count AFTER exit = %d\n", srv.activeClients.Load())
 }
 
 func (srv *WSServer) JoinServer(client *Client) {
@@ -263,8 +304,8 @@ func (srv *WSServer) JoinServer(client *Client) {
 		logrus.WithField("id", client.id).Info("cleint already exists")
 		return
 	}
-	srv.wg.Add(1)
 
+	// srv.wg.Add(1)
 	srv.clients[client.id] = client
 	srv.activeClients.Add(1)
 	logrus.WithField("id", client.id).Info("client joined server")
@@ -398,6 +439,34 @@ func (srv *WSServer) SendBroadcastMsg(msg *Message) {
 			"receiverCount": len(cls),
 		},
 	).Info("sent broadcast")
+}
+
+func (srv *WSServer) cleanUp() {
+	close(srv.leaveServerCH)
+	close(srv.joinServerCH)
+	close(srv.sendBroadcastMsgCH)
+	close(srv.joinRoomCH)
+	close(srv.leaveRoomCH)
+	close(srv.sendRoomMsgCH)
+	close(srv.errCh)
+
+	// timeout := time.After(20 * time.Second)
+	// for {
+	// 	select {
+	// 	case client := <-srv.leaveServerCH:
+	// 		srv.LeaveServer(client)
+	// 		if srv.activeClients.Load() == 0 {
+	// 			return
+	// 		}
+	// 	case <-timeout:
+	// 		logrus.Warn("exiting due to timeout exceeded")
+	// 		return
+	// 	default:
+	// 		if srv.activeClients.Load() == 0 {
+	// 			return
+	// 		}
+	// 	}
+	// }
 }
 
 // read about logrus perf-ce
