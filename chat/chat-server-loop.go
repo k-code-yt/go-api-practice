@@ -138,10 +138,26 @@ func NewRoom(id string) *Room {
 	}
 }
 
-type WSServer struct {
+type Worker struct {
+	id      string
 	clients map[string]*Client
-	rooms   map[string]*Room
 	mu      *sync.RWMutex
+}
+
+func NewWorker() *Worker {
+	id := rand.Text()[:9]
+	return &Worker{
+		id:      id,
+		clients: map[string]*Client{},
+		mu:      new(sync.RWMutex),
+	}
+}
+
+type WSServer struct {
+	clients          map[string]*Client
+	rooms            map[string]*Room
+	workers          []*Worker
+	clientsPerWorker int
 
 	leaveServerCH      chan *Client
 	joinServerCH       chan *Client
@@ -155,16 +171,23 @@ type WSServer struct {
 	ctx      context.Context
 	cancelFN context.CancelFunc
 	wg       *sync.WaitGroup
+	mu       *sync.RWMutex
 
 	// for testing
 	activeClients atomic.Int64
 }
 
-func NewWSServer(ctx context.Context, cancelFN context.CancelFunc) *WSServer {
+func NewWSServer(workerCount int) *WSServer {
+	ctx, cancel := context.WithCancel(context.Background())
+	var workers []*Worker
+	for range workerCount {
+		w := NewWorker()
+		workers = append(workers, w)
+	}
 	return &WSServer{
 		clients: map[string]*Client{},
 		rooms:   map[string]*Room{},
-		mu:      &sync.RWMutex{},
+		workers: workers,
 
 		leaveServerCH:      make(chan *Client, 64),
 		joinServerCH:       make(chan *Client, 64),
@@ -176,8 +199,9 @@ func NewWSServer(ctx context.Context, cancelFN context.CancelFunc) *WSServer {
 		shutdownCH:         make(chan struct{}),
 
 		ctx:      ctx,
-		cancelFN: cancelFN,
+		cancelFN: cancel,
 		wg:       new(sync.WaitGroup),
+		mu:       &sync.RWMutex{},
 	}
 }
 
@@ -209,6 +233,17 @@ func (srv *WSServer) wsHandler() func(http.ResponseWriter, *http.Request) {
 	}
 }
 
+func (srv *WSServer) getWorker(cID string) *Worker {
+	hash := uint32(0)
+	for i := 0; i < len(cID); i++ {
+		hash = hash*31 + uint32(cID[i])
+	}
+
+	workerIndex := int(hash % uint32(len(srv.workers)))
+	w := srv.workers[workerIndex]
+	return w
+}
+
 func (srv *WSServer) AcceptLoop() {
 	for {
 		select {
@@ -229,7 +264,8 @@ func (srv *WSServer) AcceptLoop() {
 		case msg := <-srv.sendRoomMsgCH:
 			go srv.SendRoomMsg(msg)
 		case msg := <-srv.sendBroadcastMsgCH:
-			go srv.SendBroadcastMsg(msg)
+			// TODO -> add .env switcher
+			go srv.SendBroadcastMsgWorkers(msg)
 		}
 	}
 }
@@ -274,18 +310,35 @@ func (srv *WSServer) ShutdownLoopAtomic() {
 			if srv.activeClients.Load() == 0 {
 				return
 			}
-			// default:
-			// 	if srv.activeClients.Load() == 0 {
-			// 		return
-			// 	}
 		}
 	}
+}
+
+func (srv *WSServer) addClientToWorker(client *Client) {
+	cID := client.id
+	w := srv.getWorker(cID)
+	w.clients[cID] = client
+	logrus.WithFields(logrus.Fields{
+		"cID":          cID,
+		"wID":          w.id,
+		"clientsCount": len(w.clients),
+	}).Info("client joined worker")
+}
+
+func (srv *WSServer) removeClientFromWorker(client *Client) {
+	cID := client.id
+	w := srv.getWorker(cID)
+	delete(w.clients, cID)
+	logrus.WithFields(logrus.Fields{
+		"cID":          cID,
+		"wID":          w.id,
+		"clientsCount": len(w.clients),
+	}).Info("client left worker")
 }
 
 func (srv *WSServer) LeaveServer(client *Client) {
 	_, ok := srv.clients[client.id]
 	if ok {
-		// defer srv.wg.Done()
 		srv.activeClients.Add(-1)
 		delete(srv.clients, client.id)
 	}
@@ -294,8 +347,10 @@ func (srv *WSServer) LeaveServer(client *Client) {
 		delete(r.clients, client.id)
 	}
 	client.rooms = nil
-	// logrus.WithField("id", client.id).Info("client left server")
-	fmt.Printf("client count AFTER exit = %d\n", srv.activeClients.Load())
+	// TODO -> and .env variable to on/off
+	srv.removeClientFromWorker(client)
+	// -----
+	logrus.WithField("id", client.id).Info("client left server")
 }
 
 func (srv *WSServer) JoinServer(client *Client) {
@@ -305,7 +360,10 @@ func (srv *WSServer) JoinServer(client *Client) {
 		return
 	}
 
-	// srv.wg.Add(1)
+	// TODO -> and .env variable to on/off
+	srv.addClientToWorker(client)
+	// -----
+
 	srv.clients[client.id] = client
 	srv.activeClients.Add(1)
 	logrus.WithField("id", client.id).Info("client joined server")
@@ -357,6 +415,8 @@ func (srv *WSServer) LeaveRoom(msg *Message) {
 }
 
 func (srv *WSServer) SendRoomMsg(msg *Message) {
+	w := srv.getWorker(msg.Client.id)
+	fmt.Printf("wID = %s, cID = %s\n", w.id, msg.Client.id)
 	room, ok := srv.rooms[msg.RoomID]
 	if !ok {
 		logrus.WithFields(
@@ -389,6 +449,72 @@ func (srv *WSServer) SendRoomMsg(msg *Message) {
 				websocket.CloseAbnormalClosure) {
 				go func() {
 					srv.leaveServerCH <- msg.Client
+				}()
+			}
+		}
+	}
+	logrus.WithFields(
+		logrus.Fields{
+			"senderID":      msg.Client.id,
+			"roomID":        msg.RoomID,
+			"receiverCount": len(cls),
+		},
+	).Info("sent room-msg")
+
+}
+
+func (srv *WSServer) SendRoomMsgWorkers(msg *Message) {
+	room, ok := srv.rooms[msg.RoomID]
+	if !ok {
+		logrus.WithFields(
+			logrus.Fields{
+				"roomID": msg.RoomID,
+			},
+		).Error("cannot send to non existing room")
+		return
+	}
+
+	cls := []*Client{}
+	room.mu.RLock()
+	for _, c := range room.clients {
+		if c.id == msg.Client.id {
+			continue
+		}
+		cls = append(cls, c)
+	}
+	room.mu.RUnlock()
+
+	for _, w := range srv.workers {
+		go w.SendRoomMsg(msg, cls, srv.leaveServerCH)
+	}
+}
+
+func (w *Worker) SendRoomMsg(msg *Message, cls []*Client, leaveCH chan<- *Client) {
+	fmt.Printf("wID = %s, cID = %s\n", w.id, msg.Client.id)
+
+	workerClients := []*Client{}
+
+	w.mu.RLock()
+	for _, c := range cls {
+		toAdd, ok := w.clients[c.id]
+		if ok {
+			workerClients = append(workerClients, toAdd)
+		}
+	}
+	w.mu.RUnlock()
+
+	for _, c := range workerClients {
+		resp := NewResponse(msg)
+		err := c.conn.WriteJSON(resp)
+		if err != nil {
+			logrus.Error("Error sending msg", err)
+			if websocket.IsCloseError(
+				err,
+				websocket.CloseNormalClosure,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure) {
+				go func() {
+					leaveCH <- msg.Client
 				}()
 			}
 		}
@@ -441,6 +567,51 @@ func (srv *WSServer) SendBroadcastMsg(msg *Message) {
 	).Info("sent broadcast")
 }
 
+func (srv *WSServer) SendBroadcastMsgWorkers(msg *Message) {
+	for _, w := range srv.workers {
+		go w.SendBroadcastMsg(msg, srv.leaveServerCH)
+	}
+}
+
+func (w *Worker) SendBroadcastMsg(msg *Message, leaveCH chan<- *Client) {
+	cls := []*Client{}
+
+	w.mu.RLock()
+	for _, c := range w.clients {
+		if c.id == msg.Client.id {
+			continue
+		}
+		cls = append(cls, c)
+	}
+	w.mu.RUnlock()
+
+	msg.RoomID = ""
+	for _, c := range cls {
+		resp := NewResponse(msg)
+		err := c.conn.WriteJSON(resp)
+		if err != nil {
+			logrus.Error("Error sending msg", err)
+			if websocket.IsCloseError(
+				err,
+				websocket.CloseNormalClosure,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure) {
+				go func() {
+					leaveCH <- msg.Client
+				}()
+			}
+		}
+	}
+
+	logrus.WithFields(
+		logrus.Fields{
+			"senderID":      msg.Client.id,
+			"receiverCount": len(cls),
+			"workerID":      w.id,
+		},
+	).Info("sent broadcast")
+}
+
 func (srv *WSServer) cleanUp() {
 	close(srv.leaveServerCH)
 	close(srv.joinServerCH)
@@ -449,35 +620,14 @@ func (srv *WSServer) cleanUp() {
 	close(srv.leaveRoomCH)
 	close(srv.sendRoomMsgCH)
 	close(srv.errCh)
-
-	// timeout := time.After(20 * time.Second)
-	// for {
-	// 	select {
-	// 	case client := <-srv.leaveServerCH:
-	// 		srv.LeaveServer(client)
-	// 		if srv.activeClients.Load() == 0 {
-	// 			return
-	// 		}
-	// 	case <-timeout:
-	// 		logrus.Warn("exiting due to timeout exceeded")
-	// 		return
-	// 	default:
-	// 		if srv.activeClients.Load() == 0 {
-	// 			return
-	// 		}
-	// 	}
-	// }
 }
 
-// read about logrus perf-ce
-// read about sync.Map vs Map + mu.Lock
-// research queue to remove mu.Lock
 func chatServer() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	wsSrv := NewWSServer(ctx, cancel)
+	wsSrv := NewWSServer(3)
+	defer wsSrv.cancelFN()
 	http.HandleFunc("/", wsSrv.wsHandler())
 	go wsSrv.AcceptLoop()
-
-	logrus.Fatal(http.ListenAndServe(":3231", nil))
+	port := ":3231"
+	logrus.Infof("HTTP server is listening on %s\n", port)
+	logrus.Fatal(http.ListenAndServe(port, nil))
 }

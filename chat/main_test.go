@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,7 +21,6 @@ type TestConfig struct {
 	wg            *sync.WaitGroup
 }
 
-// how to do perf testing?
 func CreateClientAndDial(cfg *TestConfig) (*websocket.Conn, error) {
 	// defer cfg.wg.Done()
 	dialer := websocket.Dialer{
@@ -65,9 +63,7 @@ func CreateClientAndDial(cfg *TestConfig) (*websocket.Conn, error) {
 
 func TestConcurrentClientAdd(t *testing.T) {
 	// ---SERVER SETUP
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	wsSrv := NewWSServer(ctx, cancel)
+	wsSrv := NewWSServer(5)
 	http.HandleFunc("/", wsSrv.wsHandler())
 	go wsSrv.AcceptLoop()
 	server := http.Server{Addr: ":3231"}
@@ -76,10 +72,10 @@ func TestConcurrentClientAdd(t *testing.T) {
 		fmt.Printf("HTTP server err = %v\n", err)
 	}()
 	time.Sleep(time.Millisecond * 200)
-	defer server.Shutdown(ctx)
+	defer server.Shutdown(wsSrv.ctx)
 	// ----
 	broadcastsToSend := 5
-	clientCount := 5
+	clientCount := 20
 	cfg := &TestConfig{
 		isClientClose: false,
 		isBroadcast:   true,
@@ -113,7 +109,7 @@ func TestConcurrentClientAdd(t *testing.T) {
 	msgCount := int(cfg.msgCount.Load())
 	assert.Equal(t, (clientCount-1)*broadcastsToSend, msgCount, "All clients received broadcast")
 
-	cancel()
+	wsSrv.cancelFN()
 	<-wsSrv.shutdownCH
 
 	actualClientsCount := wsSrv.GetClientCount()
