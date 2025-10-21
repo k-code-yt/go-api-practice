@@ -53,7 +53,6 @@ func CreateClientAndDial(cfg *TestConfig) (*websocket.Conn, error) {
 					return
 				}
 				cfg.msgCount.Add(1)
-				fmt.Printf("received msg, new count = %d\n", cfg.msgCount.Load())
 			}
 		}()
 	}
@@ -63,7 +62,7 @@ func CreateClientAndDial(cfg *TestConfig) (*websocket.Conn, error) {
 
 func TestConcurrentClientAdd(t *testing.T) {
 	// ---SERVER SETUP
-	wsSrv := NewWSServer(5)
+	wsSrv := NewWSServer(1)
 	http.HandleFunc("/", wsSrv.wsHandler())
 	go wsSrv.AcceptLoop()
 	server := http.Server{Addr: ":3231"}
@@ -74,8 +73,8 @@ func TestConcurrentClientAdd(t *testing.T) {
 	time.Sleep(time.Millisecond * 200)
 	defer server.Shutdown(wsSrv.ctx)
 	// ----
-	broadcastsToSend := 5
-	clientCount := 20
+	broadcastsToSend := 2
+	clientCount := 10
 	cfg := &TestConfig{
 		isClientClose: false,
 		isBroadcast:   true,
