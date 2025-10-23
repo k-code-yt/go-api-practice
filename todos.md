@@ -1,13 +1,15 @@
-###todos
+### todos
 
-- workers
-  -- for broadcast
-  -- for rooms
-  -- for dynamic scaling
+- add .env
+- go over all TODOs
+- add sse?
+- write tests for rooms?
 - concurrency test for v1 app
 - perf testing -> how to do it? deploy to k8s?
+- add messaging via Kafka
+  -- add reconn and msg replay
 
-###to research
+### to research
 
 - read about logrus perf-ce
 - read about sync.Map vs Map + mu.Lock

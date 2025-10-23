@@ -44,9 +44,7 @@ func (w *Worker) SendRoomMsg(msg *Message, cls []*Client, leaveCH chan<- *Client
 				websocket.CloseNormalClosure,
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure) {
-				go func() {
-					leaveCH <- c
-				}()
+				leaveCH <- c
 			}
 		}
 	}
@@ -83,9 +81,7 @@ func (w *Worker) SendBroadcastMsg(resp *Response, cID string, leaveCH chan<- *Cl
 				websocket.CloseNormalClosure,
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure) {
-				go func() {
-					leaveCH <- c
-				}()
+				leaveCH <- c
 			}
 		}
 	}

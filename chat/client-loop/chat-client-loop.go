@@ -655,8 +655,8 @@ func chatClientLoop() {
 
 	go func() {
 		http.HandleFunc("/", svr.handleWS())
-		logrus.Info("starting to listen on localhost:3231")
-		log.Fatal(http.ListenAndServe("localhost:3231", nil))
+		logrus.Info("starting to listen on localhost:2112")
+		log.Fatal(http.ListenAndServe("localhost:2112", nil))
 	}()
 
 	svr.RegisterLoop()

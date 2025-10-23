@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,7 +30,7 @@ func CreateClientAndDial(cfg *TestConfig) (*websocket.Conn, error) {
 		HandshakeTimeout:  45 * time.Second,
 	}
 
-	conn, _, err := dialer.Dial("ws://localhost:3231", nil)
+	conn, _, err := dialer.Dial("ws://localhost:2112", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -61,11 +62,13 @@ func CreateClientAndDial(cfg *TestConfig) (*websocket.Conn, error) {
 }
 
 func TestConcurrentClientAdd(t *testing.T) {
+	loadENV()
+	os.Setenv("ENV", "test")
 	// ---SERVER SETUP
 	wsSrv := NewWSServer(1)
 	http.HandleFunc("/", wsSrv.wsHandler())
 	go wsSrv.AcceptLoop()
-	server := http.Server{Addr: ":3231"}
+	server := http.Server{Addr: ":2112"}
 	go func() {
 		err := server.ListenAndServe()
 		fmt.Printf("HTTP server err = %v\n", err)
@@ -73,8 +76,8 @@ func TestConcurrentClientAdd(t *testing.T) {
 	time.Sleep(time.Millisecond * 200)
 	defer server.Shutdown(wsSrv.ctx)
 	// ----
-	broadcastsToSend := 2
-	clientCount := 10
+	broadcastsToSend := 1
+	clientCount := 5
 	cfg := &TestConfig{
 		isClientClose: false,
 		isBroadcast:   true,

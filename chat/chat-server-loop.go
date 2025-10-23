@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	mathrand "math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -71,21 +73,30 @@ func NewClient(conn *websocket.Conn) *Client {
 }
 
 func (c *Client) readMsgLoop(ctx context.Context, srv *WSServer) {
+	exit := make(chan struct{})
 	defer func() {
 		c.conn.Close()
 		srv.leaveServerCH <- c
+		logrus.Info("Exiting DEFER FUNC")
 	}()
 
 	go func() {
-		<-ctx.Done()
-		c.conn.Close()
+		select {
+		case <-exit:
+			break
+		case <-ctx.Done():
+			c.conn.Close()
+			break
+		}
+		logrus.Info("Exiting close GOROUTINE")
 	}()
 
 	for {
 		_, b, err := c.conn.ReadMessage()
 		if err != nil {
 			// TODO add test .env to enable/disable
-			// logrus.Errorf("error reading msg loop for client = %s, err = %v", c.id, err)
+			logrus.Errorf("error reading msg loop for client = %s, err = %v", c.id, err)
+			close(exit)
 			return
 		}
 
@@ -174,16 +185,16 @@ func NewWSServer(workerCount int) *WSServer {
 		clients:          map[string]*Client{},
 		rooms:            map[string]*Room{},
 		workers:          workers,
-		clientsPerWorker: 3,
+		clientsPerWorker: 50,
 
 		leaveServerCH:      make(chan *Client, 64),
 		joinServerCH:       make(chan *Client, 64),
 		sendBroadcastMsgCH: make(chan *Message, 64),
-		// joinRoomCH:         make(chan *Message, 64),
-		leaveRoomCH:   make(chan *Message, 64),
-		sendRoomMsgCH: make(chan *Message, 64),
-		errCh:         make(chan error, 64),
-		shutdownCH:    make(chan struct{}),
+		joinRoomCH:         make(chan *Message, 64),
+		leaveRoomCH:        make(chan *Message, 64),
+		sendRoomMsgCH:      make(chan *Message, 64),
+		errCh:              make(chan error, 64),
+		shutdownCH:         make(chan struct{}),
 
 		ctx:      ctx,
 		cancelFN: cancel,
@@ -265,9 +276,7 @@ func (srv *WSServer) wsHandler() func(http.ResponseWriter, *http.Request) {
 		}
 
 		c := NewClient(conn)
-		go func() {
-			srv.joinServerCH <- c
-		}()
+		srv.joinServerCH <- c
 		go c.readMsgLoop(srv.ctx, srv)
 	}
 }
@@ -284,6 +293,7 @@ func (srv *WSServer) getWorker(cID string) *Worker {
 }
 
 func (srv *WSServer) AcceptLoop() {
+	ENV = os.Getenv("ENV")
 	for {
 		select {
 		case <-srv.ctx.Done():
@@ -363,6 +373,10 @@ func (srv *WSServer) addClientToWorker(client *Client) {
 		"wID":          w.id,
 		"clientsCount": len(w.clients),
 	}).Info("client joined worker")
+	if mathrand.Intn(50) < 1 {
+		fmt.Println("client count on add = ", len(srv.clients))
+	}
+
 }
 
 func (srv *WSServer) removeClientFromWorker(client *Client) {
@@ -375,6 +389,10 @@ func (srv *WSServer) removeClientFromWorker(client *Client) {
 		"wID":          w.id,
 		"clientsCount": len(w.clients),
 	}).Info("client left worker")
+	if mathrand.Intn(50) < 1 {
+		fmt.Println("client count on remove = ", len(srv.clients))
+	}
+
 }
 
 func (srv *WSServer) LeaveServer(client *Client) {
@@ -409,7 +427,7 @@ func (srv *WSServer) JoinServer(client *Client) {
 	srv.clients[client.id] = client
 	srv.activeClients.Add(1)
 	srv.checkScaleUp()
-	logrus.WithField("id", client.id).Info("client joined server")
+	// logrus.WithField("id", client.id).Info("client joined server")
 }
 
 func (srv *WSServer) JoinRoom(msg *Message) {
@@ -490,9 +508,7 @@ func (srv *WSServer) SendRoomMsg(msg *Message) {
 				websocket.CloseNormalClosure,
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure) {
-				go func() {
-					srv.leaveServerCH <- msg.Client
-				}()
+				srv.leaveServerCH <- msg.Client
 			}
 		}
 	}
@@ -555,9 +571,7 @@ func (srv *WSServer) SendBroadcastMsg(msg *Message) {
 				websocket.CloseNormalClosure,
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure) {
-				go func() {
-					srv.leaveServerCH <- msg.Client
-				}()
+				srv.leaveServerCH <- msg.Client
 			}
 		}
 	}
@@ -594,9 +608,9 @@ func (srv *WSServer) cleanUp() {
 func chatServer() {
 	wsSrv := NewWSServer(1)
 	defer wsSrv.cancelFN()
-	http.HandleFunc("/", wsSrv.wsHandler())
+	http.HandleFunc("/", prometheusMiddleware(wsSrv.wsHandler()))
 	go wsSrv.AcceptLoop()
-	port := ":3231"
+	port := ":2112"
 	logrus.Infof("HTTP server is listening on %s\n", port)
 	logrus.Fatal(http.ListenAndServe(port, nil))
 }
