@@ -1,11 +1,10 @@
 ### todos
 
-- add .env
-- go over all TODOs
+- rooms -> test race conditions
+- perf testing -> how to do it? deploy to k8s?
+- concurrency test for v1 app
 - add sse?
 - write tests for rooms?
-- concurrency test for v1 app
-- perf testing -> how to do it? deploy to k8s?
 - add messaging via Kafka
   -- add reconn and msg replay
 

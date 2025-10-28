@@ -1,26 +1,14 @@
 package main
 
 import (
-	"flag"
-	"os"
-
-	"poseur.com/dotenv"
+	server "github.com/k-code-yt/go-api-practice/chat/with-loop-per-client"
 )
-
-var (
-	ENV string = ""
-)
-
-func loadENV() {
-	var envfile = flag.String("env", ".env", "environment file")
-	flag.Parse()
-	_ = dotenv.SetenvFile(*envfile)
-	ENV = os.Getenv("ENV")
-}
 
 func main() {
-	loadENV()
-	initProm()
+	// loadENV()
+	// initProm()
 	// chatClientLoop()
-	chatServer()
+	// chatServer()
+	s := server.NewServer()
+	s.CreateWSServer()
 }

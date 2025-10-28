@@ -1,9 +1,10 @@
-package main
+package withworkers
 
 import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"flag"
 	"fmt"
 	mathrand "math/rand"
 	"net/http"
@@ -14,7 +15,19 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+	"poseur.com/dotenv"
 )
+
+var (
+	ENV string = ""
+)
+
+func loadENV() {
+	var envfile = flag.String("env", ".env", "environment file")
+	flag.Parse()
+	_ = dotenv.SetenvFile(*envfile)
+	ENV = os.Getenv("ENV")
+}
 
 type MsgType string
 
