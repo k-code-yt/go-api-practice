@@ -251,7 +251,6 @@ func (s *Server) AcceptLoop() {
 
 func (s *Server) joinServer(c *Client) {
 	s.clients[c.ID] = c
-	s.roomsCount.Add(1)
 	fmt.Printf("client joined the server, cID = %s\n", c.ID)
 }
 
@@ -277,7 +276,7 @@ func (s *Server) sendMsg(msg *ReqMsg, cls map[string]*Client) {
 	if msg.RoomID == "" {
 		m = "BROADCAST"
 	}
-	fmt.Printf("msg was sent to %s num_clients=%d\n", m, len(cls))
+	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, msg.Client.ID, len(cls))
 }
 
 func (s *Server) joinRoom(msg *ReqMsg) {
@@ -287,10 +286,11 @@ func (s *Server) joinRoom(msg *ReqMsg) {
 	room, ok := s.rooms[msg.RoomID]
 	if !ok {
 		room = NewRoom(msg.RoomID)
+		s.rooms[msg.RoomID] = room
+		s.roomsCount.Add(1)
 	}
 
 	room.clients[cID] = msg.Client
-	s.rooms[msg.RoomID] = room
 
 	room.clientsCount.Add(1)
 	fmt.Printf("clientID %s joined the room %s\n", cID, msg.RoomID)
@@ -301,9 +301,9 @@ func (s *Server) leaveRoom(msg *ReqMsg) {
 	room, ok := s.rooms[msg.RoomID]
 	if ok {
 		delete(room.clients, cID)
+		room.clientsCount.Add(-1)
 	}
 
-	room.clientsCount.Add(-1)
 	fmt.Printf("clientID %s left the room %s\n", cID, msg.RoomID)
 }
 

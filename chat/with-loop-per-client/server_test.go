@@ -194,14 +194,14 @@ func TestRooms(t *testing.T) {
 	s := NewServer()
 	go s.CreateWSServer()
 	time.Sleep(1 * time.Second)
-	clientCount := 5
-	brCount := 3
+	clientCount := 500
+	brCount := 250
 
 	tc := TestConfig{
 		clientCount:    clientCount,
 		wg:             new(sync.WaitGroup),
 		brMsgCount:     new(atomic.Int64),
-		targetMsgCount: (clientCount - 1) * brCount,
+		targetMsgCount: 0,
 	}
 
 	rID1 := "FIRST_ROOM"
@@ -209,7 +209,7 @@ func TestRooms(t *testing.T) {
 	rID2 := "SECOND_ROOM"
 	tc.wg.Add(tc.clientCount)
 	clients := []*TestClient{}
-	for range tc.clientCount {
+	for idx := range tc.clientCount {
 		conn := JoinServer(&tc)
 		client := NewTestClient(conn, ctx)
 		client.mu.Lock()
@@ -218,7 +218,7 @@ func TestRooms(t *testing.T) {
 		go client.readLoop(&tc)
 		go client.writeLoop()
 		rID := rID1
-		if rand.IntN(10) < 5 {
+		if rand.IntN(10) < 5 || idx == 0 {
 			rID = rID2
 			rID2Count++
 		}
@@ -227,26 +227,40 @@ func TestRooms(t *testing.T) {
 		client.JoinRoom(&tc, rID)
 	}
 
+	room1Clients := tc.clientCount - rID2Count
+	room2Clients := rID2Count
+
+	expectedMessages := 0
+	for idx := range brCount {
+		if clients[idx].roomID == rID1 {
+			expectedMessages += room1Clients - 1
+		} else {
+			expectedMessages += room2Clients - 1
+		}
+	}
+	tc.targetMsgCount = expectedMessages
+
 	for {
 		res := s.GetTestResult(rID1)
 		fmt.Printf("test_res = %v\n", res)
 		if res.clientsCount == tc.clientCount-rID2Count {
 			break
 		}
-		time.Sleep(1 * time.Second)
 	}
 
 	for idx := range brCount {
 		c := clients[idx]
 		go c.SendRoomMsg(&tc, c.roomID)
-		time.Sleep(1 * time.Second)
 	}
 
 	for {
-		res := s.GetTestResult(rID1)
+		res1 := s.GetTestResult(rID1)
+		res2 := s.GetTestResult(rID2)
 		currMsgCount := int(tc.brMsgCount.Load())
-		fmt.Printf("test_res = %v, curr_msg_count = %d\n", res, currMsgCount)
-		if res.clientsCount == tc.clientCount-rID2Count && currMsgCount == (tc.targetMsgCount-brCount*rID2Count) {
+		fmt.Printf("test_res = %v, curr_msg_count = %d\n", res1, currMsgCount)
+		if res1.clientsCount == room1Clients &&
+			res2.clientsCount == room2Clients &&
+			currMsgCount == tc.targetMsgCount {
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -254,26 +268,25 @@ func TestRooms(t *testing.T) {
 
 	for _, client := range clients {
 		client.LeaveRoom(&tc, client.roomID)
+	}
 
-		go func(conn *websocket.Conn) {
-			time.Sleep(2 * time.Second)
-			conn.Close()
-			time.Sleep(300 * time.Millisecond)
-			tc.wg.Done()
-		}(client.conn)
+	for {
+		res1 := s.GetTestResult(rID1)
+		res2 := s.GetTestResult(rID2)
+		if res1.clientsCount == 0 && res2.clientsCount == 0 {
+			for _, client := range clients {
+				go func(conn *websocket.Conn) {
+					conn.Close()
+					tc.wg.Done()
+				}(client.conn)
+			}
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
 
 	tc.wg.Wait()
 	cancel()
-
-	for {
-		time.Sleep(1 * time.Second)
-		res1 := s.GetTestResult(rID1)
-		res2 := s.GetTestResult(rID2)
-		if res1.clientsCount == 0 && res2.clientsCount == 0 {
-			break
-		}
-	}
 
 	fmt.Println("exiting test")
 }
