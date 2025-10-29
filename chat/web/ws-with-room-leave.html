@@ -699,21 +699,6 @@
       function startPingInterval(connectionId) {
         const conn = connections.get(connectionId);
         if (!conn) return;
-
-        conn.pingInterval = setInterval(() => {
-          if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
-            const pingMessage = new ArrayBuffer(1);
-            conn.ws.send(pingMessage);
-
-            const card = document.getElementById(`conn-${connectionId}`);
-            const lastPingEl = card.querySelector(".last-ping");
-            if (lastPingEl) {
-              lastPingEl.textContent = new Date().toLocaleTimeString();
-            }
-
-            addConnectionMessage(connectionId, `🏓 Sent ping`);
-          }
-        }, 20000);
       }
 
       function stopPingInterval(connectionId) {
@@ -921,8 +906,6 @@
 
             card.querySelector(".message-input").disabled = false;
             card.querySelector(".send-message-btn").disabled = false;
-
-            startPingInterval(connectionId);
           };
 
           ws.onclose = () => {
@@ -975,8 +958,18 @@
                 conn.wsId = data.wsId;
               }
 
-              if (data.type === "pong") {
-                addConnectionMessage(connectionId, `🏓 Received pong`);
+              if (data.type === "ping") {
+                addConnectionMessage(connectionId, `🏓 Received ping`);
+
+                const pongMessage = new ArrayBuffer(1);
+                conn.ws.send(pongMessage);
+
+                const card = document.getElementById(`conn-${connectionId}`);
+                const lastPingEl = card.querySelector(".last-ping");
+                if (lastPingEl) {
+                  lastPingEl.textContent = new Date().toLocaleTimeString();
+                }
+                addConnectionMessage(connectionId, `🏓 Sent pong`);
               } else if (data.roomId || data.roomID) {
                 const roomId = data.roomId || data.roomID;
                 addConnectionMessage(

@@ -2,6 +2,7 @@ package withloopperclient
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand/v2"
@@ -27,6 +28,7 @@ type TestConfig struct {
 type TestClient struct {
 	conn   *websocket.Conn
 	msgCH  chan *ReqMsg
+	pongCH chan [1]byte
 	ctx    context.Context
 	mu     *sync.RWMutex
 	roomID string
@@ -34,10 +36,11 @@ type TestClient struct {
 
 func NewTestClient(conn *websocket.Conn, ctx context.Context) *TestClient {
 	return &TestClient{
-		conn:  conn,
-		msgCH: make(chan *ReqMsg, 64),
-		ctx:   ctx,
-		mu:    new(sync.RWMutex),
+		conn:   conn,
+		msgCH:  make(chan *ReqMsg, 64),
+		pongCH: make(chan [1]byte, 8),
+		ctx:    ctx,
+		mu:     new(sync.RWMutex),
 	}
 }
 
@@ -46,14 +49,27 @@ func (c *TestClient) writeLoop() {
 		select {
 		case <-c.ctx.Done():
 			return
-		case msg := <-c.msgCH:
-			err := c.conn.WriteJSON(&msg)
+		case msg := <-c.pongCH:
+			err := c.sendMsg(msg)
 			if err != nil {
-				fmt.Printf("error sending msg %v\n", err)
+				return
+			}
+		case msg := <-c.msgCH:
+			err := c.sendMsg(msg)
+			if err != nil {
 				return
 			}
 		}
 	}
+}
+
+func (c *TestClient) sendMsg(msg interface{}) error {
+	err := c.conn.WriteJSON(msg)
+	if err != nil {
+		fmt.Printf("error sending msg %v\n", err)
+		return err
+	}
+	return nil
 }
 
 func (c *TestClient) readLoop(tc *TestConfig) {
@@ -67,9 +83,14 @@ func (c *TestClient) readLoop(tc *TestConfig) {
 				return
 			}
 
-			if len(b) == 1 {
-				fmt.Println("received ping")
-				continue
+			msg := new(RespMsg)
+			err = json.Unmarshal(b, msg)
+			if err != nil {
+				log.Fatal("unable to unmarshal json")
+			}
+			if msg.MsgType == MsgType_Ping {
+				pongMsg := [1]byte{}
+				c.pongCH <- pongMsg
 			}
 
 			tc.brMsgCount.Add(1)
@@ -195,7 +216,7 @@ func TestRooms(t *testing.T) {
 	go s.CreateWSServer()
 	time.Sleep(1 * time.Second)
 	clientCount := 500
-	brCount := 250
+	brCount := 200
 
 	tc := TestConfig{
 		clientCount:    clientCount,

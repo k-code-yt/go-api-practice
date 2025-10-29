@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 var (
-	WSPort = ":3223"
+	WSPort       = ":3223"
+	PingPongFreq = time.Second * 30
 )
 
 type MsgType string
@@ -23,13 +25,14 @@ const (
 	MsgType_RoomJoin  MsgType = "room-join"
 	MsgType_RoomLeave MsgType = "room-leave"
 	MsgType_RoomMsg   MsgType = "room-msg"
+	MsgType_Ping      MsgType = "ping"
 )
 
 type ReqMsg struct {
-	MsgType MsgType
+	MsgType MsgType `json:"type"`
 	Client  *Client
-	Data    string
-	RoomID  string
+	Data    interface{} `json:"data"`
+	RoomID  string      `json:"roomID"`
 }
 
 func NewReqMsg(msgType MsgType, rID string, data string) *ReqMsg {
@@ -41,10 +44,10 @@ func NewReqMsg(msgType MsgType, rID string, data string) *ReqMsg {
 }
 
 type RespMsg struct {
-	MsgType  MsgType
-	Data     string
-	SenderID string
-	RoomID   string
+	MsgType  MsgType     `json:"type"`
+	Data     interface{} `json:"data"`
+	SenderID string      `json:"senderID"`
+	RoomID   string      `json:"roomID"`
 }
 
 func NewRespMsg(msg *ReqMsg) *RespMsg {
@@ -56,29 +59,42 @@ func NewRespMsg(msg *ReqMsg) *RespMsg {
 }
 
 type Client struct {
-	ID    string
-	mu    *sync.RWMutex
-	conn  *websocket.Conn
-	msgCH chan *RespMsg
-	done  chan struct{}
+	ID          string
+	mu          *sync.RWMutex
+	conn        *websocket.Conn
+	msgCH       chan *RespMsg
+	done        chan struct{}
+	pongCounter *atomic.Int64
 }
 
 func NewClient(conn *websocket.Conn) *Client {
 	ID := rand.Text()[:9]
 	return &Client{
-		ID:    ID,
-		mu:    new(sync.RWMutex),
-		conn:  conn,
-		msgCH: make(chan *RespMsg, 64),
-		done:  make(chan struct{}),
+		ID:          ID,
+		mu:          new(sync.RWMutex),
+		conn:        conn,
+		msgCH:       make(chan *RespMsg, 64),
+		done:        make(chan struct{}),
+		pongCounter: new(atomic.Int64),
 	}
 
 }
 
 func (c *Client) writeMsgLoop() {
+	t := time.NewTicker(PingPongFreq)
+
 	defer c.conn.Close()
+	defer t.Stop()
+
 	for {
+		if c.pongCounter.Load() > 2 {
+			fmt.Printf("pong counter exceeded -> disconnecting cID= %s\n", c.ID)
+			return
+		}
 		select {
+		case <-t.C:
+			c.pongCounter.Add(1)
+			continue
 		case <-c.done:
 			return
 		case msg := <-c.msgCH:
@@ -103,6 +119,12 @@ func (c *Client) readMsgLoop(s *Server) {
 			return
 		}
 
+		if len(b) == 1 {
+			c.pongCounter.Add(-1)
+			fmt.Printf("received pong from cID = %s, pongCounter = %d\n", c.ID, c.pongCounter.Load())
+			continue
+		}
+
 		msg := new(ReqMsg)
 		err = json.Unmarshal(b, msg)
 		if err != nil {
@@ -123,6 +145,22 @@ func (c *Client) readMsgLoop(s *Server) {
 		default:
 			fmt.Printf("unknown message type = %s\n", msg.MsgType)
 			continue
+		}
+	}
+}
+
+func (c *Client) initPing() {
+	for {
+		select {
+		case <-c.done:
+			return
+		default:
+			time.Sleep(PingPongFreq)
+			pingMsg := RespMsg{
+				MsgType: MsgType_Ping,
+			}
+			fmt.Printf("sending ping msg to cID= %s\n", c.ID)
+			c.msgCH <- &pingMsg
 		}
 	}
 }
@@ -203,6 +241,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	go client.writeMsgLoop()
 	go client.readMsgLoop(s)
+	go client.initPing()
 }
 
 func (s *Server) AcceptLoop() {
