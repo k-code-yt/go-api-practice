@@ -215,8 +215,8 @@ func TestRooms(t *testing.T) {
 	s := NewServer()
 	go s.CreateWSServer()
 	time.Sleep(1 * time.Second)
-	clientCount := 500
-	brCount := 200
+	clientCount := 15
+	brCount := 5
 
 	tc := TestConfig{
 		clientCount:    clientCount,
@@ -309,5 +309,43 @@ func TestRooms(t *testing.T) {
 	tc.wg.Wait()
 	cancel()
 
+	fmt.Println("exiting test")
+}
+
+func TestBackPressure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s := NewServer()
+	go s.CreateWSServer()
+	time.Sleep(1 * time.Second)
+	clientCount := 2
+	brCount := 20
+
+	tc := TestConfig{
+		clientCount:    clientCount,
+		wg:             new(sync.WaitGroup),
+		brMsgCount:     new(atomic.Int64),
+		targetMsgCount: 0,
+	}
+
+	tc.wg.Add(tc.clientCount)
+	clients := []*TestClient{}
+	for range tc.clientCount {
+		conn := JoinServer(&tc)
+		client := NewTestClient(conn, ctx)
+		client.mu.Lock()
+		clients = append(clients, client)
+		client.mu.Unlock()
+		go client.readLoop(&tc)
+		go client.writeLoop()
+	}
+
+	msg := NewReqMsg(MsgType_Broadcast, "", "wanna send broadcast")
+
+	for range brCount {
+		clients[0].msgCH <- msg
+	}
+
+	time.Sleep(5 * time.Second)
+	cancel()
 	fmt.Println("exiting test")
 }

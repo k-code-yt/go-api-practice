@@ -65,6 +65,11 @@ type Client struct {
 	msgCH       chan *RespMsg
 	done        chan struct{}
 	pongCounter *atomic.Int64
+
+	// back pressure
+	bpStrategy      BPStrategy
+	queueSize       *atomic.Int64
+	droppedMsgCount *atomic.Int64
 }
 
 func NewClient(conn *websocket.Conn) *Client {
@@ -73,9 +78,13 @@ func NewClient(conn *websocket.Conn) *Client {
 		ID:          ID,
 		mu:          new(sync.RWMutex),
 		conn:        conn,
-		msgCH:       make(chan *RespMsg, 64),
+		msgCH:       make(chan *RespMsg),
 		done:        make(chan struct{}),
 		pongCounter: new(atomic.Int64),
+		// backpressure
+		queueSize:       new(atomic.Int64),
+		droppedMsgCount: new(atomic.Int64),
+		bpStrategy:      DefaultBackPressureStrategy,
 	}
 
 }
@@ -98,6 +107,12 @@ func (c *Client) writeMsgLoop() {
 		case <-c.done:
 			return
 		case msg := <-c.msgCH:
+
+			// TODO -> remove
+			// ---FOR BACKPRESSURE TESTS---
+			time.Sleep(1 * time.Second)
+			// ---
+			c.queueSize.Add(-1)
 			err := c.conn.WriteJSON(msg)
 			if err != nil {
 				fmt.Printf("error sending msg to clientID = %s\n", c.ID)
@@ -256,25 +271,9 @@ func (s *Server) AcceptLoop() {
 		case msg := <-s.roomLeaveCH:
 			s.leaveRoom(msg)
 		case msg := <-s.broadcastCH:
-			cls := map[string]*Client{}
-			for id, c := range s.clients {
-				if id != msg.Client.ID {
-					cls[id] = c
-				}
-			}
-			go s.sendMsg(msg, cls)
+			go s.sendBroadcastMsg(msg)
 		case msg := <-s.roomMsgCH:
-			r, ok := s.rooms[msg.RoomID]
-			if !ok {
-				fmt.Printf("roomID = %s does not exist\n", msg.RoomID)
-			}
-			cls := map[string]*Client{}
-			for id, c := range r.clients {
-				if id != msg.Client.ID {
-					cls[id] = c
-				}
-			}
-			go s.sendMsg(msg, cls)
+			go s.sendRoomMsg(msg)
 
 			// for tests
 		case roomID := <-s.testReq:
@@ -316,6 +315,33 @@ func (s *Server) sendMsg(msg *ReqMsg, cls map[string]*Client) {
 		m = "BROADCAST"
 	}
 	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, msg.Client.ID, len(cls))
+}
+
+func (s *Server) sendBroadcastMsg(msg *ReqMsg) {
+	cls := map[string]*Client{}
+	for id, c := range s.clients {
+		if id != msg.Client.ID {
+			cls[id] = c
+		}
+	}
+
+	go s.backpressureSendMsg(msg, cls)
+	// go s.sendMsg(msg, cls)
+}
+
+func (s *Server) sendRoomMsg(msg *ReqMsg) {
+	r, ok := s.rooms[msg.RoomID]
+	if !ok {
+		fmt.Printf("roomID = %s does not exist\n", msg.RoomID)
+	}
+	cls := map[string]*Client{}
+	for id, c := range r.clients {
+		if id != msg.Client.ID {
+			cls[id] = c
+		}
+	}
+	go s.backpressureSendMsg(msg, cls)
+	// go s.sendMsg(msg, cls)
 }
 
 func (s *Server) joinRoom(msg *ReqMsg) {
