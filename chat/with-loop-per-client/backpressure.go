@@ -18,20 +18,7 @@ const (
 	MaxBackPressureQueueSize    = 5
 )
 
-func (c *Server) backpressureSendMsg(msg *ReqMsg, cls map[string]*Client) {
-	resp := NewRespMsg(msg)
-	for _, c := range cls {
-		c.handleBackpressure(resp)
-	}
-
-	m := msg.RoomID
-	if msg.RoomID == "" {
-		m = "BROADCAST"
-	}
-	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, msg.Client.ID, len(cls))
-}
-
-func (c *Client) handleBackpressure(msg *RespMsg) {
+func (c *Client) handleBackpressure(msg *RespMsg, droppedCH chan<- struct{}) {
 	qs := int(c.queueSize.Load())
 
 	switch c.bpStrategy {
@@ -41,6 +28,7 @@ func (c *Client) handleBackpressure(msg *RespMsg) {
 			c.queueSize.Add(1)
 		case <-time.After(100 * time.Millisecond):
 			c.droppedMsgCount.Add(1)
+			droppedCH <- struct{}{}
 			fmt.Printf("dropped msg - SLOW_CLIENT, cID = %s\n", c.ID)
 			return
 		}
@@ -48,6 +36,7 @@ func (c *Client) handleBackpressure(msg *RespMsg) {
 	case BPStrategy_Drop:
 		if qs >= MaxBackPressureQueueSize {
 			fmt.Printf("dropped msg - MAX_QUEUE_SIZE_WAS_REACHED, cID = %s\n", c.ID)
+			droppedCH <- struct{}{}
 			c.droppedMsgCount.Add(1)
 			return
 		}

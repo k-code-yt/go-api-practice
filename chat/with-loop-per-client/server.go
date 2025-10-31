@@ -26,6 +26,7 @@ const (
 	MsgType_RoomLeave MsgType = "room-leave"
 	MsgType_RoomMsg   MsgType = "room-msg"
 	MsgType_Ping      MsgType = "ping"
+	MsgType_Throttled MsgType = "throttled"
 )
 
 type ReqMsg struct {
@@ -48,6 +49,7 @@ type RespMsg struct {
 	Data     interface{} `json:"data"`
 	SenderID string      `json:"senderID"`
 	RoomID   string      `json:"roomID"`
+	ErrCode  int         `json:"errorCode"`
 }
 
 func NewRespMsg(msg *ReqMsg) *RespMsg {
@@ -65,6 +67,8 @@ type Client struct {
 	msgCH       chan *RespMsg
 	done        chan struct{}
 	pongCounter *atomic.Int64
+	// throttling
+	throttler *Throttler
 
 	// back-pressure
 	bpStrategy      BPStrategy
@@ -74,13 +78,16 @@ type Client struct {
 
 func NewClient(conn *websocket.Conn) *Client {
 	ID := rand.Text()[:9]
+	t := NewThrottler(ThrottlerMessagesPerSecond)
 	return &Client{
 		ID:          ID,
 		mu:          new(sync.RWMutex),
 		conn:        conn,
-		msgCH:       make(chan *RespMsg),
+		msgCH:       make(chan *RespMsg, 64),
 		done:        make(chan struct{}),
 		pongCounter: new(atomic.Int64),
+		// throttling
+		throttler: t,
 
 		// back-pressure
 		queueSize:       new(atomic.Int64),
@@ -108,10 +115,6 @@ func (c *Client) writeMsgLoop() {
 		case <-c.done:
 			return
 		case msg := <-c.msgCH:
-			// TODO -> remove
-			// ---FOR BACKPRESSURE TESTS---
-			time.Sleep(1 * time.Second)
-			// ---
 			c.queueSize.Add(-1)
 			err := c.conn.WriteJSON(msg)
 			if err != nil {
@@ -124,9 +127,12 @@ func (c *Client) writeMsgLoop() {
 
 func (c *Client) readMsgLoop(s *Server) {
 	defer func() {
+		close(c.throttler.exit)
 		close(c.done)
 		s.leaveServerCH <- c
 	}()
+
+	go c.acceptThrottledMsgLoop(s)
 
 	for {
 		_, b, err := c.conn.ReadMessage()
@@ -148,18 +154,42 @@ func (c *Client) readMsgLoop(s *Server) {
 		}
 		msg.Client = c
 
-		switch msg.MsgType {
-		case MsgType_Broadcast:
-			s.broadcastCH <- msg
-		case MsgType_RoomJoin:
-			s.roomJoinCH <- msg
-		case MsgType_RoomLeave:
-			s.roomLeaveCH <- msg
-		case MsgType_RoomMsg:
-			s.roomMsgCH <- msg
-		default:
-			fmt.Printf("unknown message type = %s\n", msg.MsgType)
-			continue
+		isAllowed := c.throttler.Allow(msg)
+		if !isAllowed {
+			resp := &RespMsg{
+				MsgType:  MsgType_Throttled,
+				SenderID: c.ID,
+				ErrCode:  429,
+			}
+			c.msgCH <- resp
+		}
+	}
+}
+
+func (c *Client) acceptThrottledMsgLoop(s *Server) {
+	for {
+		select {
+		case <-c.done:
+			fmt.Printf("leaving acceptThrottledMsgLoop on CLIENT_DONE, cID = %s\n", c.ID)
+			return
+		case msg, ok := <-c.throttler.outputCH:
+			if !ok {
+				fmt.Printf("leaving acceptThrottledMsgLoop on THROTTLE_EXIT, cID = %s\n", c.ID)
+				return
+			}
+			switch msg.MsgType {
+			case MsgType_Broadcast:
+				s.broadcastCH <- msg
+			case MsgType_RoomJoin:
+				s.roomJoinCH <- msg
+			case MsgType_RoomLeave:
+				s.roomLeaveCH <- msg
+			case MsgType_RoomMsg:
+				s.roomMsgCH <- msg
+			default:
+				fmt.Printf("unknown message type = %s\n", msg.MsgType)
+				continue
+			}
 		}
 	}
 }
@@ -212,9 +242,11 @@ type Server struct {
 	roomMsgCH     chan *ReqMsg
 
 	// for tests
-	roomsCount   *atomic.Int64
-	testReq      chan string
-	testResultCH chan *TestResult
+	roomsCount      *atomic.Int64
+	testReq         chan string
+	testResultCH    chan *TestResult
+	droppedMsgCount *atomic.Int64
+	droppedCH       chan struct{}
 }
 
 func NewServer() *Server {
@@ -230,9 +262,11 @@ func NewServer() *Server {
 		roomMsgCH:     make(chan *ReqMsg, 64),
 
 		// for tests
-		roomsCount:   new(atomic.Int64),
-		testReq:      make(chan string, 16),
-		testResultCH: make(chan *TestResult, 64),
+		roomsCount:      new(atomic.Int64),
+		testReq:         make(chan string, 16),
+		testResultCH:    make(chan *TestResult, 64),
+		droppedMsgCount: new(atomic.Int64),
+		droppedCH:       make(chan struct{}, 64),
 	}
 }
 
@@ -317,6 +351,19 @@ func (s *Server) sendMsg(msg *ReqMsg, cls map[string]*Client) {
 	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, msg.Client.ID, len(cls))
 }
 
+func (s *Server) backpressureSendMsg(msg *ReqMsg, cls map[string]*Client) {
+	resp := NewRespMsg(msg)
+	for _, c := range cls {
+		c.handleBackpressure(resp, s.droppedCH)
+	}
+
+	m := msg.RoomID
+	if msg.RoomID == "" {
+		m = "BROADCAST"
+	}
+	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, msg.Client.ID, len(cls))
+}
+
 func (s *Server) sendBroadcastMsg(msg *ReqMsg) {
 	cls := map[string]*Client{}
 	for id, c := range s.clients {
@@ -385,20 +432,13 @@ func (s *Server) GetTestResult(roomID string) *TestResult {
 	return res
 }
 
-func (s *Server) GetBackpressureStats() int {
-	dropMsgCount := 0
-	s.mu.RLock()
-	for _, c := range s.clients {
-		if c.droppedMsgCount.Load() > 0 {
-			dropMsgCount += int(c.droppedMsgCount.Load())
-		}
-	}
-	s.mu.RUnlock()
-	return dropMsgCount
-}
-
 func (s *Server) CreateWSServer() {
 	go s.AcceptLoop()
+	go func() {
+		for range s.droppedCH {
+			s.droppedMsgCount.Add(1)
+		}
+	}()
 	http.HandleFunc("/", s.handleWS)
 
 	fmt.Printf("starting server on port: %s\n", WSPort)

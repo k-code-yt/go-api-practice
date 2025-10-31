@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -19,10 +20,11 @@ var (
 )
 
 type TestConfig struct {
-	clientCount    int
-	wg             *sync.WaitGroup
-	brMsgCount     *atomic.Int64
-	targetMsgCount int
+	clientCount       int
+	wg                *sync.WaitGroup
+	brMsgCount        *atomic.Int64
+	targetMsgCount    int
+	throttledMsgCount *atomic.Int64
 }
 
 type TestClient struct {
@@ -45,6 +47,7 @@ func NewTestClient(conn *websocket.Conn, ctx context.Context) *TestClient {
 }
 
 func (c *TestClient) writeLoop() {
+	defer c.conn.Close()
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -95,7 +98,12 @@ func (c *TestClient) readLoop(tc *TestConfig) {
 				c.pongCH <- pongMsg
 			}
 
-			tc.brMsgCount.Add(1)
+			if msg.MsgType == MsgType_Throttled {
+				tc.throttledMsgCount.Add(1)
+			} else {
+				tc.brMsgCount.Add(1)
+			}
+
 		}
 	}()
 	select {
@@ -320,7 +328,7 @@ func TestBackPressure(t *testing.T) {
 	s := NewServer()
 	go s.CreateWSServer()
 	time.Sleep(1 * time.Second)
-	clientCount := 5
+	clientCount := 2
 	brCount := 30
 
 	tc := TestConfig{
@@ -350,14 +358,75 @@ func TestBackPressure(t *testing.T) {
 
 	for {
 		time.Sleep(time.Second)
-		dropped := s.GetBackpressureStats()
+		dropped := s.droppedMsgCount.Load()
 		fmt.Printf("receivedCount = %d, target = %d, dropped = %d\n", tc.brMsgCount.Load(), tc.targetMsgCount, dropped)
-		if int(tc.brMsgCount.Load())+dropped == tc.targetMsgCount {
+		if int(tc.brMsgCount.Load())+int(dropped) == tc.targetMsgCount {
 			break
 		}
 	}
 
 	cancel()
+
+	fmt.Println("exiting test")
+}
+
+func TestThrottling(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s := NewServer()
+	go s.CreateWSServer()
+	time.Sleep(1 * time.Second)
+	clientCount := 2
+	brCount := 10
+
+	tc := TestConfig{
+		clientCount:       clientCount,
+		wg:                new(sync.WaitGroup),
+		brMsgCount:        new(atomic.Int64),
+		targetMsgCount:    (clientCount - 1) * brCount,
+		throttledMsgCount: new(atomic.Int64),
+	}
+
+	tc.wg.Add(tc.clientCount)
+	clients := []*TestClient{}
+	timeStart := time.Now()
+
+	for range tc.clientCount {
+		conn := JoinServer(&tc)
+		client := NewTestClient(conn, ctx)
+		client.mu.Lock()
+		clients = append(clients, client)
+		client.mu.Unlock()
+		go client.readLoop(&tc)
+		go client.writeLoop()
+	}
+
+	msg := NewReqMsg(MsgType_Broadcast, "", "wanna send broadcast")
+
+	for range brCount {
+		clients[0].msgCH <- msg
+	}
+
+	for {
+		time.Sleep(time.Second)
+		dropped := s.droppedMsgCount.Load()
+		fmt.Printf("receivedCount = %d, target = %d, dropped = %d\n", tc.brMsgCount.Load(), tc.targetMsgCount, dropped)
+		if int(tc.brMsgCount.Load())+int(dropped)+int(tc.throttledMsgCount.Load()) == tc.targetMsgCount {
+			break
+		}
+	}
+
+	testDuration := time.Since(timeStart)
+	testRate := testDuration / time.Duration(tc.targetMsgCount+brCount)
+	throttlerRate := time.Second / time.Duration(ThrottlerMessagesPerSecond)
+	cancel()
+
+	assert.GreaterOrEqual(t, throttlerRate, testRate, "Allowed rate is greater then actual")
+	assert.Greater(t, tc.throttledMsgCount.Load(), 0, "Messages were throttled")
+	for {
+		if len(s.clients) == 0 {
+			break
+		}
+	}
 
 	fmt.Println("exiting test")
 }

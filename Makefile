@@ -60,6 +60,11 @@ test-bp-race:
 	@echo "Running tests with race detector..."
 	@go test -race -v -timeout 300s -run TestBackPressure ./chat/with-loop-per-client
 
+test-thr-race:
+	@go clean -testcache
+	@echo "Running tests with race detector..."
+	@go test -race -v -timeout 300s -run TestThrottling ./chat/with-loop-per-client
+
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
