@@ -21,7 +21,7 @@ const (
 func (c *Server) backpressureSendMsg(msg *ReqMsg, cls map[string]*Client) {
 	resp := NewRespMsg(msg)
 	for _, c := range cls {
-		go c.handleBackpressure(resp)
+		c.handleBackpressure(resp)
 	}
 
 	m := msg.RoomID
@@ -48,20 +48,14 @@ func (c *Client) handleBackpressure(msg *RespMsg) {
 	case BPStrategy_Drop:
 		if qs >= MaxBackPressureQueueSize {
 			fmt.Printf("dropped msg - MAX_QUEUE_SIZE_WAS_REACHED, cID = %s\n", c.ID)
+			c.droppedMsgCount.Add(1)
 			return
 		}
-		c.msgCH <- msg
 		c.queueSize.Add(1)
+		c.msgCH <- msg
 
 	case BPStrategy_Block:
-		c.msgCH <- msg
 		c.queueSize.Add(1)
-	}
-}
-
-func (c *Client) getBackpressureStats() map[string]interface{} {
-	return map[string]interface{}{
-		"queueSize":       c.queueSize.Load(),
-		"droppedMsgCount": c.droppedMsgCount.Load(),
+		c.msgCH <- msg
 	}
 }

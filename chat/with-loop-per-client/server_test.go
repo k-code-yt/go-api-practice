@@ -50,10 +50,12 @@ func (c *TestClient) writeLoop() {
 		case <-c.ctx.Done():
 			return
 		case msg := <-c.pongCH:
-			err := c.sendMsg(msg)
+			err := c.conn.WriteMessage(2, msg[:])
 			if err != nil {
-				return
+				fmt.Printf("error sending msg %v\n", err)
+				continue
 			}
+
 		case msg := <-c.msgCH:
 			err := c.sendMsg(msg)
 			if err != nil {
@@ -145,44 +147,45 @@ func DialServer(tc *TestConfig) *websocket.Conn {
 	return conn
 }
 
-// func TestBroadcast(t *testing.T) {
-// 	go CreateWSServer()
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	time.Sleep(1 * time.Second)
-// 	clientCount := 5
-// 	brCount := 2
+func TestBroadcast(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s := NewServer()
+	go s.CreateWSServer()
+	time.Sleep(1 * time.Second)
+	clientCount := 5
+	brCount := 2
 
-// 	tc := TestConfig{
-// 		clientCount:    clientCount,
-// 		wg:             new(sync.WaitGroup),
-// 		brMsgCount:     new(atomic.Int64),
-// 		targetMsgCount: clientCount * brCount,
-// 	}
-// 	tc.wg.Add(tc.clientCount + 1)
+	tc := TestConfig{
+		clientCount:    clientCount,
+		wg:             new(sync.WaitGroup),
+		brMsgCount:     new(atomic.Int64),
+		targetMsgCount: clientCount * brCount,
+	}
+	tc.wg.Add(tc.clientCount + 1)
 
-// 	brConn := DialServer(&tc)
-// 	brClient := NewTestClient(brConn, ctx)
-// 	go brClient.writeLoop()
+	brConn := DialServer(&tc)
+	brClient := NewTestClient(brConn, ctx)
+	go brClient.writeLoop()
 
-// 	for range tc.clientCount {
-// 		go DialServer(&tc)
-// 	}
-// 	time.Sleep(1 * time.Second)
+	for range tc.clientCount {
+		go DialServer(&tc)
+	}
+	time.Sleep(1 * time.Second)
 
-// 	for range brCount {
-// 		msg := ReqMsg{
-// 			MsgType: MsgType_Broadcast,
-// 			Data:    "hello from tests",
-// 		}
-// 		brClient.msgCH <- &msg
-// 	}
+	for range brCount {
+		msg := ReqMsg{
+			MsgType: MsgType_Broadcast,
+			Data:    "hello from tests",
+		}
+		brClient.msgCH <- &msg
+	}
 
-// 	tc.wg.Wait()
-// 	cancel()
+	tc.wg.Wait()
+	cancel()
 
-// 	time.Sleep(1 * time.Second)
-// 	fmt.Println("exiting test")
-// }
+	time.Sleep(1 * time.Second)
+	fmt.Println("exiting test")
+}
 
 func JoinServer(tc *TestConfig) *websocket.Conn {
 	dialer := websocket.DefaultDialer
@@ -317,14 +320,14 @@ func TestBackPressure(t *testing.T) {
 	s := NewServer()
 	go s.CreateWSServer()
 	time.Sleep(1 * time.Second)
-	clientCount := 2
-	brCount := 20
+	clientCount := 5
+	brCount := 30
 
 	tc := TestConfig{
 		clientCount:    clientCount,
 		wg:             new(sync.WaitGroup),
 		brMsgCount:     new(atomic.Int64),
-		targetMsgCount: 0,
+		targetMsgCount: (clientCount - 1) * brCount,
 	}
 
 	tc.wg.Add(tc.clientCount)
@@ -345,7 +348,16 @@ func TestBackPressure(t *testing.T) {
 		clients[0].msgCH <- msg
 	}
 
-	time.Sleep(5 * time.Second)
+	for {
+		time.Sleep(time.Second)
+		dropped := s.GetBackpressureStats()
+		fmt.Printf("receivedCount = %d, target = %d, dropped = %d\n", tc.brMsgCount.Load(), tc.targetMsgCount, dropped)
+		if int(tc.brMsgCount.Load())+dropped == tc.targetMsgCount {
+			break
+		}
+	}
+
 	cancel()
+
 	fmt.Println("exiting test")
 }

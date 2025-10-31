@@ -66,7 +66,7 @@ type Client struct {
 	done        chan struct{}
 	pongCounter *atomic.Int64
 
-	// back pressure
+	// back-pressure
 	bpStrategy      BPStrategy
 	queueSize       *atomic.Int64
 	droppedMsgCount *atomic.Int64
@@ -81,7 +81,8 @@ func NewClient(conn *websocket.Conn) *Client {
 		msgCH:       make(chan *RespMsg),
 		done:        make(chan struct{}),
 		pongCounter: new(atomic.Int64),
-		// backpressure
+
+		// back-pressure
 		queueSize:       new(atomic.Int64),
 		droppedMsgCount: new(atomic.Int64),
 		bpStrategy:      DefaultBackPressureStrategy,
@@ -107,7 +108,6 @@ func (c *Client) writeMsgLoop() {
 		case <-c.done:
 			return
 		case msg := <-c.msgCH:
-
 			// TODO -> remove
 			// ---FOR BACKPRESSURE TESTS---
 			time.Sleep(1 * time.Second)
@@ -333,6 +333,7 @@ func (s *Server) sendRoomMsg(msg *ReqMsg) {
 	r, ok := s.rooms[msg.RoomID]
 	if !ok {
 		fmt.Printf("roomID = %s does not exist\n", msg.RoomID)
+		return
 	}
 	cls := map[string]*Client{}
 	for id, c := range r.clients {
@@ -382,6 +383,18 @@ func (s *Server) GetTestResult(roomID string) *TestResult {
 	s.testReq <- roomID
 	res := <-s.testResultCH
 	return res
+}
+
+func (s *Server) GetBackpressureStats() int {
+	dropMsgCount := 0
+	s.mu.RLock()
+	for _, c := range s.clients {
+		if c.droppedMsgCount.Load() > 0 {
+			dropMsgCount += int(c.droppedMsgCount.Load())
+		}
+	}
+	s.mu.RUnlock()
+	return dropMsgCount
 }
 
 func (s *Server) CreateWSServer() {

@@ -45,15 +45,21 @@ build-chat:
 chat: build-chat
 	@./chat/bin/chat
 
+test-chat:
+	@go clean -testcache
+	@echo "Running tests for chat"
+	@go test -v ./chat/...
+
 test-chat-race:
 	@go clean -testcache
 	@echo "Running tests with race detector..."
 	@go test -race -v ./chat/...
 
-test-chat:
+test-bp-race:
 	@go clean -testcache
-	@echo "Running tests for chat"
-	@go test -v ./chat/...
+	@echo "Running tests with race detector..."
+	@go test -race -v -timeout 300s -run TestBackPressure ./chat/with-loop-per-client
+
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
