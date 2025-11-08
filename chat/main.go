@@ -1,14 +1,19 @@
 package main
 
-import (
-	server "github.com/k-code-yt/go-api-practice/chat/with-loop-per-client"
-)
+import ratelimitter "github.com/k-code-yt/go-api-practice/chat/ratelimiter"
 
 func main() {
 	// loadENV()
 	// initProm()
 	// chatClientLoop()
 	// chatServer()
-	s := server.NewServer()
-	s.CreateWSServer()
+
+	// --- WS server
+	// s := server.NewServer()
+	// s.CreateWSServer()
+	// ------------
+
+	s := ratelimitter.CreateServer()
+	go s.RunHTTPServer()
+
 }

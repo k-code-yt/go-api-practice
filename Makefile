@@ -65,6 +65,11 @@ test-thr-race:
 	@echo "Running tests with race detector..."
 	@go test -race -v -timeout 300s -run TestThrottling ./chat/with-loop-per-client
 
+test-ratelimiter-race:
+	@go clean -testcache
+	@echo "Running tests with race detector..."
+	@go test -race -v -timeout 60s -run TestRequestRateLimitter ./chat/ratelimiter
+
 test-mem-aloc:
 	@go clean -testcache
 	@echo "Running benchmark test..."
