@@ -98,11 +98,12 @@ func (c *TestClient) readLoop(tc *TestConfig) {
 				c.pongCH <- pongMsg
 			}
 
-			if msg.MsgType == MsgType_Throttled {
-				tc.throttledMsgCount.Add(1)
-			} else {
-				tc.brMsgCount.Add(1)
-			}
+			// if msg.MsgType == MsgType_Throttled {
+			// 	tc.throttledMsgCount.Add(1)
+			// } else {
+			// 	tc.brMsgCount.Add(1)
+			// }
+			tc.brMsgCount.Add(1)
 
 		}
 	}()
@@ -375,8 +376,8 @@ func TestThrottling(t *testing.T) {
 	s := NewServer()
 	go s.CreateWSServer()
 	time.Sleep(1 * time.Second)
-	clientCount := 2
-	brCount := 10
+	clientCount := 5
+	brCount := 20
 
 	tc := TestConfig{
 		clientCount:       clientCount,
@@ -386,20 +387,18 @@ func TestThrottling(t *testing.T) {
 		throttledMsgCount: new(atomic.Int64),
 	}
 
-	tc.wg.Add(tc.clientCount)
 	clients := []*TestClient{}
-	timeStart := time.Now()
 
 	for range tc.clientCount {
 		conn := JoinServer(&tc)
 		client := NewTestClient(conn, ctx)
-		client.mu.Lock()
 		clients = append(clients, client)
-		client.mu.Unlock()
 		go client.readLoop(&tc)
 		go client.writeLoop()
 	}
 
+	time.Sleep(1 * time.Second)
+	timeStart := time.Now()
 	msg := NewReqMsg(MsgType_Broadcast, "", "wanna send broadcast")
 
 	for range brCount {
@@ -408,25 +407,80 @@ func TestThrottling(t *testing.T) {
 
 	for {
 		time.Sleep(time.Second)
-		dropped := s.droppedMsgCount.Load()
-		fmt.Printf("receivedCount = %d, target = %d, dropped = %d\n", tc.brMsgCount.Load(), tc.targetMsgCount, dropped)
-		if int(tc.brMsgCount.Load())+int(dropped)+int(tc.throttledMsgCount.Load()) == tc.targetMsgCount {
+		fmt.Printf("receivedCount = %d, target = %d\n", tc.brMsgCount.Load(), tc.targetMsgCount)
+		// dropped := s.droppedMsgCount.Load()
+		// if int(tc.brMsgCount.Load())+int(dropped)+int(tc.throttledMsgCount.Load()) == tc.targetMsgCount {
+		// 	break
+		// }
+		if int(tc.brMsgCount.Load()) == tc.targetMsgCount {
 			break
 		}
+
 	}
 
 	testDuration := time.Since(timeStart)
-	testRate := testDuration / time.Duration(tc.targetMsgCount+brCount)
-	throttlerRate := time.Second / time.Duration(ThrottlerMessagesPerSecond)
+
+	// 1. Sender's rate (this is what's throttled)
+	messagesSent := float64(brCount) // 50 messages sent by client[0]
+	senderRate := messagesSent / testDuration.Seconds()
+
+	// 2. Total throughput (all clients receiving)
+	messagesReceived := float64(tc.brMsgCount.Load()) // 200 messages received by 4 clients
+	totalThroughput := messagesReceived / testDuration.Seconds()
+
+	// 3. Expected values
+	expectedSenderRate := float64(ThrottlerMessagesPerSecond)              // 3 msg/sec
+	expectedTotalThroughput := expectedSenderRate * float64(clientCount-1) // 3 * 4 = 12 msg/sec
+
+	// 4. Expected minimum duration
+	expectedMinDuration := time.Duration(float64(brCount)/float64(ThrottlerMessagesPerSecond)) * time.Second
+
+	// Print results
+	fmt.Printf("\n=== TEST RESULTS ===\n")
+	fmt.Printf("Test duration: %v\n", testDuration)
+	fmt.Printf("Expected min duration: %v\n", expectedMinDuration)
+	fmt.Printf("\n")
+	fmt.Printf("Messages sent (by client[0]): %d\n", brCount)
+	fmt.Printf("Messages received (by 4 clients): %d\n", int(messagesReceived))
+	fmt.Printf("\n")
+	fmt.Printf("SENDER RATE (what's throttled):\n")
+	fmt.Printf("  Actual: %.2f msg/sec\n", senderRate)
+	fmt.Printf("  Expected: %.2f msg/sec\n", expectedSenderRate)
+	fmt.Printf("\n")
+	fmt.Printf("TOTAL THROUGHPUT (all receivers):\n")
+	fmt.Printf("  Actual: %.2f msg/sec\n", totalThroughput)
+	fmt.Printf("  Expected: %.2f msg/sec (sender rate × num receivers)\n", expectedTotalThroughput)
+	fmt.Printf("\n")
+	fmt.Printf("Throttled responses: %d\n", tc.throttledMsgCount.Load())
+	fmt.Printf("\n=== END RESULTS ===\n")
+
 	cancel()
 
-	assert.GreaterOrEqual(t, throttlerRate, testRate, "Allowed rate is greater then actual")
-	assert.Greater(t, tc.throttledMsgCount.Load(), 0, "Messages were throttled")
+	// CORRECTED ASSERTIONS
+
+	// Assert 1: Test should take long enough
+	assert.GreaterOrEqual(t, testDuration, expectedMinDuration*9/10,
+		"Test should take at least the minimum time for throttling")
+
+	// Assert 2: Sender rate should be close to throttle limit
+	assert.InEpsilon(t, expectedSenderRate, senderRate, 0.3,
+		"Sender rate should be close to throttle limit (3 msg/sec)")
+
+	// Assert 3: Total throughput should be sender_rate × num_receivers
+	assert.InEpsilon(t, expectedTotalThroughput, totalThroughput, 0.3,
+		"Total throughput should equal sender rate × number of receivers")
+
+	// Optional: Check if any messages were throttled
+	if tc.throttledMsgCount.Load() > 0 {
+		fmt.Printf("\n✓ Some messages were throttled (rate limiting kicked in)\n")
+	}
+
 	for {
+		time.Sleep(time.Second)
 		if len(s.clients) == 0 {
 			break
 		}
 	}
 
-	fmt.Println("exiting test")
+	fmt.Println("\nexiting test")
 }

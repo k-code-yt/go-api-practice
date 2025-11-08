@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	ThrottlerMessagesPerSecond = 3
+	ThrottlerMessagesPerSecond = 100
 )
 
 type Throttler struct {

@@ -132,7 +132,7 @@ func (c *Client) readMsgLoop(s *Server) {
 		s.leaveServerCH <- c
 	}()
 
-	go c.acceptThrottledMsgLoop(s)
+	go c.acceptThrottledMsgLoop(s.handleMsg)
 
 	for {
 		_, b, err := c.conn.ReadMessage()
@@ -153,20 +153,20 @@ func (c *Client) readMsgLoop(s *Server) {
 			continue
 		}
 		msg.Client = c
-
-		isAllowed := c.throttler.Allow(msg)
-		if !isAllowed {
-			resp := &RespMsg{
-				MsgType:  MsgType_Throttled,
-				SenderID: c.ID,
-				ErrCode:  429,
-			}
-			c.msgCH <- resp
-		}
+		c.throttler.inputCH <- msg
+		// isAllowed := c.throttler.Allow(msg)
+		// if !isAllowed {
+		// 	resp := &RespMsg{
+		// 		MsgType:  MsgType_Throttled,
+		// 		SenderID: c.ID,
+		// 		ErrCode:  429,
+		// 	}
+		// 	c.msgCH <- resp
+		// }
 	}
 }
 
-func (c *Client) acceptThrottledMsgLoop(s *Server) {
+func (c *Client) acceptThrottledMsgLoop(handler func(msg *ReqMsg)) {
 	for {
 		select {
 		case <-c.done:
@@ -177,21 +177,25 @@ func (c *Client) acceptThrottledMsgLoop(s *Server) {
 				fmt.Printf("leaving acceptThrottledMsgLoop on THROTTLE_EXIT, cID = %s\n", c.ID)
 				return
 			}
-			switch msg.MsgType {
-			case MsgType_Broadcast:
-				s.broadcastCH <- msg
-			case MsgType_RoomJoin:
-				s.roomJoinCH <- msg
-			case MsgType_RoomLeave:
-				s.roomLeaveCH <- msg
-			case MsgType_RoomMsg:
-				s.roomMsgCH <- msg
-			default:
-				fmt.Printf("unknown message type = %s\n", msg.MsgType)
-				continue
-			}
+			handler(msg)
 		}
 	}
+}
+
+func (s *Server) handleMsg(msg *ReqMsg) {
+	switch msg.MsgType {
+	case MsgType_Broadcast:
+		s.broadcastCH <- msg
+	case MsgType_RoomJoin:
+		s.roomJoinCH <- msg
+	case MsgType_RoomLeave:
+		s.roomLeaveCH <- msg
+	case MsgType_RoomMsg:
+		s.roomMsgCH <- msg
+	default:
+		fmt.Printf("unknown message type = %s\n", msg.MsgType)
+	}
+
 }
 
 func (c *Client) initPing() {
@@ -372,8 +376,8 @@ func (s *Server) sendBroadcastMsg(msg *ReqMsg) {
 		}
 	}
 
-	go s.backpressureSendMsg(msg, cls)
-	// go s.sendMsg(msg, cls)
+	// go s.backpressureSendMsg(msg, cls)
+	go s.sendMsg(msg, cls)
 }
 
 func (s *Server) sendRoomMsg(msg *ReqMsg) {

@@ -65,6 +65,10 @@ test-thr-race:
 	@echo "Running tests with race detector..."
 	@go test -race -v -timeout 300s -run TestThrottling ./chat/with-loop-per-client
 
+test-mem-aloc:
+	@go clean -testcache
+	@echo "Running benchmark test..."
+	@go test -v -run TestBench ./tests
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
