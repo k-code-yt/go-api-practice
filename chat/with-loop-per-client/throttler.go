@@ -64,3 +64,19 @@ func (t *Throttler) Allow(msg *ReqMsg) bool {
 		return false
 	}
 }
+
+func (c *Client) acceptThrottledMsgLoop(handler func(msg *ReqMsg)) {
+	for {
+		select {
+		case <-c.done:
+			fmt.Printf("leaving acceptThrottledMsgLoop on CLIENT_DONE, cID = %s\n", c.ID)
+			return
+		case msg, ok := <-c.throttler.outputCH:
+			if !ok {
+				fmt.Printf("leaving acceptThrottledMsgLoop on THROTTLE_EXIT, cID = %s\n", c.ID)
+				return
+			}
+			handler(msg)
+		}
+	}
+}

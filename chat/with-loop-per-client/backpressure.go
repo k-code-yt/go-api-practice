@@ -48,3 +48,16 @@ func (c *Client) handleBackpressure(msg *RespMsg, droppedCH chan<- struct{}) {
 		c.msgCH <- msg
 	}
 }
+
+func (s *Server) backpressureSendMsg(msg *ReqMsg, cls map[string]*Client) {
+	resp := NewRespMsg(msg)
+	for _, c := range cls {
+		c.handleBackpressure(resp, s.droppedCH)
+	}
+
+	m := msg.RoomID
+	if msg.RoomID == "" {
+		m = "BROADCAST"
+	}
+	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, msg.ClientID, len(cls))
+}

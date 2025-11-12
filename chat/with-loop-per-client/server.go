@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	WSPort       = ":3223"
-	PingPongFreq = time.Second * 30
+	WSPort              = ":3223"
+	PingPongFreq        = time.Second * 30
+	MaxMsgStoredPerRoom = 64
 )
 
 type MsgType string
@@ -27,13 +28,15 @@ const (
 	MsgType_RoomMsg   MsgType = "room-message"
 	MsgType_Ping      MsgType = "ping"
 	MsgType_Throttled MsgType = "throttled"
+	MsgType_Replay    MsgType = "replay"
 )
 
 type ReqMsg struct {
-	MsgType MsgType `json:"type"`
-	Client  *Client
-	Data    interface{} `json:"data"`
-	RoomID  string      `json:"roomID"`
+	MsgType  MsgType `json:"type"`
+	ClientID string
+	Data     interface{} `json:"data"`
+	RoomID   string      `json:"roomID"`
+	Offset   int         `json:"offset"`
 }
 
 func NewReqMsg(msgType MsgType, rID string, data string) *ReqMsg {
@@ -50,13 +53,16 @@ type RespMsg struct {
 	SenderID string      `json:"senderID"`
 	RoomID   string      `json:"roomID"`
 	ErrCode  int         `json:"errorCode"`
+	Offset   int         `json:"offset"`
 }
 
 func NewRespMsg(msg *ReqMsg) *RespMsg {
 	return &RespMsg{
 		MsgType:  msg.MsgType,
 		Data:     msg.Data,
-		SenderID: msg.Client.ID,
+		SenderID: msg.ClientID,
+		RoomID:   msg.RoomID,
+		Offset:   msg.Offset,
 	}
 }
 
@@ -152,25 +158,9 @@ func (c *Client) readMsgLoop(s *Server) {
 			fmt.Printf("unable to unmarshal the msg %v\n", err)
 			continue
 		}
-		msg.Client = c
+		msg.ClientID = c.ID
 		// TODO -> add back throttler && RL
 		s.produceReqMsg(msg)
-	}
-}
-
-func (c *Client) acceptThrottledMsgLoop(handler func(msg *ReqMsg)) {
-	for {
-		select {
-		case <-c.done:
-			fmt.Printf("leaving acceptThrottledMsgLoop on CLIENT_DONE, cID = %s\n", c.ID)
-			return
-		case msg, ok := <-c.throttler.outputCH:
-			if !ok {
-				fmt.Printf("leaving acceptThrottledMsgLoop on THROTTLE_EXIT, cID = %s\n", c.ID)
-				return
-			}
-			handler(msg)
-		}
 	}
 }
 
@@ -191,9 +181,10 @@ func (c *Client) initPing() {
 }
 
 type Room struct {
-	ID      string
-	clients map[string]*Client
-	mu      *sync.RWMutex
+	ID        string
+	clients   map[string]*Client
+	mu        *sync.RWMutex
+	msgBuffer *RingBuffer
 
 	// for tests
 	clientsCount *atomic.Int64
@@ -201,16 +192,17 @@ type Room struct {
 
 func NewRoom(ID string) *Room {
 	return &Room{
-		ID:      ID,
-		clients: map[string]*Client{},
-		mu:      new(sync.RWMutex),
-
+		ID:        ID,
+		clients:   map[string]*Client{},
+		mu:        new(sync.RWMutex),
+		msgBuffer: NewRingBuffer(MaxMsgStoredPerRoom),
 		// for tests
 		clientsCount: new(atomic.Int64),
 	}
 }
 
 type Server struct {
+	ID            string
 	clients       map[string]*Client
 	rooms         map[string]*Room
 	mu            *sync.RWMutex
@@ -220,6 +212,7 @@ type Server struct {
 	roomJoinCH    chan *ReqMsg
 	roomLeaveCH   chan *ReqMsg
 	roomMsgCH     chan *ReqMsg
+	replayMsgCH   chan *ReqMsg
 	eventCH       chan *ReqMsg
 
 	// msg layer
@@ -235,8 +228,8 @@ type Server struct {
 }
 
 func NewServer() *Server {
+	ID := GetHostName()
 	eventCH := make(chan *ReqMsg, 128)
-
 	producer, err := NewMsgProducer()
 	if err != nil {
 		// TODO -> add err handling
@@ -244,6 +237,7 @@ func NewServer() *Server {
 	}
 
 	s := &Server{
+		ID:            ID,
 		clients:       map[string]*Client{},
 		rooms:         map[string]*Room{},
 		mu:            new(sync.RWMutex),
@@ -253,6 +247,7 @@ func NewServer() *Server {
 		roomJoinCH:    make(chan *ReqMsg, 64),
 		roomLeaveCH:   make(chan *ReqMsg, 64),
 		roomMsgCH:     make(chan *ReqMsg, 64),
+		replayMsgCH:   make(chan *ReqMsg, 64),
 		eventCH:       eventCH,
 
 		// msg
@@ -318,6 +313,8 @@ func (s *Server) consumerReqMsgLoop() {
 			s.broadcastCH <- msg
 		case MsgType_RoomMsg:
 			s.roomMsgCH <- msg
+		case MsgType_Replay:
+			s.replayMsgCH <- msg
 		}
 	}
 }
@@ -337,6 +334,8 @@ func (s *Server) AcceptLoop() {
 			go s.sendBroadcastMsg(msg)
 		case msg := <-s.roomMsgCH:
 			go s.sendRoomMsg(msg)
+		case msg := <-s.roomMsgCH:
+			go s.sendRoomMsgReplay(msg)
 
 			// for tests
 		case roomID := <-s.testReq:
@@ -349,6 +348,7 @@ func (s *Server) AcceptLoop() {
 			res := &TestResult{
 				roomID:       roomID,
 				clientsCount: count,
+				msgBuffer:    r.msgBuffer.GetAll(),
 			}
 			s.testResultCH <- res
 		}
@@ -372,42 +372,29 @@ func (s *Server) leaveServer(c *Client) {
 	fmt.Printf("client left the server, cID = %s\n", c.ID)
 }
 
-func (s *Server) sendMsg(msg *ReqMsg, cls map[string]*Client) {
-	resp := NewRespMsg(msg)
+func (s *Server) sendMsg(cls map[string]*Client, resp *RespMsg) {
 	for _, c := range cls {
 		c.msgCH <- resp
 	}
 
-	m := msg.RoomID
-	if msg.RoomID == "" {
+	m := resp.RoomID
+	if resp.RoomID == "" {
 		m = "BROADCAST"
 	}
-	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, msg.Client.ID, len(cls))
-}
-
-func (s *Server) backpressureSendMsg(msg *ReqMsg, cls map[string]*Client) {
-	resp := NewRespMsg(msg)
-	for _, c := range cls {
-		c.handleBackpressure(resp, s.droppedCH)
-	}
-
-	m := msg.RoomID
-	if msg.RoomID == "" {
-		m = "BROADCAST"
-	}
-	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, msg.Client.ID, len(cls))
+	fmt.Printf("msg was sent to rID= %s | by cID= %s | num_clients=%d\n", m, resp.SenderID, len(cls))
 }
 
 func (s *Server) sendBroadcastMsg(msg *ReqMsg) {
 	cls := map[string]*Client{}
 	for id, c := range s.clients {
-		if id != msg.Client.ID {
+		if id != msg.ClientID {
 			cls[id] = c
 		}
 	}
+	resp := NewRespMsg(msg)
 
 	// go s.backpressureSendMsg(msg, cls)
-	go s.sendMsg(msg, cls)
+	go s.sendMsg(cls, resp)
 }
 
 func (s *Server) sendRoomMsg(msg *ReqMsg) {
@@ -418,17 +405,48 @@ func (s *Server) sendRoomMsg(msg *ReqMsg) {
 	}
 	cls := map[string]*Client{}
 	for id, c := range r.clients {
-		if id != msg.Client.ID {
+		if id != msg.ClientID {
 			cls[id] = c
 		}
 	}
-	// go s.backpressureSendMsg(msg, cls)
-	go s.sendMsg(msg, cls)
+
+	resp := NewRespMsg(msg)
+	r.msgBuffer.Push(resp)
+
+	if len(cls) > 0 {
+		// go s.backpressureSendMsg(msg, cls)
+		go s.sendMsg(cls, resp)
+	}
+}
+
+func (s *Server) sendRoomMsgReplay(msg *ReqMsg) {
+	roomID := msg.RoomID
+	offset := msg.Offset
+	r, ok := s.rooms[roomID]
+	if !ok {
+		fmt.Printf("roomID = %s does not exist\n", roomID)
+		return
+	}
+
+	msgs := r.msgBuffer.GetFromOffset(offset)
+	cls := map[string]*Client{}
+	for id, c := range r.clients {
+		cls[id] = c
+	}
+
+	for _, resp := range msgs {
+		fmt.Printf("msg_replay, sending %+v", resp)
+		if len(cls) > 0 {
+			// go s.backpressureSendMsg(msg, cls)
+			s.sendMsg(cls, resp)
+		}
+	}
 }
 
 func (s *Server) joinRoom(msg *ReqMsg) {
-	cID := msg.Client.ID
-	s.clients[cID] = msg.Client
+	cID := msg.ClientID
+	c := s.clients[cID]
+	s.clients[cID] = c
 
 	room, ok := s.rooms[msg.RoomID]
 	if !ok {
@@ -437,14 +455,14 @@ func (s *Server) joinRoom(msg *ReqMsg) {
 		s.roomsCount.Add(1)
 	}
 
-	room.clients[cID] = msg.Client
+	room.clients[cID] = c
 
 	room.clientsCount.Add(1)
 	fmt.Printf("clientID %s joined the room %s\n", cID, msg.RoomID)
 }
 
 func (s *Server) leaveRoom(msg *ReqMsg) {
-	cID := msg.Client.ID
+	cID := msg.ClientID
 	room, ok := s.rooms[msg.RoomID]
 	if ok {
 		delete(room.clients, cID)
@@ -458,6 +476,7 @@ func (s *Server) leaveRoom(msg *ReqMsg) {
 type TestResult struct {
 	clientsCount int
 	roomID       string
+	msgBuffer    []*RespMsg
 }
 
 func (s *Server) GetTestResult(roomID string) *TestResult {

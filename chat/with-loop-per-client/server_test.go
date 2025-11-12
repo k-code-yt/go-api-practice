@@ -25,6 +25,7 @@ type TestConfig struct {
 	brMsgCount        *atomic.Int64
 	targetMsgCount    int
 	throttledMsgCount *atomic.Int64
+	lastOffset        int
 }
 
 type TestClient struct {
@@ -104,7 +105,7 @@ func (c *TestClient) readLoop(tc *TestConfig) {
 			// 	tc.brMsgCount.Add(1)
 			// }
 			tc.brMsgCount.Add(1)
-
+			tc.lastOffset = msg.Offset
 		}
 	}()
 	select {
@@ -222,6 +223,11 @@ func (c *TestClient) SendRoomMsg(tc *TestConfig, roomID string) {
 	c.msgCH <- msg
 }
 
+func (c *TestClient) SendReplay(tc *TestConfig, roomID string, offset int) {
+	msg := NewReqMsg(MsgType_Replay, roomID, fmt.Sprintf("wanna replay from offset = %d", offset))
+	c.msgCH <- msg
+}
+
 func TestRooms(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := NewServer()
@@ -229,6 +235,8 @@ func TestRooms(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	clientCount := 2
 	msgCount := 2
+
+	<-s.MsgConsumer.readyCH
 
 	tc := TestConfig{
 		clientCount:    clientCount,
@@ -245,9 +253,7 @@ func TestRooms(t *testing.T) {
 	for idx := range tc.clientCount {
 		conn := JoinServer(&tc)
 		client := NewTestClient(conn, ctx)
-		client.mu.Lock()
 		clients = append(clients, client)
-		client.mu.Unlock()
 		go client.readLoop(&tc)
 		go client.writeLoop()
 		rID := rID1

@@ -22,14 +22,15 @@ type MsgConsumer struct {
 }
 
 func NewMsgConsumer(eventCH chan<- *ReqMsg) (*MsgConsumer, error) {
-	c, err := NewKafkaConsumer(eventCH)
+	readyCH := make(chan struct{})
+	c, err := NewKafkaConsumer(eventCH, readyCH)
 	if err != nil {
 		// TODO  -> update err handling
 		log.Fatal(err)
 	}
 	return &MsgConsumer{
 		consumer: c,
-		readyCH:  make(chan struct{}),
+		readyCH:  readyCH,
 	}, nil
 }
 
@@ -37,10 +38,11 @@ type KafkaConsumer struct {
 	consumer *kafka.Consumer
 	IsReady  bool
 	eventCH  chan<- *ReqMsg
+	readyCH  chan struct{}
 	// eventBus AggregatorEventBus[*shared.SensorData]
 }
 
-func NewKafkaConsumer(eventCH chan<- *ReqMsg) (DataConsumer, error) {
+func NewKafkaConsumer(eventCH chan<- *ReqMsg, readyCH chan struct{}) (DataConsumer, error) {
 	err := initializeKafkaTopic(shared.Kafka_DefaultHost, Kafka_DefaultTopic)
 	if err != nil {
 		logrus.Error("error creating topic")
@@ -52,15 +54,12 @@ func NewKafkaConsumer(eventCH chan<- *ReqMsg) (DataConsumer, error) {
 		return nil, err
 	}
 
+	consumerGroup := GetHostName()
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": shared.Kafka_DefaultHost,
-		"group.id":          "local_cg",
-		"auto.offset.reset": "latest",
-
-		// commit config
-		"enable.auto.commit": true,
-
-		// Reduce delays
+		"bootstrap.servers":     shared.Kafka_DefaultHost,
+		"group.id":              consumerGroup,
+		"auto.offset.reset":     "latest",
+		"enable.auto.commit":    true,
 		"heartbeat.interval.ms": 3000,
 
 		// Debug
@@ -80,15 +79,11 @@ func NewKafkaConsumer(eventCH chan<- *ReqMsg) (DataConsumer, error) {
 		consumer: c,
 		IsReady:  false,
 		eventCH:  eventCH,
+		readyCH:  readyCH,
 	}
 
 	go consumer.checkReadyToAccept()
 	return consumer, nil
-}
-
-func getConsumerGroup() string {
-	// TODO -> get pod name
-	return "local_cg"
 }
 
 func initializeKafkaTopic(brokers, topicName string) error {
@@ -186,6 +181,7 @@ func (kc *KafkaConsumer) readyCheck() (bool, error) {
 
 func (kc *KafkaConsumer) checkReadyToAccept() error {
 	defer func() {
+		close(kc.readyCH)
 		kc.IsReady = true
 	}()
 	for {
@@ -227,7 +223,7 @@ func (kc *KafkaConsumer) ReadMessageLoop() {
 			}).Error("CONSUMER:Error Unmarshalling")
 			continue
 		}
-
+		data.Offset = int(msg.TopicPartition.Offset)
 		// TODO -> add generic chan
 		// de, err := kc.mapTopicToDomainEvent(*msg.TopicPartition.Topic)
 		// TODO add err chan

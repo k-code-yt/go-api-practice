@@ -45,16 +45,6 @@ build-chat:
 chat: build-chat
 	@./chat/bin/chat
 
-test-chat:
-	@go clean -testcache
-	@echo "Running tests for chat"
-	@go test -v ./chat/...
-
-test-chat-race:
-	@go clean -testcache
-	@echo "Running tests with race detector..."
-	@go test -race -v ./chat/...
-
 test-bp-race:
 	@go clean -testcache
 	@echo "Running tests with race detector..."
@@ -79,6 +69,17 @@ test-mem-profile:
 	@go clean -testcache
 	@echo "Running benchmark test ..."
 	@go test -bench=. -benchmem -memprofile=mem.prof ./chat/ratelimiter
+
+test-chat:
+	@go clean -testcache
+	@echo "Running tests for chat"
+	@go test -v ./chat/...
+
+test-chat-race:
+	@go clean -testcache
+	@echo "Running TestRoomsWithKafka with race detector..."
+	@go test -race -v -timeout 300s -run TestRoomsWithKafka ./chat/with-loop-per-client
+
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
