@@ -75,5 +75,10 @@ test-mem-aloc:
 	@echo "Running benchmark test..."
 	@go test -v -run TestBench ./tests
 
+test-mem-profile:
+	@go clean -testcache
+	@echo "Running benchmark test ..."
+	@go test -bench=. -benchmem -memprofile=mem.prof ./chat/ratelimiter
+
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto

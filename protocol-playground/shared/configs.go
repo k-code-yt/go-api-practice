@@ -9,7 +9,7 @@ const (
 	HTTPPortInvoice               string        = ":3100"
 	WSPort                        string        = ":30000"
 	Kafka_DefaultConsumerGroup    string        = "sensor_data_consumer_group"
-	Kafka_DefaultHost             string        = "localhost"
+	Kafka_DefaultHost             string        = "localhost:9092"
 	Invoicer_GRPCTransportType    TransportType = "GRPC"
 	Invoicer_HTTPTransportType    TransportType = "HTTP"
 	Invoicer_DefaultTransportType TransportType = Invoicer_GRPCTransportType

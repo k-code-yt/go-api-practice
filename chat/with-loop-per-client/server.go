@@ -24,7 +24,7 @@ const (
 	MsgType_Broadcast MsgType = "broadcast"
 	MsgType_RoomJoin  MsgType = "room-join"
 	MsgType_RoomLeave MsgType = "room-leave"
-	MsgType_RoomMsg   MsgType = "room-msg"
+	MsgType_RoomMsg   MsgType = "room-message"
 	MsgType_Ping      MsgType = "ping"
 	MsgType_Throttled MsgType = "throttled"
 )
@@ -78,7 +78,7 @@ type Client struct {
 
 func NewClient(conn *websocket.Conn) *Client {
 	ID := rand.Text()[:9]
-	t := NewThrottler(ThrottlerMessagesPerSecond)
+	// t := NewThrottler(ThrottlerMessagesPerSecond)
 	return &Client{
 		ID:          ID,
 		mu:          new(sync.RWMutex),
@@ -87,7 +87,7 @@ func NewClient(conn *websocket.Conn) *Client {
 		done:        make(chan struct{}),
 		pongCounter: new(atomic.Int64),
 		// throttling
-		throttler: t,
+		// throttler: t,
 
 		// back-pressure
 		queueSize:       new(atomic.Int64),
@@ -127,12 +127,12 @@ func (c *Client) writeMsgLoop() {
 
 func (c *Client) readMsgLoop(s *Server) {
 	defer func() {
-		close(c.throttler.exit)
+		// close(c.throttler.exit)
 		close(c.done)
 		s.leaveServerCH <- c
 	}()
 
-	go c.acceptThrottledMsgLoop(s.handleMsg)
+	// go c.acceptThrottledMsgLoop(s.produceReqMsg)
 
 	for {
 		_, b, err := c.conn.ReadMessage()
@@ -153,16 +153,8 @@ func (c *Client) readMsgLoop(s *Server) {
 			continue
 		}
 		msg.Client = c
-		c.throttler.inputCH <- msg
-		// isAllowed := c.throttler.Allow(msg)
-		// if !isAllowed {
-		// 	resp := &RespMsg{
-		// 		MsgType:  MsgType_Throttled,
-		// 		SenderID: c.ID,
-		// 		ErrCode:  429,
-		// 	}
-		// 	c.msgCH <- resp
-		// }
+		// TODO -> add back throttler && RL
+		s.produceReqMsg(msg)
 	}
 }
 
@@ -180,22 +172,6 @@ func (c *Client) acceptThrottledMsgLoop(handler func(msg *ReqMsg)) {
 			handler(msg)
 		}
 	}
-}
-
-func (s *Server) handleMsg(msg *ReqMsg) {
-	switch msg.MsgType {
-	case MsgType_Broadcast:
-		s.broadcastCH <- msg
-	case MsgType_RoomJoin:
-		s.roomJoinCH <- msg
-	case MsgType_RoomLeave:
-		s.roomLeaveCH <- msg
-	case MsgType_RoomMsg:
-		s.roomMsgCH <- msg
-	default:
-		fmt.Printf("unknown message type = %s\n", msg.MsgType)
-	}
-
 }
 
 func (c *Client) initPing() {
@@ -244,6 +220,11 @@ type Server struct {
 	roomJoinCH    chan *ReqMsg
 	roomLeaveCH   chan *ReqMsg
 	roomMsgCH     chan *ReqMsg
+	eventCH       chan *ReqMsg
+
+	// msg layer
+	MsgProducer
+	MsgConsumer
 
 	// for tests
 	roomsCount      *atomic.Int64
@@ -254,7 +235,15 @@ type Server struct {
 }
 
 func NewServer() *Server {
-	return &Server{
+	eventCH := make(chan *ReqMsg, 128)
+
+	producer, err := NewMsgProducer()
+	if err != nil {
+		// TODO -> add err handling
+		log.Fatal(err)
+	}
+
+	s := &Server{
 		clients:       map[string]*Client{},
 		rooms:         map[string]*Room{},
 		mu:            new(sync.RWMutex),
@@ -264,6 +253,10 @@ func NewServer() *Server {
 		roomJoinCH:    make(chan *ReqMsg, 64),
 		roomLeaveCH:   make(chan *ReqMsg, 64),
 		roomMsgCH:     make(chan *ReqMsg, 64),
+		eventCH:       eventCH,
+
+		// msg
+		MsgProducer: *producer,
 
 		// for tests
 		roomsCount:      new(atomic.Int64),
@@ -272,6 +265,16 @@ func NewServer() *Server {
 		droppedMsgCount: new(atomic.Int64),
 		droppedCH:       make(chan struct{}, 64),
 	}
+
+	consumer, err := NewMsgConsumer(s.eventCH)
+	if err != nil {
+		// TODO -> add err handling
+		log.Fatal(err)
+	}
+	s.MsgConsumer = *consumer
+	go s.MsgConsumer.consumer.ReadMessageLoop()
+
+	return s
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -297,6 +300,28 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	go client.initPing()
 }
 
+func (s *Server) produceReqMsg(msg *ReqMsg) {
+	switch msg.MsgType {
+	case MsgType_RoomJoin:
+		s.roomJoinCH <- msg
+	case MsgType_RoomLeave:
+		s.roomLeaveCH <- msg
+	default:
+		s.MsgProducer.producer.ProduceData(*msg)
+	}
+}
+
+func (s *Server) consumerReqMsgLoop() {
+	for msg := range s.eventCH {
+		switch msg.MsgType {
+		case MsgType_Broadcast:
+			s.broadcastCH <- msg
+		case MsgType_RoomMsg:
+			s.roomMsgCH <- msg
+		}
+	}
+}
+
 func (s *Server) AcceptLoop() {
 	for {
 		select {
@@ -316,9 +341,14 @@ func (s *Server) AcceptLoop() {
 			// for tests
 		case roomID := <-s.testReq:
 			r := s.rooms[roomID]
+			count := 0
+			if r != nil && r.clientsCount != nil {
+				count = int(r.clientsCount.Load())
+			}
+
 			res := &TestResult{
 				roomID:       roomID,
-				clientsCount: int(r.clientsCount.Load()),
+				clientsCount: count,
 			}
 			s.testResultCH <- res
 		}
@@ -392,8 +422,8 @@ func (s *Server) sendRoomMsg(msg *ReqMsg) {
 			cls[id] = c
 		}
 	}
-	go s.backpressureSendMsg(msg, cls)
-	// go s.sendMsg(msg, cls)
+	// go s.backpressureSendMsg(msg, cls)
+	go s.sendMsg(msg, cls)
 }
 
 func (s *Server) joinRoom(msg *ReqMsg) {
@@ -438,11 +468,13 @@ func (s *Server) GetTestResult(roomID string) *TestResult {
 
 func (s *Server) CreateWSServer() {
 	go s.AcceptLoop()
-	go func() {
-		for range s.droppedCH {
-			s.droppedMsgCount.Add(1)
-		}
-	}()
+	go s.consumerReqMsgLoop()
+
+	// go func() {
+	// 	for range s.droppedCH {
+	// 		s.droppedMsgCount.Add(1)
+	// 	}
+	// }()
 	http.HandleFunc("/", s.handleWS)
 
 	fmt.Printf("starting server on port: %s\n", WSPort)

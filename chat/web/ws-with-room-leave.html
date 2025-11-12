@@ -447,7 +447,7 @@
             type="text"
             id="serverUrl"
             placeholder="WebSocket Server URL"
-            value="ws://localhost:2112"
+            value="ws://localhost:3223"
           />
           <button id="addConnectionBtn" class="btn-primary">
             ➕ Add Connection
@@ -659,7 +659,7 @@
         }
 
         const message = JSON.stringify({
-          type: "join-room",
+          type: "room-join",
           roomId: roomId,
         });
 
@@ -682,7 +682,7 @@
         if (!conn.rooms.has(roomId)) return;
 
         const message = JSON.stringify({
-          type: "leave-room",
+          type: "room-leave",
           roomId: roomId,
         });
 
@@ -734,7 +734,7 @@
                 <div class="room-controls">
                   <div class="room-input-group">
                     <input type="text" class="room-id-input" placeholder="Enter room ID" />
-                    <button class="join-room-btn" disabled>Join Room</button>
+                    <button class="room-join-btn" disabled>Join Room</button>
                   </div>
                   <div class="active-rooms"></div>
 				  <div class="message-input-group" style="margin-top: 10px;">
@@ -773,7 +773,7 @@
         const disconnectBtn = connectionCard.querySelector(".disconnect-btn");
         const sendBtn = connectionCard.querySelector(".send-btn");
         const removeBtn = connectionCard.querySelector(".remove-btn");
-        const joinRoomBtn = connectionCard.querySelector(".join-room-btn");
+        const joinRoomBtn = connectionCard.querySelector(".room-join-btn");
         const roomIdInput = connectionCard.querySelector(".room-id-input");
 
         connectBtn.addEventListener("click", () =>
@@ -901,7 +901,7 @@
             card.querySelector(".connect-btn").disabled = true;
             card.querySelector(".disconnect-btn").disabled = false;
             card.querySelector(".send-btn").disabled = false;
-            card.querySelector(".join-room-btn").disabled = false;
+            card.querySelector(".room-join-btn").disabled = false;
             card.querySelector(".room-controls").classList.add("active");
 
             card.querySelector(".message-input").disabled = false;
@@ -923,7 +923,7 @@
               card.querySelector(".connect-btn").disabled = false;
               card.querySelector(".disconnect-btn").disabled = true;
               card.querySelector(".send-btn").disabled = true;
-              card.querySelector(".join-room-btn").disabled = true;
+              card.querySelector(".room-join-btn").disabled = true;
 
               card.querySelector(".message-input").disabled = true;
               card.querySelector(".send-message-btn").disabled = true;

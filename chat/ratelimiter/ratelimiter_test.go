@@ -47,6 +47,7 @@ func (c *TestClient) sendReqs(wg *sync.WaitGroup) {
 			if err != nil {
 				log.Fatal(err)
 			}
+			defer r.Body.Close()
 
 			status := r.StatusCode
 
@@ -102,4 +103,53 @@ func TestRequestRateLimitter(t *testing.T) {
 	s.cancel()
 	time.Sleep(1 * time.Second)
 	fmt.Println("====TEST DONE====")
+}
+
+func BenchmarkRateLimiter_SingleClient(b *testing.B) {
+	rl := NewRateLimiter(1000000, 1000000) // Large values to avoid limiting
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			rl.Allow()
+		}
+	})
+}
+
+func BenchmarkPerClientLimiter_SingleClient(b *testing.B) {
+	ctx := b.Context()
+
+	pcl := NewPerClientLimiter(ctx)
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			pcl.Allow("client1")
+		}
+	})
+}
+
+func BenchmarkPerClientLimiter_ManyClients(b *testing.B) {
+	ctx := b.Context()
+
+	pcl := NewPerClientLimiter(ctx)
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		clientID := fmt.Sprintf("client-%d", rand.IntN(1000))
+		for pb.Next() {
+			pcl.Allow(clientID)
+		}
+	})
+}
+
+func BenchmarkPerClientLimiter_Creation(b *testing.B) {
+	ctx := b.Context()
+
+	pcl := NewPerClientLimiter(ctx)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		clientID := fmt.Sprintf("client-%d", i) // ✅ Always new client
+		pcl.Allow(clientID)
+	}
 }

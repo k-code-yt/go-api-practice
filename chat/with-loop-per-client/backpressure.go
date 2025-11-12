@@ -15,7 +15,7 @@ const (
 
 const (
 	DefaultBackPressureStrategy = BPStrategy_Drop
-	MaxBackPressureQueueSize    = 5
+	MaxBackPressureQueueSize    = 500
 )
 
 func (c *Client) handleBackpressure(msg *RespMsg, droppedCH chan<- struct{}) {

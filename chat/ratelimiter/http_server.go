@@ -10,8 +10,8 @@ import (
 
 var (
 	HTTPPort                    = ":6551"
-	MaxTokens           float64 = 3
-	RefillRatePerSecond float64 = 0.5
+	MaxTokens           float64 = 1000000
+	RefillRatePerSecond float64 = 1000000
 )
 
 type HTTPServer struct {

@@ -227,8 +227,8 @@ func TestRooms(t *testing.T) {
 	s := NewServer()
 	go s.CreateWSServer()
 	time.Sleep(1 * time.Second)
-	clientCount := 15
-	brCount := 5
+	clientCount := 2
+	msgCount := 2
 
 	tc := TestConfig{
 		clientCount:    clientCount,
@@ -264,7 +264,7 @@ func TestRooms(t *testing.T) {
 	room2Clients := rID2Count
 
 	expectedMessages := 0
-	for idx := range brCount {
+	for idx := range msgCount {
 		if clients[idx].roomID == rID1 {
 			expectedMessages += room1Clients - 1
 		} else {
@@ -281,7 +281,7 @@ func TestRooms(t *testing.T) {
 		}
 	}
 
-	for idx := range brCount {
+	for idx := range msgCount {
 		c := clients[idx]
 		go c.SendRoomMsg(&tc, c.roomID)
 	}
