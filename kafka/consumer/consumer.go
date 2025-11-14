@@ -2,7 +2,6 @@ package consumer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -52,14 +51,10 @@ func NewKafkaConsumer() *KafkaConsumer {
 	return consumer
 }
 
-func (c *KafkaConsumer) CommitMsg(msg string) {
-	kafkaMsg := &kafka.Message{}
-	err := json.Unmarshal([]byte(msg), kafkaMsg)
-	if err != nil {
-		fmt.Printf("cannot commit, err on unmarshal = %v\n", err)
-		return
-	}
-	c.consumer.CommitMessage(kafkaMsg)
+func (c *KafkaConsumer) CommitMsg(msg kafka.TopicPartition) {
+
+	c.consumer.CommitOffsets([]kafka.TopicPartition{msg})
+	fmt.Printf("committed msg = %d\n", msg.Offset)
 }
 
 func (c *KafkaConsumer) consumeLoop() {
