@@ -81,5 +81,12 @@ test-chat-race:
 	@go test -race -v -timeout 300s -run TestRoomsWithKafka ./chat/with-loop-per-client
 
 
+build-kafka:
+	@go build -o ./kafka/bin/kafka ./kafka/.
+	@chmod +x ./kafka/bin/kafka
+
+kafka: build-kafka
+	@./kafka/bin/kafka
+
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
