@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"time"
 
@@ -39,12 +40,19 @@ func (s *Server) initListener() {
 }
 
 func (s *Server) handleMsg(msg *shared.Message) {
+	s.saveToDB(msg)
 	s.consumer.CommitMsg(msg.Metadata)
+}
+
+func (s *Server) saveToDB(msg *shared.Message) {
+	randMS := rand.IntN(10)
+	fmt.Printf("starting DB operation for OFFSET = %d\n", msg.Metadata.Offset)
+	time.Sleep(time.Second * time.Duration(randMS))
 }
 
 func (s *Server) produceMsgs() {
 	idx := 0
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	for ts := range ticker.C {
 		s.producer.Produce(fmt.Sprintf("hello from Kafka, idx = %d, ts = %v\n", idx, ts.Format("15:04:05")))
 		idx++
@@ -53,7 +61,7 @@ func (s *Server) produceMsgs() {
 
 func main() {
 	s := NewServer(":7576")
-	// go s.produceMsgs()
+	go s.produceMsgs()
 	for msg := range s.consumer.MsgCH {
 		go s.handleMsg(msg)
 	}

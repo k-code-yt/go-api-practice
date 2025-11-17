@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -12,21 +13,30 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type KafkaConsumer struct {
-	consumer          *kafka.Consumer
-	MsgCH             chan *shared.Message
-	isReady           bool
-	readyCH           chan struct{}
-	topic             string
-	offsesToCommitMap []*KafkaMsg
-	lastOffset        kafka.Offset
-	mu                *sync.Mutex
-}
-
-type KafkaMsg struct {
+type KafkaMsgState struct {
 	kafka.TopicPartition
 	completed bool
 	commited  bool
+}
+
+func NewKafkaMsgState(tp *kafka.TopicPartition) *KafkaMsgState {
+	return &KafkaMsgState{
+		TopicPartition: *tp,
+		completed:      false,
+		commited:       false,
+	}
+}
+
+type KafkaConsumer struct {
+	consumer     *kafka.Consumer
+	MsgCH        chan *shared.Message
+	isReady      bool
+	readyCH      chan struct{}
+	topic        string
+	msgsStates   []*KafkaMsgState
+	msgsStateMap map[kafka.Offset]*KafkaMsgState
+	lastOffset   kafka.Offset
+	mu           *sync.RWMutex
 }
 
 func NewKafkaConsumer() *KafkaConsumer {
@@ -40,14 +50,16 @@ func NewKafkaConsumer() *KafkaConsumer {
 	if err != nil {
 		panic(err)
 	}
-	//enable.auto.commit
 
 	consumer := &KafkaConsumer{
-		consumer: c,
-		MsgCH:    make(chan *shared.Message, 64),
-		readyCH:  make(chan struct{}),
-		isReady:  false,
-		topic:    cfg.DefaultTopic,
+		consumer:     c,
+		MsgCH:        make(chan *shared.Message, 64),
+		readyCH:      make(chan struct{}),
+		isReady:      false,
+		topic:        cfg.DefaultTopic,
+		mu:           new(sync.RWMutex),
+		msgsStates:   []*KafkaMsgState{},
+		msgsStateMap: map[kafka.Offset]*KafkaMsgState{},
 	}
 
 	consumer.initializeKafkaTopic(cfg.Host, consumer.topic)
@@ -58,8 +70,8 @@ func NewKafkaConsumer() *KafkaConsumer {
 		{
 			Topic:     &consumer.topic,
 			Partition: 0,
-			Offset:    kafka.Offset(170),
-			// Offset: kafka.OffsetEnd,
+			// Offset:    kafka.Offset(170),
+			Offset: kafka.OffsetEnd,
 		},
 	})
 	if err != nil {
@@ -71,20 +83,81 @@ func NewKafkaConsumer() *KafkaConsumer {
 	return consumer
 }
 
-func (c *KafkaConsumer) seekToOffset(partition int32, offset kafka.Offset) error {
-	err := c.consumer.Seek(kafka.TopicPartition{
-		Topic:     &c.topic,
-		Partition: partition,
-		Offset:    offset, // ← HERE
-	}, 1000) // timeout in ms
+func (c *KafkaConsumer) CommitMsg(tp *kafka.TopicPartition) {
+	// TODO -> check for race
+	fmt.Printf("Finished DB -> starting COMMIT for OFFSET = %d\n", tp.Offset)
 
-	return err
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	msgState := c.msgsStateMap[tp.Offset]
+	msgState.completed = true
+	msgState.commited = true
+
+	latestToCommitTP := &kafka.TopicPartition{}
+	latestIdx := &atomic.Int64{}
+	latestIdx.Store(-1)
+	for idx, s := range c.msgsStates {
+		if s.commited && idx == len(c.msgsStates)-1 {
+			latestToCommitTP = c.extractAtIdx(int64(idx), latestIdx, latestToCommitTP)
+			break
+		}
+
+		if s.commited {
+			continue
+		}
+
+		prevIdx := int64(idx - 1)
+		latestToCommitTP = c.extractAtIdx(prevIdx, latestIdx, latestToCommitTP)
+
+		break
+	}
+
+	if latestIdx.Load() <= 0 {
+		fmt.Println("Nothing to commit yet")
+		return
+	}
+	// TODO -> goroutine?
+	c.consumer.CommitOffsets([]kafka.TopicPartition{*latestToCommitTP})
+
+	splitIdx := latestIdx.Load() + 1
+	toRemove := c.msgsStates[:splitIdx]
+	c.msgsStates = c.msgsStates[splitIdx:]
+	for _, s := range toRemove {
+		delete(c.msgsStateMap, s.Offset)
+	}
+	firstToCheckMsgs := -1
+	if len(c.msgsStates) > 0 {
+		firstToCheck := c.msgsStates[0]
+		firstToCheckMsgs = int(firstToCheck.Offset)
+	}
+
+	logrus.WithFields(
+		logrus.Fields{
+			"OFFSET":                 latestToCommitTP.Offset,
+			"msgsStateLEN":           len(c.msgsStates),
+			"firstToCheckMsgsOFFSET": firstToCheckMsgs,
+			"lastRemovedOFFSET":      toRemove[len(toRemove)-1].Offset,
+		},
+	).Info("Committed after DB operation")
 }
 
-func (c *KafkaConsumer) CommitMsg(msg *kafka.TopicPartition) {
-	time.Sleep(2 * time.Second)
-	c.consumer.CommitOffsets([]kafka.TopicPartition{*msg})
-	fmt.Printf("committed msg = %d\n", msg.Offset)
+func (c *KafkaConsumer) extractAtIdx(idx int64, latestIdx *atomic.Int64, latestToCommitTP *kafka.TopicPartition) *kafka.TopicPartition {
+	latestIdx.Store(int64(idx))
+	if idx > 0 {
+		latestToCommitTP = &c.msgsStates[idx].TopicPartition
+		logrus.WithField("OFFSET", latestToCommitTP.Offset+1).Info("not ready OFFSET")
+	}
+
+	for _, s := range c.msgsStates {
+		logrus.WithFields(
+			logrus.Fields{
+				"commited": s.commited,
+				"OFFSET":   s.TopicPartition.Offset,
+			},
+		).Info("Before CMT State")
+	}
+	return latestToCommitTP
 }
 
 func (c *KafkaConsumer) consumeLoop() {
@@ -93,10 +166,10 @@ func (c *KafkaConsumer) consumeLoop() {
 
 	for {
 		msg, err := c.consumer.ReadMessage(time.Second)
+		if err != nil && err.(kafka.Error).IsTimeout() {
+			continue
+		}
 		if err != nil && !err.(kafka.Error).IsTimeout() {
-			// The client will automatically try to recover from all errors.
-			// Timeout is not considered an error because it is raised by
-			// ReadMessage in absence of messages.
 			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
 			continue
 		}
@@ -109,11 +182,22 @@ func (c *KafkaConsumer) consumeLoop() {
 		}
 
 		firstMsg = false
+
+		c.appendMsgState(&msg.TopicPartition)
+
 		msgRequest := shared.NewMessage(&msg.TopicPartition, msg.Value)
-		fmt.Printf("received msg = %+v", msgRequest)
+		// fmt.Printf("received msg = %+v\n", msgRequest)
 		c.MsgCH <- msgRequest
 	}
 
+}
+
+func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
+	c.mu.Lock()
+	msgState := NewKafkaMsgState(tp)
+	c.msgsStates = append(c.msgsStates, msgState)
+	c.msgsStateMap[tp.Offset] = msgState
+	c.mu.Unlock()
 }
 
 func (c *KafkaConsumer) checkReadyToAccept() error {
@@ -234,4 +318,14 @@ func (c *KafkaConsumer) waitForTopicReady(brokers, topicName string) error {
 
 	}
 
+}
+
+func (c *KafkaConsumer) seekToOffset(partition int32, offset kafka.Offset) error {
+	err := c.consumer.Seek(kafka.TopicPartition{
+		Topic:     &c.topic,
+		Partition: partition,
+		Offset:    offset, // ← HERE
+	}, 1000) // timeout in ms
+
+	return err
 }

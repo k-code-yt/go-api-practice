@@ -1,8 +1,6 @@
 package producer
 
 import (
-	"fmt"
-
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/k-code-yt/go-api-practice/kafka/internal/shared"
 )
@@ -40,7 +38,7 @@ func NewKafkaProducer() *KafkaProducer {
 func (p *KafkaProducer) Produce(msg string) {
 	cfg := shared.NewKafkaConfig()
 	topic := cfg.DefaultTopic
-	fmt.Printf("producing to topic = %s, msg = %s\n", topic, msg)
+	// fmt.Printf("producing to topic = %s, msg = %s\n", topic, msg)
 	p.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          []byte(msg),

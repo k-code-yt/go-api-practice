@@ -81,11 +81,18 @@ test-chat-race:
 	@go test -race -v -timeout 300s -run TestRoomsWithKafka ./chat/with-loop-per-client
 
 
-build-kafka:
+build-kafka-app:
 	@go build -o ./kafka/bin/kafka ./kafka/cmd/.
 	@chmod +x ./kafka/bin/kafka
 
-kafka: build-kafka
+kafka-app: build-kafka-app
+	@./kafka/bin/kafka
+
+build-kafka-app-race:
+	@go build -race -o ./kafka/bin/kafka ./kafka/cmd/.
+	@chmod +x ./kafka/bin/kafka
+
+kafka-app-race: build-kafka-app-race
 	@./kafka/bin/kafka
 
 proto:
