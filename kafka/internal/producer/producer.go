@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/k-code-yt/go-api-practice/kafka/shared"
+	"github.com/k-code-yt/go-api-practice/kafka/internal/shared"
 )
 
 type KafkaProducer struct {

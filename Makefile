@@ -82,7 +82,7 @@ test-chat-race:
 
 
 build-kafka:
-	@go build -o ./kafka/bin/kafka ./kafka/.
+	@go build -o ./kafka/bin/kafka ./kafka/cmd/.
 	@chmod +x ./kafka/bin/kafka
 
 kafka: build-kafka

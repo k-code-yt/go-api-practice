@@ -4,18 +4,29 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/k-code-yt/go-api-practice/kafka/shared"
+	"github.com/k-code-yt/go-api-practice/kafka/internal/shared"
 	"github.com/sirupsen/logrus"
 )
 
 type KafkaConsumer struct {
-	consumer *kafka.Consumer
-	MsgCH    chan string
-	isReady  bool
-	readyCH  chan struct{}
+	consumer          *kafka.Consumer
+	MsgCH             chan *shared.Message
+	isReady           bool
+	readyCH           chan struct{}
+	topic             string
+	offsesToCommitMap []*KafkaMsg
+	lastOffset        kafka.Offset
+	mu                *sync.Mutex
+}
+
+type KafkaMsg struct {
+	kafka.TopicPartition
+	completed bool
+	commited  bool
 }
 
 func NewKafkaConsumer() *KafkaConsumer {
@@ -24,24 +35,33 @@ func NewKafkaConsumer() *KafkaConsumer {
 		"bootstrap.servers":  cfg.Host,
 		"group.id":           cfg.ConsumerGroup,
 		"enable.auto.commit": false,
-		"auto.offset.reset":  "earliest",
 	})
 
 	if err != nil {
 		panic(err)
 	}
+	//enable.auto.commit
 
 	consumer := &KafkaConsumer{
 		consumer: c,
-		MsgCH:    make(chan string, 128),
+		MsgCH:    make(chan *shared.Message, 64),
 		readyCH:  make(chan struct{}),
 		isReady:  false,
+		topic:    cfg.DefaultTopic,
 	}
 
-	consumer.initializeKafkaTopic(cfg.Host, cfg.DefaultTopic)
+	consumer.initializeKafkaTopic(cfg.Host, consumer.topic)
 
-	err = c.SubscribeTopics([]string{cfg.DefaultTopic}, nil)
-
+	// err = c.SubscribeTopics([]string{consumer.topic}, nil)
+	// consumer.seekToOffset(int32(0), kafka.Offset(30))
+	err = c.Assign([]kafka.TopicPartition{
+		{
+			Topic:     &consumer.topic,
+			Partition: 0,
+			Offset:    kafka.Offset(170),
+			// Offset: kafka.OffsetEnd,
+		},
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -51,9 +71,19 @@ func NewKafkaConsumer() *KafkaConsumer {
 	return consumer
 }
 
-func (c *KafkaConsumer) CommitMsg(msg kafka.TopicPartition) {
+func (c *KafkaConsumer) seekToOffset(partition int32, offset kafka.Offset) error {
+	err := c.consumer.Seek(kafka.TopicPartition{
+		Topic:     &c.topic,
+		Partition: partition,
+		Offset:    offset, // ← HERE
+	}, 1000) // timeout in ms
 
-	c.consumer.CommitOffsets([]kafka.TopicPartition{msg})
+	return err
+}
+
+func (c *KafkaConsumer) CommitMsg(msg *kafka.TopicPartition) {
+	time.Sleep(2 * time.Second)
+	c.consumer.CommitOffsets([]kafka.TopicPartition{*msg})
 	fmt.Printf("committed msg = %d\n", msg.Offset)
 }
 
@@ -79,22 +109,24 @@ func (c *KafkaConsumer) consumeLoop() {
 		}
 
 		firstMsg = false
-		c.MsgCH <- msg.String()
+		msgRequest := shared.NewMessage(&msg.TopicPartition, msg.Value)
+		fmt.Printf("received msg = %+v", msgRequest)
+		c.MsgCH <- msgRequest
 	}
 
 }
 
-func (kc *KafkaConsumer) checkReadyToAccept() error {
+func (c *KafkaConsumer) checkReadyToAccept() error {
 	defer func() {
-		kc.isReady = true
+		c.isReady = true
 	}()
 	for {
 		select {
-		case <-kc.readyCH:
+		case <-c.readyCH:
 			return nil
 		default:
 			time.Sleep(1 * time.Second)
-			isReady, err := kc.readyCheck()
+			isReady, err := c.readyCheck()
 			if err != nil {
 				logrus.Error("Error on consumer readycheck")
 				return err
@@ -109,8 +141,8 @@ func (kc *KafkaConsumer) checkReadyToAccept() error {
 	}
 }
 
-func (kc *KafkaConsumer) readyCheck() (bool, error) {
-	assignment, err := kc.consumer.Assignment()
+func (c *KafkaConsumer) readyCheck() (bool, error) {
+	assignment, err := c.consumer.Assignment()
 	if err != nil {
 		logrus.Errorf("Failed to get assignment: %v", err)
 		return false, err
@@ -145,7 +177,7 @@ func (c *KafkaConsumer) initializeKafkaTopic(brokers, topicName string) error {
 
 	for _, result := range results {
 		if result.Error.Code() == kafka.ErrTopicAlreadyExists {
-			logrus.Infof("Topic create result: %v", result.Error)
+			logrus.Infof("Topic already exists: %v", result.Error)
 			continue
 		}
 		if result.Error.Code() != kafka.ErrNoError {
