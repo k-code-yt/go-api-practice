@@ -1,15 +1,26 @@
 package shared
 
-import "github.com/confluentinc/confluent-kafka-go/v2/kafka"
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/k-code-yt/go-api-practice/kafka/internal/repo"
+)
 
 type Message struct {
 	Metadata *kafka.TopicPartition
-	Data     string
+	Event    *repo.Event
 }
 
 func NewMessage(metadata *kafka.TopicPartition, data []byte) *Message {
+	e := &repo.Event{}
+	err := json.Unmarshal(data, e)
+	if err != nil {
+		panic(fmt.Sprintf("err unmarshalling event = %v\n", err))
+	}
 	return &Message{
 		Metadata: metadata,
-		Data:     string(data),
+		Event:    e,
 	}
 }
