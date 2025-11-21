@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand/v2"
-	"net/http"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -33,19 +31,6 @@ func NewServer(addr string, eventRepo *repo.EventRepo) *Server {
 	}
 }
 
-func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
-	b := r.Body
-	defer b.Close()
-
-	// s.producer.Produce(nil)
-}
-
-func (s *Server) initListener() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("", s.handler)
-	log.Fatal(http.ListenAndServe(s.addr, nil))
-}
-
 func (s *Server) handleMsg(msg *shared.Message) {
 	r := time.Duration(rand.IntN(5))
 	time.Sleep(r * time.Second)
@@ -56,6 +41,7 @@ func (s *Server) handleMsg(msg *shared.Message) {
 func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) {
 	repo.TxClosure(ctx, s.eventRepo, func(ctx context.Context, tx *sqlx.Tx) (string, error) {
 		fmt.Printf("starting DB operation for OFFSET = %d, EventID = %s\n", msg.Metadata.Offset, msg.Event.EventId)
+		// TODO -> how to handle insert error
 		defer s.consumer.MarkAsComplete(msg.Metadata)
 		event := s.eventRepo.Get(ctx, tx, msg.Event.EventId)
 		if event != nil {

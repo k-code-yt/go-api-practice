@@ -12,20 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type KafkaMsgState struct {
-	kafka.TopicPartition
-	completed bool
-	commited  bool
-}
-
-func NewKafkaMsgState(tp *kafka.TopicPartition) *KafkaMsgState {
-	return &KafkaMsgState{
-		TopicPartition: *tp,
-		completed:      false,
-		commited:       false,
-	}
-}
-
 type KafkaConsumer struct {
 	consumer     *kafka.Consumer
 	MsgCH        chan *shared.Message
@@ -52,6 +38,23 @@ func NewKafkaConsumer() *KafkaConsumer {
 		panic(err)
 	}
 
+	tp := kafka.TopicPartition{
+		Topic:     &cfg.DefaultTopic,
+		Partition: 0,
+	}
+	commited, err := c.Committed([]kafka.TopicPartition{tp}, int(time.Second)*5)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	latestComm := commited[len(commited)-1].Offset
+	logrus.WithField("OFFSET", latestComm).Info("starting POSITION")
+	maxReceived := &kafka.TopicPartition{
+		Topic:     tp.Topic,
+		Partition: tp.Partition,
+		Offset:    latestComm,
+	}
+
 	consumer := &KafkaConsumer{
 		consumer:     c,
 		MsgCH:        make(chan *shared.Message, 64),
@@ -61,28 +64,17 @@ func NewKafkaConsumer() *KafkaConsumer {
 		topic:        cfg.DefaultTopic,
 		mu:           new(sync.RWMutex),
 		msgsStateMap: map[kafka.Offset]bool{},
-		lastCommited: 0,
+		lastCommited: latestComm,
+		maxReceived:  maxReceived,
 		commitDur:    5 * time.Second,
 	}
 
 	consumer.initializeKafkaTopic(cfg.Host, consumer.topic)
 
-	tp := kafka.TopicPartition{
-		Topic:     &consumer.topic,
-		Partition: 0,
-	}
-	commited, err := c.Committed([]kafka.TopicPartition{tp}, int(time.Second)*5)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	latestComm := commited[len(commited)-1].Offset + 1
-	logrus.WithField("OFFSET", latestComm).Info("starting POSITION")
-
 	err = c.Assign([]kafka.TopicPartition{
 		{
 			Topic:     &consumer.topic,
-			Partition: 0,
+			Partition: tp.Partition,
 			Offset:    latestComm,
 		},
 	})
@@ -113,7 +105,7 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 			}
 			latestToCommit := *c.maxReceived
 			if c.lastCommited > c.maxReceived.Offset {
-				panic("last commit below maxReceived")
+				panic("last commit above maxReceived")
 			}
 
 			if c.lastCommited == c.maxReceived.Offset {
@@ -123,7 +115,11 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 
 			c.mu.Lock()
 			for offset := c.lastCommited; offset < c.maxReceived.Offset; offset++ {
-				if c.msgsStateMap[offset] {
+				completed, exists := c.msgsStateMap[offset]
+				if !exists {
+					continue
+				}
+				if completed {
 					delete(c.msgsStateMap, offset)
 					continue
 				}
@@ -143,7 +139,7 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 			}
 
 			c.mu.Lock()
-			c.lastCommited = latestToCommit.Offset
+			c.lastCommited = latestToCommit.Offset - 1
 			c.mu.Unlock()
 
 			logrus.WithFields(
@@ -157,7 +153,6 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 			}
 		case <-c.exitCH:
 			return
-
 		}
 	}
 
@@ -189,7 +184,6 @@ func (c *KafkaConsumer) consumeLoop() {
 		c.appendMsgState(&msg.TopicPartition)
 
 		msgRequest := shared.NewMessage(&msg.TopicPartition, msg.Value)
-		// fmt.Printf("received msg = %+v\n", msgRequest)
 		c.MsgCH <- msgRequest
 	}
 
@@ -200,14 +194,12 @@ func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
 	defer c.mu.Unlock()
 
 	c.msgsStateMap[tp.Offset] = false
-	if c.maxReceived == nil {
-		c.maxReceived = tp
-		c.lastCommited = max(tp.Offset, 0)
-		return
-	}
-
 	if c.maxReceived.Offset < tp.Offset {
-		c.maxReceived = tp
+		c.maxReceived = &kafka.TopicPartition{
+			Topic:     tp.Topic,
+			Partition: tp.Partition,
+			Offset:    tp.Offset,
+		}
 	}
 }
 

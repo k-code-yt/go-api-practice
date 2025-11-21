@@ -38,7 +38,7 @@ func NewEventRepo(db *sqlx.DB) *EventRepo {
 }
 
 func (r *EventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *Event) (string, error) {
-	_, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (event_name, event_id, timestamp) VALUES($1, $2, $3)", r.tableName), e.EventName, e.EventId, e.Timespamp)
+	_, err := tx.NamedExecContext(ctx, fmt.Sprintf("INSERT INTO %s (event_type, event_id, timestamp) VALUES(:event_type, :event_id, :timestamp)", r.tableName), e)
 	if err != nil {
 		fmt.Printf("err on insert = %v\n", err)
 		return "", err
