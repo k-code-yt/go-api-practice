@@ -67,17 +67,24 @@ func TxClosure[T any](ctx context.Context, r *EventRepo, fn func(ctx context.Con
 		panic("unable to start TX")
 	}
 	defer func() {
-		tx.Rollback()
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+
+		if err != nil {
+			tx.Rollback()
+			return
+		}
+
+		err = tx.Commit()
+		if err != nil {
+			fmt.Printf("err on commit = %v\n", err)
+		}
 	}()
 
 	res, err := fn(ctx, tx)
 	if err != nil {
-		return res, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		fmt.Printf("err on commit = %v\n", err)
 		return res, err
 	}
 	return res, err

@@ -155,7 +155,6 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 			return
 		}
 	}
-
 }
 
 func (c *KafkaConsumer) consumeLoop() {
