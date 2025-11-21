@@ -67,12 +67,23 @@ func NewKafkaConsumer() *KafkaConsumer {
 
 	consumer.initializeKafkaTopic(cfg.Host, consumer.topic)
 
+	tp := kafka.TopicPartition{
+		Topic:     &consumer.topic,
+		Partition: 0,
+	}
+	commited, err := c.Committed([]kafka.TopicPartition{tp}, int(time.Second)*5)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	latestComm := commited[len(commited)-1].Offset + 1
+	logrus.WithField("OFFSET", latestComm).Info("starting POSITION")
+
 	err = c.Assign([]kafka.TopicPartition{
 		{
 			Topic:     &consumer.topic,
 			Partition: 0,
-			// Offset:    kafka.Offset(170),
-			Offset: kafka.OffsetBeginning,
+			Offset:    latestComm,
 		},
 	})
 	if err != nil {
@@ -86,7 +97,7 @@ func NewKafkaConsumer() *KafkaConsumer {
 }
 
 func (c *KafkaConsumer) MarkAsComplete(tp *kafka.TopicPartition) {
-	logrus.WithField("OFFSET", tp.Offset).Info("Finished DB Operation")
+	logrus.WithField("OFFSET", tp.Offset).Info("MarkAsComplete")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.msgsStateMap[tp.Offset] = true
@@ -94,7 +105,6 @@ func (c *KafkaConsumer) MarkAsComplete(tp *kafka.TopicPartition) {
 
 func (c *KafkaConsumer) commitOffsetLoop() {
 	ticker := time.NewTicker(c.commitDur)
-
 	for {
 		select {
 		case <-ticker.C:
@@ -140,7 +150,7 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 				logrus.Fields{
 					"OFFSET": latestToCommit.Offset - 1,
 				},
-			).Info("Commited on CRON")
+			).Warn("Commited on CRON")
 			fmt.Printf("state AFTER commit\n")
 			for offset, v := range c.msgsStateMap {
 				fmt.Printf("off = %d, v =%t\n", offset, v)
@@ -192,7 +202,7 @@ func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
 	c.msgsStateMap[tp.Offset] = false
 	if c.maxReceived == nil {
 		c.maxReceived = tp
-		c.lastCommited = tp.Offset - 1
+		c.lastCommited = max(tp.Offset, 0)
 		return
 	}
 
