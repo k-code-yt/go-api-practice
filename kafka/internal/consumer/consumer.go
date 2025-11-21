@@ -100,6 +100,7 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 	for {
 		select {
 		case <-ticker.C:
+			c.mu.Lock()
 			if c.maxReceived == nil {
 				continue
 			}
@@ -113,7 +114,6 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 				continue
 			}
 
-			c.mu.Lock()
 			for offset := c.lastCommited; offset < c.maxReceived.Offset; offset++ {
 				completed, exists := c.msgsStateMap[offset]
 				if !exists {
@@ -140,6 +140,10 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 
 			c.mu.Lock()
 			c.lastCommited = latestToCommit.Offset - 1
+			fmt.Printf("state AFTER commit\n")
+			for offset, v := range c.msgsStateMap {
+				fmt.Printf("off = %d, v =%t\n", offset, v)
+			}
 			c.mu.Unlock()
 
 			logrus.WithFields(
@@ -147,10 +151,7 @@ func (c *KafkaConsumer) commitOffsetLoop() {
 					"OFFSET": latestToCommit.Offset - 1,
 				},
 			).Warn("Commited on CRON")
-			fmt.Printf("state AFTER commit\n")
-			for offset, v := range c.msgsStateMap {
-				fmt.Printf("off = %d, v =%t\n", offset, v)
-			}
+
 		case <-c.exitCH:
 			return
 		}
