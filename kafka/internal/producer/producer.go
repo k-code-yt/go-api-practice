@@ -38,7 +38,6 @@ func NewKafkaProducer() *KafkaProducer {
 func (p *KafkaProducer) Produce(msg string) {
 	cfg := shared.NewKafkaConfig()
 	topic := cfg.DefaultTopic
-	// fmt.Printf("producing to topic = %s, msg = %s\n", topic, msg)
 	p.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          []byte(msg),

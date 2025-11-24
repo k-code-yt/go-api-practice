@@ -84,8 +84,5 @@ func TxClosure[T any](ctx context.Context, r *EventRepo, fn func(ctx context.Con
 	}()
 
 	res, err := fn(ctx, tx)
-	if err != nil {
-		return res, err
-	}
 	return res, err
 }

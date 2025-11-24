@@ -40,27 +40,28 @@ func (s *Server) handleMsg(msg *shared.Message) {
 
 func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) {
 	repo.TxClosure(ctx, s.eventRepo, func(ctx context.Context, tx *sqlx.Tx) (string, error) {
-		fmt.Printf("starting DB operation for OFFSET = %d, EventID = %s\n", msg.Metadata.Offset, msg.Event.EventId)
-		// TODO -> how to handle insert error
-		defer s.consumer.MarkAsComplete(msg.Metadata)
+		fmt.Printf("starting DB operation for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
 		event := s.eventRepo.Get(ctx, tx, msg.Event.EventId)
 		if event != nil {
-			eMsg := fmt.Sprintf("offset = %d, eventID %s already existing -> skipping\n", msg.Metadata.Offset, msg.Event.EventId)
+			s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Success)
+			eMsg := fmt.Sprintf("already exists OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
 			return "", errors.New(eMsg)
 		}
 
 		id, err := s.eventRepo.Insert(ctx, tx, msg.Event)
 		if err != nil {
+			s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Error)
 			return "", err
 		}
-		fmt.Printf("INSERT SUCCESS, EventID = %s, Offset = %d\n", id, msg.Metadata.Offset)
+		s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Success)
+		fmt.Printf("INSERT SUCCESS for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
 		return id, nil
 	})
 
 }
 
 func (s *Server) produceMsgs() {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 	for range ticker.C {
 		event := repo.NewEvent()
 		b, err := json.Marshal(event)
