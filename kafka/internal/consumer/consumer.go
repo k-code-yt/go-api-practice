@@ -185,7 +185,6 @@ func (c *KafkaConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.
 		for i, tp := range committed {
 			startOffset := tp.Offset
 			if startOffset < 0 {
-				// No committed offset, will use auto.offset.reset
 				startOffset = kafka.OffsetBeginning
 			}
 
@@ -194,18 +193,15 @@ func (c *KafkaConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.
 				"startOffset": startOffset,
 			}).Info("✅ Assigned partition")
 
-			// Initialize partition state
 			prtnState := NewPartitionState(&tp)
 			c.msgsStateMap[tp.Partition] = prtnState
 
-			// Update the partition list with committed offset
 			ev.Partitions[i].Offset = startOffset
 			go prtnState.commitOffsetLoop(c.commitDur, c)
 		}
 
 		c.mu.Unlock()
 
-		// CRITICAL: Must call Assign to acknowledge the assignment
 		err = consumer.Assign(ev.Partitions)
 		if err != nil {
 			logrus.Errorf("Failed to assign partitions: %v", err)
@@ -218,10 +214,7 @@ func (c *KafkaConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.
 		logrus.Info("=== Partitions Revoked ===")
 
 		c.mu.Lock()
-
-		// Commit pending offsets for each revoked partition
 		var toCommit []kafka.TopicPartition
-
 		for _, tp := range ev.Partitions {
 			logrus.WithField("partition", tp.Partition).Info("❌ Revoking partition")
 
@@ -230,7 +223,6 @@ func (c *KafkaConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.
 				continue
 			}
 
-			// Find highest consecutive completed offset
 			partitionState.mu.RLock()
 			offsets := make([]kafka.Offset, 0, len(partitionState.state))
 			for offset := range partitionState.state {
@@ -243,12 +235,10 @@ func (c *KafkaConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.
 				continue
 			}
 
-			// Sort offsets
 			sort.Slice(offsets, func(i, j int) bool {
 				return offsets[i] < offsets[j]
 			})
 
-			// Find last consecutive completed
 			var lastConsecutive kafka.Offset = -1
 			partitionState.mu.RLock()
 			for i, offset := range offsets {
@@ -263,7 +253,6 @@ func (c *KafkaConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.
 			}
 			partitionState.mu.RUnlock()
 
-			// Add to commit batch
 			if lastConsecutive >= 0 {
 				toCommit = append(toCommit, kafka.TopicPartition{
 					Topic:     tp.Topic,
@@ -272,14 +261,12 @@ func (c *KafkaConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.
 				})
 			}
 
-			// Clean up state for revoked partition
 			close(c.msgsStateMap[tp.Partition].exitCH)
 			delete(c.msgsStateMap, tp.Partition)
 		}
 
 		c.mu.Unlock()
 
-		// Commit all pending offsets before revocation
 		if len(toCommit) > 0 {
 			_, err := consumer.CommitOffsets(toCommit)
 			if err != nil {
@@ -294,7 +281,6 @@ func (c *KafkaConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.
 			}
 		}
 
-		// CRITICAL: Must call Unassign to acknowledge the revocation
 		err := consumer.Unassign()
 		if err != nil {
 			logrus.Errorf("Failed to unassign partitions: %v", err)
