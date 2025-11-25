@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"math/rand/v2"
+	"os"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -13,6 +15,10 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka/internal/producer"
 	"github.com/k-code-yt/go-api-practice/kafka/internal/repo"
 	"github.com/k-code-yt/go-api-practice/kafka/internal/shared"
+)
+
+var (
+	shouldProduce bool
 )
 
 type Server struct {
@@ -23,12 +29,16 @@ type Server struct {
 }
 
 func NewServer(addr string, eventRepo *repo.EventRepo) *Server {
-	return &Server{
+	s := &Server{
 		addr:      addr,
-		producer:  producer.NewKafkaProducer(),
 		consumer:  consumer.NewKafkaConsumer(),
 		eventRepo: eventRepo,
 	}
+	if shouldProduce {
+		s.producer = producer.NewKafkaProducer()
+		go s.produceMsgs()
+	}
+	return s
 }
 
 func (s *Server) handleMsg(msg *shared.Message) {
@@ -69,7 +79,7 @@ func (s *Server) produceMsgs() {
 			fmt.Printf("err marshaling event = %v\n", err)
 			continue
 		}
-		s.producer.Produce(string(b))
+		s.producer.Produce(b)
 	}
 }
 
@@ -79,9 +89,15 @@ func main() {
 		panic(fmt.Sprintf("unable to conn to db, err = %v\n", err))
 	}
 	defer db.Close()
+
+	shouldProduce = os.Getenv("SHOULD_PRODUCE") == "true"
+	if !shouldProduce {
+		shouldProduce = *flag.Bool("SHOULD_PRODUCE", false, "Enable message production")
+		flag.Parse()
+	}
+	fmt.Printf("SHOULD_PRODUCE = %t\n", shouldProduce)
 	er := repo.NewEventRepo(db)
 	s := NewServer(":7576", er)
-	go s.produceMsgs()
 	for msg := range s.consumer.MsgCH {
 		go s.handleMsg(msg)
 	}

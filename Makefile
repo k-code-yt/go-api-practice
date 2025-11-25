@@ -86,7 +86,7 @@ build-kafka-app:
 	@chmod +x ./kafka/bin/kafka
 
 kafka-app: build-kafka-app
-	@./kafka/bin/kafka
+	@CG_ID=$(CG_ID) SHOULD_PRODUCE=$(SHOULD_PRODUCE) ./kafka/bin/kafka
 
 build-kafka-app-race:
 	@go build -race -o ./kafka/bin/kafka ./kafka/cmd/.
@@ -94,6 +94,15 @@ build-kafka-app-race:
 
 kafka-app-race: build-kafka-app-race
 	@./kafka/bin/kafka
+
+kafka-consumer-1: build-kafka-app
+	@CG_ID=consumer-group-1 SHOULD_PRODUCE=false ./kafka/bin/kafka
+
+kafka-consumer-2: build-kafka-app
+	@CG_ID=consumer-group-2 SHOULD_PRODUCE=false ./kafka/bin/kafka
+
+kafka-producer: build-kafka-app
+	@CG_ID=producer-group SHOULD_PRODUCE=true ./kafka/bin/kafka
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
