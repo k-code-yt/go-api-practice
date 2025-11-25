@@ -26,35 +26,48 @@ type Server struct {
 	producer  *producer.KafkaProducer
 	consumer  *consumer.KafkaConsumer
 	eventRepo *repo.EventRepo
+	msgCH     chan *shared.Message
 }
 
 func NewServer(addr string, eventRepo *repo.EventRepo) *Server {
-	s := &Server{
+	return &Server{
+		msgCH:     make(chan *shared.Message, 512),
 		addr:      addr,
-		consumer:  consumer.NewKafkaConsumer(),
 		eventRepo: eventRepo,
 	}
+}
+
+func (s *Server) initProducer() {
 	if shouldProduce {
 		s.producer = producer.NewKafkaProducer()
 		go s.produceMsgs()
 	}
-	return s
+}
+
+func (s *Server) initConsumer() {
+	c := consumer.NewKafkaConsumer(s.msgCH)
+	s.consumer = c
 }
 
 func (s *Server) handleMsg(msg *shared.Message) {
 	r := time.Duration(rand.IntN(5))
 	time.Sleep(r * time.Second)
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*30)
-	s.saveToDB(ctx, msg)
+	id, err := s.saveToDB(ctx, msg)
+	if err != nil {
+		fmt.Printf("ERR on DB SAVE = %v\n", err)
+		return
+	}
+	fmt.Printf("INSERT SUCCESS for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, id)
 }
 
-func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) {
-	repo.TxClosure(ctx, s.eventRepo, func(ctx context.Context, tx *sqlx.Tx) (string, error) {
+func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) (string, error) {
+	return repo.TxClosure(ctx, s.eventRepo, func(ctx context.Context, tx *sqlx.Tx) (string, error) {
 		fmt.Printf("starting DB operation for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
 		event := s.eventRepo.Get(ctx, tx, msg.Event.EventId)
 		if event != nil {
-			s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Success)
 			eMsg := fmt.Sprintf("already exists OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
+			s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Success)
 			return "", errors.New(eMsg)
 		}
 
@@ -64,7 +77,6 @@ func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) {
 			return "", err
 		}
 		s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Success)
-		fmt.Printf("INSERT SUCCESS for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
 		return id, nil
 	})
 
@@ -98,7 +110,10 @@ func main() {
 	fmt.Printf("SHOULD_PRODUCE = %t\n", shouldProduce)
 	er := repo.NewEventRepo(db)
 	s := NewServer(":7576", er)
-	for msg := range s.consumer.MsgCH {
+	go s.initConsumer()
+	go s.initProducer()
+
+	for msg := range s.msgCH {
 		go s.handleMsg(msg)
 	}
 }

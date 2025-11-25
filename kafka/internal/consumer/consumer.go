@@ -43,6 +43,7 @@ func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
 func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaConsumer) {
 	ticker := time.NewTicker(commitDur)
 	defer ticker.Stop()
+	defer fmt.Printf("exiting PRNT State = %v\n", ps)
 	for {
 		select {
 		case <-ticker.C:
@@ -59,9 +60,15 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 
 			ps.mu.Lock()
 			ps.lastCommited = latestToCommit.Offset - 1
-			fmt.Printf("-----------state AFTER commit\n-----------")
+			fmt.Printf("-----------state AFTER commit-----------\n")
 			for offset, v := range ps.state {
-				fmt.Printf("off = %d, prtn = %d, v =%d\n", offset, ps.maxReceived.Partition, v)
+				logrus.WithFields(
+					logrus.Fields{
+						"OFFSET": offset,
+						"PRTN":   ps.maxReceived.Partition,
+						"STATE":  v,
+					},
+				).Infof("STATE")
 			}
 			ps.mu.Unlock()
 
@@ -73,6 +80,7 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 			).Warn("Commited on CRON")
 
 		case <-ps.exitCH:
+			logrus.WithField("partition", ps.maxReceived.Partition).Info("Exiting commitOffsetLoop")
 			return
 		}
 	}
@@ -80,6 +88,8 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 
 func (ps *PartitionState) findLatestToCommit() (*kafka.TopicPartition, error) {
 	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
 	if ps.maxReceived == nil {
 		return nil, fmt.Errorf("maxRec is nil")
 	}
@@ -96,9 +106,7 @@ func (ps *PartitionState) findLatestToCommit() (*kafka.TopicPartition, error) {
 	for offset := ps.lastCommited + 1; offset < ps.maxReceived.Offset; offset++ {
 		msgState, exists := ps.state[offset]
 		if !exists {
-			// Offset not seen yet (shouldn't happen)
-			logrus.Warnf("Offset %d not in state for partition %d, currLatest %d", offset, ps.maxReceived.Partition, ps.maxReceived.Offset)
-			latestToCommit.Offset = offset
+			fmt.Printf("does not exit, off = %d, state = %v\n", offset, ps.state)
 			continue
 		}
 		if msgState != MsgState_Pending {
@@ -108,10 +116,8 @@ func (ps *PartitionState) findLatestToCommit() (*kafka.TopicPartition, error) {
 		latestToCommit.Offset = offset
 		break
 	}
-	ps.mu.Unlock()
 	if latestToCommit.Offset == ps.lastCommited {
 		return nil, fmt.Errorf("lastestToCommit is the same -> skipping")
-
 	}
 	return &latestToCommit, nil
 }
@@ -128,7 +134,7 @@ type KafkaConsumer struct {
 	commitDur    time.Duration
 }
 
-func NewKafkaConsumer() *KafkaConsumer {
+func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 	cfg := shared.NewKafkaConfig()
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":               cfg.Host,
@@ -161,7 +167,7 @@ func NewKafkaConsumer() *KafkaConsumer {
 
 	consumer := &KafkaConsumer{
 		consumer:     c,
-		MsgCH:        make(chan *shared.Message, 64),
+		MsgCH:        msgCH,
 		readyCH:      make(chan struct{}),
 		exitCH:       make(chan struct{}),
 		isReady:      false,
@@ -178,6 +184,7 @@ func NewKafkaConsumer() *KafkaConsumer {
 		panic(err)
 	}
 
+	go consumer.checkReadyToAccept()
 	go consumer.consumeLoop()
 	return consumer
 }
@@ -186,6 +193,7 @@ func (c *KafkaConsumer) UpdateState(tp *kafka.TopicPartition, newState MsgState)
 	logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// TODO -> err here
 	c.msgsStateMap[tp.Partition].state[tp.Offset] = newState
 }
 
@@ -343,7 +351,13 @@ func (c *KafkaConsumer) consumeLoop() {
 		c.appendMsgState(&msg.TopicPartition)
 
 		msgRequest := shared.NewMessage(&msg.TopicPartition, msg.Value)
-		c.MsgCH <- msgRequest
+		select {
+		case c.MsgCH <- msgRequest:
+		case <-time.After(5 * time.Second):
+			logrus.Errorf("MsgCH blocked for 10s, dropping message offset=%d partition=%d",
+				msg.TopicPartition.Offset, msg.TopicPartition.Partition)
+			c.UpdateState(&msg.TopicPartition, MsgState_Error)
+		}
 	}
 
 }
