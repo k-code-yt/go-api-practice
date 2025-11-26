@@ -24,11 +24,11 @@ const (
 
 type KafkaConsumer struct {
 	ID           string
-	consumer     *kafka.Consumer
 	MsgCH        chan *shared.Message
-	isReady      bool
-	readyCH      chan struct{}
+	IsReady      bool
+	ReadyCH      chan struct{}
 	exitCH       chan struct{}
+	consumer     *kafka.Consumer
 	topic        string
 	msgsStateMap map[int32]*PartitionState
 	mu           *sync.RWMutex
@@ -42,9 +42,9 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 		"bootstrap.servers":               cfg.Host,
 		"group.id":                        cfg.ConsumerGroup,
 		"enable.auto.commit":              false,
-		"auto.offset.reset":               "earliest", // Start from beginning if no commit
+		"auto.offset.reset":               "earliest",
 		"go.application.rebalance.enable": true,
-		"partition.assignment.strategy":   "roundrobin", // or "roundrobin" or "cooperative-sticky"
+		"partition.assignment.strategy":   "roundrobin", //  or "cooperative-sticky"
 		// "debug":                           "consumer,cgrp,topic",
 	})
 
@@ -62,7 +62,7 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 	}
 	latestComm := kafka.OffsetBeginning
 	if commited[0].Offset != kafka.OffsetInvalid {
-		latestComm = commited[len(commited)-1].Offset
+		latestComm = commited[len(commited)-1].Offset - 1
 	}
 
 	logrus.WithField("OFFSET", latestComm).Info("starting POSITION")
@@ -71,9 +71,9 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 		ID:           ID,
 		consumer:     c,
 		MsgCH:        msgCH,
-		readyCH:      make(chan struct{}),
+		ReadyCH:      make(chan struct{}),
 		exitCH:       make(chan struct{}),
-		isReady:      false,
+		IsReady:      false,
 		topic:        cfg.DefaultTopic,
 		mu:           new(sync.RWMutex),
 		commitDur:    10 * time.Second,
@@ -87,26 +87,31 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 		panic(err)
 	}
 
-	go consumer.checkReadyToAccept()
-	go consumer.consumeLoop()
 	return consumer
+}
+
+func (c *KafkaConsumer) RunConsumer() struct{} {
+	go c.checkReadyToAccept()
+	go c.consumeLoop()
+	return <-c.exitCH
 }
 
 func (c *KafkaConsumer) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
 	// logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	_, ok := c.msgsStateMap[tp.Partition]
+	prtnState, ok := c.msgsStateMap[tp.Partition]
+	c.mu.Unlock()
 	if !ok {
 		logrus.Errorf("state is missing for PRTN %d\n", tp.Partition)
 		return
 	}
-	c.msgsStateMap[tp.Partition].state[tp.Offset] = newState
+
+	prtnState.mu.Lock()
+	prtnState.state[tp.Offset] = newState
+	prtnState.mu.Unlock()
 }
 
 func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
-	logrus.Info("=== Partitions Assigned ===")
-
 	c.mu.Lock()
 	committed, err := c.consumer.Committed(ev.Partitions, int(time.Second)*5)
 	if err != nil {
@@ -157,8 +162,6 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 }
 
 func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
-	logrus.Info("=== Partitions Revoked ===")
-
 	var toCommit []kafka.TopicPartition
 	for _, tp := range ev.Partitions {
 		logrus.WithField("partition", tp.Partition).Info("❌ Revoking partition")
@@ -169,6 +172,9 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 		if !exists {
 			continue
 		}
+
+		partitionState.cancel()
+		<-partitionState.exitCH
 
 		latestToCommit, err := partitionState.findLatestToCommit()
 		if err != nil {
@@ -184,7 +190,6 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 			})
 		}
 
-		partitionState.cancel()
 		c.mu.Lock()
 		delete(c.msgsStateMap, tp.Partition)
 		for _, p := range c.msgsStateMap {
@@ -236,7 +241,10 @@ func (c *KafkaConsumer) rebalanceCB(_ *kafka.Consumer, event kafka.Event) error 
 }
 
 func (c *KafkaConsumer) consumeLoop() {
-	defer c.consumer.Close()
+	defer func() {
+		c.consumer.Close()
+		close(c.exitCH)
+	}()
 	firstMsg := true
 
 	for {
@@ -253,7 +261,7 @@ func (c *KafkaConsumer) consumeLoop() {
 		}
 
 		if firstMsg {
-			close(c.readyCH)
+			close(c.ReadyCH)
 		}
 
 		firstMsg = false
@@ -385,22 +393,22 @@ func (c *KafkaConsumer) seekToOffset(partition int32, offset kafka.Offset) error
 
 func (c *KafkaConsumer) checkReadyToAccept() error {
 	defer func() {
-		c.isReady = true
+		c.IsReady = true
 	}()
 	for {
 		select {
-		case <-c.readyCH:
+		case <-c.ReadyCH:
 			return nil
 		default:
 			time.Sleep(1 * time.Second)
-			isReady, err := c.readyCheck()
+			IsReady, err := c.readyCheck()
 			if err != nil {
 				logrus.Error("Error on consumer readycheck")
 				return err
 			}
-			logrus.WithField("STATUS", isReady).Warn("Consumer ready to accept")
+			logrus.WithField("STATUS", IsReady).Warn("Consumer ready to accept")
 
-			if isReady {
+			if IsReady {
 				return nil
 			}
 		}

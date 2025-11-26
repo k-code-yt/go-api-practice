@@ -17,10 +17,6 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka/internal/shared"
 )
 
-var (
-	shouldProduce bool
-)
-
 type Server struct {
 	addr      string
 	producer  *producer.KafkaProducer
@@ -37,19 +33,29 @@ func NewServer(addr string, eventRepo *repo.EventRepo) *Server {
 	}
 }
 
-func (s *Server) initProducer() {
+func (s *Server) addProducer() *Server {
+	shouldProduce := os.Getenv("SHOULD_PRODUCE") == "true"
+	if !shouldProduce {
+		shouldProduce = *flag.Bool("SHOULD_PRODUCE", false, "Enable message production")
+		flag.Parse()
+	}
+	fmt.Printf("SHOULD_PRODUCE = %t\n", shouldProduce)
+
 	if shouldProduce {
 		s.producer = producer.NewKafkaProducer()
 		go s.produceMsgs()
 	}
+	return s
 }
 
-func (s *Server) initConsumer() {
+func (s *Server) addConsumer() *Server {
 	c := consumer.NewKafkaConsumer(s.msgCH)
 	s.consumer = c
+	return s
 }
 
 func (s *Server) handleMsg(msg *shared.Message) {
+	<-s.consumer.ReadyCH
 	r := time.Duration(rand.IntN(5))
 	time.Sleep(r * time.Second)
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*30)
@@ -101,18 +107,14 @@ func main() {
 	}
 	defer db.Close()
 
-	shouldProduce = os.Getenv("SHOULD_PRODUCE") == "true"
-	if !shouldProduce {
-		shouldProduce = *flag.Bool("SHOULD_PRODUCE", false, "Enable message production")
-		flag.Parse()
-	}
-	fmt.Printf("SHOULD_PRODUCE = %t\n", shouldProduce)
 	er := repo.NewEventRepo(db)
-	s := NewServer(":7576", er)
-	go s.initConsumer()
-	go s.initProducer()
+	s := NewServer(":7576", er).addConsumer().addProducer()
 
-	for msg := range s.msgCH {
-		go s.handleMsg(msg)
-	}
+	go func() {
+		for msg := range s.msgCH {
+			go s.handleMsg(msg)
+		}
+	}()
+
+	s.consumer.RunConsumer()
 }
