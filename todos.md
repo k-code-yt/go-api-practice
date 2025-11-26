@@ -1,8 +1,5 @@
 ### todos
 
-- rooms -> test race conditions
-- perf testing -> how to do it? deploy to k8s?
-- concurrency test for v1 app
 - add sse?
 - write tests for rooms?
 - add messaging via Kafka

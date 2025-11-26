@@ -26,7 +26,7 @@ func NewKafkaProducer() *KafkaProducer {
 				if ev.TopicPartition.Error != nil {
 					fmt.Printf("Delivery failed: %v\n", ev.TopicPartition)
 				} else {
-					fmt.Printf("Delivered message to PRTN = %d\n", ev.TopicPartition.Partition)
+					fmt.Printf("Delivered message to PRTN = %d OFF = %d\n", ev.TopicPartition.Partition, ev.TopicPartition.Offset)
 				}
 			}
 		}

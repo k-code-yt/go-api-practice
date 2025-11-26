@@ -53,26 +53,25 @@ func (s *Server) handleMsg(msg *shared.Message) {
 	r := time.Duration(rand.IntN(5))
 	time.Sleep(r * time.Second)
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*30)
-	id, err := s.saveToDB(ctx, msg)
+	_, err := s.saveToDB(ctx, msg)
 	if err != nil {
-		fmt.Printf("ERR on DB SAVE = %v\n", err)
+		// fmt.Printf("ERR on DB SAVE = %v\n", err)
 		return
 	}
-	fmt.Printf("INSERT SUCCESS for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, id)
+	// fmt.Printf("INSERT SUCCESS for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, id)
 }
 
 func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) (string, error) {
 	return repo.TxClosure(ctx, s.eventRepo, func(ctx context.Context, tx *sqlx.Tx) (string, error) {
-		fmt.Printf("starting DB operation for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
-		event := s.eventRepo.Get(ctx, tx, msg.Event.EventId)
-		if event != nil {
-			eMsg := fmt.Sprintf("already exists OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
-			s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Success)
-			return "", errors.New(eMsg)
-		}
-
+		// fmt.Printf("starting DB operation for OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
 		id, err := s.eventRepo.Insert(ctx, tx, msg.Event)
 		if err != nil {
+			exists := repo.IsDuplicateKeyErr(err)
+			if exists {
+				eMsg := fmt.Sprintf("already exists OFFSET = %d, PRTN = %d, EventID = %s\n", msg.Metadata.Offset, msg.Metadata.Partition, msg.Event.EventId)
+				s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Success)
+				return "", errors.New(eMsg)
+			}
 			s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Error)
 			return "", err
 		}
@@ -83,7 +82,7 @@ func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) (string, err
 }
 
 func (s *Server) produceMsgs() {
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	for range ticker.C {
 		event := repo.NewEvent()
 		b, err := json.Marshal(event)
