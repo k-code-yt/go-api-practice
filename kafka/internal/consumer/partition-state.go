@@ -41,7 +41,6 @@ func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
 }
 
 func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaConsumer) {
-	fmt.Println("------RUNNING-COMMIT-LOOP------")
 	ticker := time.NewTicker(commitDur)
 	defer func() {
 		close(ps.exitCH)
@@ -53,6 +52,7 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 		).Info("EXIT commitOffsetLoop✅")
 	}()
 	for {
+		fmt.Println("------RUNNING-COMMIT-LOOP------")
 		select {
 		case <-ticker.C:
 			select {
@@ -74,11 +74,15 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 
 			ps.mu.Lock()
 			ps.lastCommited = latestToCommit.Offset
+			if ps.lastCommited > ps.maxReceived.Offset {
+				ps.maxReceived.Offset = latestToCommit.Offset
+			}
 			logrus.WithFields(
 				logrus.Fields{
-					"OFFSET": latestToCommit.Offset,
-					"PRTN":   ps.maxReceived.Partition,
-					"STATE":  ps.state,
+					"COMMITED_OFFSET": latestToCommit.Offset,
+					"MAX_OFFSET":      ps.maxReceived.Offset,
+					"PRTN":            ps.maxReceived.Partition,
+					"STATE":           ps.state,
 				},
 			).Warn("Commited on CRON")
 			ps.mu.Unlock()
@@ -99,14 +103,12 @@ func (ps *PartitionState) findLatestToCommit() (*kafka.TopicPartition, error) {
 	}
 	latestToCommit := *ps.maxReceived
 	if ps.lastCommited > ps.maxReceived.Offset {
-		panic("last commit above maxReceived")
+		panic("❌last commit above maxReceived❌")
 	}
-
 	if ps.lastCommited == ps.maxReceived.Offset {
 		msg := fmt.Sprintf("lastCommit %d == maxReceived in prtn %d -> skipping\n", ps.lastCommited, ps.maxReceived.Partition)
 		return nil, fmt.Errorf("%v", msg)
 	}
-
 	for offset := ps.lastCommited; offset <= ps.maxReceived.Offset; offset++ {
 		msgState, exists := ps.state[offset]
 		if !exists {
@@ -119,13 +121,14 @@ func (ps *PartitionState) findLatestToCommit() (*kafka.TopicPartition, error) {
 				"OFFSET": offset,
 				"PRTN":   ps.ID,
 			}).Info("Removed offset")
+			if len(ps.state) == 0 {
+				latestToCommit.Offset = offset + 1
+				break
+			}
 			continue
 		}
 		latestToCommit.Offset = offset
 		break
-	}
-	if latestToCommit.Offset == ps.lastCommited {
-		return nil, fmt.Errorf("lastestToCommit is the same -> skipping")
 	}
 	return &latestToCommit, nil
 }

@@ -33,6 +33,7 @@ type KafkaConsumer struct {
 	msgsStateMap map[int32]*PartitionState
 	mu           *sync.RWMutex
 	commitDur    time.Duration
+	cfg          *shared.KafkaConfig
 }
 
 func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
@@ -44,28 +45,14 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 		"enable.auto.commit":              false,
 		"auto.offset.reset":               "earliest",
 		"go.application.rebalance.enable": true,
-		"partition.assignment.strategy":   "roundrobin", //  or "cooperative-sticky"
+		// "partition.assignment.strategy":   "roundrobin", //  or "cooperative-sticky"
+		"partition.assignment.strategy": cfg.ParititionAssignStrategy, //  or "cooperative-sticky"
 		// "debug":                           "consumer,cgrp,topic",
 	})
 
 	if err != nil {
 		panic(err)
 	}
-
-	tp := kafka.TopicPartition{
-		Topic: &cfg.DefaultTopic,
-	}
-	commited, err := c.Committed([]kafka.TopicPartition{tp}, int(time.Second)*5)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	latestComm := kafka.OffsetBeginning
-	if commited[0].Offset != kafka.OffsetInvalid {
-		latestComm = commited[len(commited)-1].Offset - 1
-	}
-
-	logrus.WithField("OFFSET", latestComm).Info("starting POSITION")
 
 	consumer := &KafkaConsumer{
 		ID:           ID,
@@ -78,6 +65,7 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 		mu:           new(sync.RWMutex),
 		commitDur:    10 * time.Second,
 		msgsStateMap: map[int32]*PartitionState{},
+		cfg:          cfg,
 	}
 
 	consumer.initializeKafkaTopic(cfg.Host, consumer.topic)
@@ -126,8 +114,8 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 		}
 
 		logrus.WithFields(logrus.Fields{
-			"partition":   tp.Partition,
-			"startOffset": startOffset,
+			"PRTN":         tp.Partition,
+			"START_OFFSET": startOffset,
 		}).Info("✅ Assigned partition")
 
 		tpCopy := kafka.TopicPartition{
@@ -149,11 +137,16 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 
 	c.mu.Unlock()
 
-	err = c.consumer.Assign(ev.Partitions)
+	if c.cfg.ParititionAssignStrategy == "cooperative-sticky" {
+		err = c.consumer.IncrementalAssign(ev.Partitions)
+	} else {
+		err = c.consumer.Assign(ev.Partitions)
+	}
 	if err != nil {
 		logrus.Errorf("Failed to assign partitions: %v", err)
 		return err
 	}
+
 	logrus.WithFields(logrus.Fields{
 		"count":      len(ev.Partitions),
 		"partitions": c.formatPartitions(ev.Partitions),
@@ -164,7 +157,7 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 	var toCommit []kafka.TopicPartition
 	for _, tp := range ev.Partitions {
-		logrus.WithField("partition", tp.Partition).Info("❌ Revoking partition")
+		logrus.WithField("PRTN", tp.Partition).Info("❌ Revoking partition")
 
 		c.mu.RLock()
 		partitionState, exists := c.msgsStateMap[tp.Partition]
@@ -211,7 +204,12 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 		}
 	}
 
-	err := c.consumer.Unassign()
+	var err error
+	if c.cfg.ParititionAssignStrategy == "cooperative-sticky" {
+		err = c.consumer.IncrementalUnassign(ev.Partitions)
+	} else {
+		err = c.consumer.Unassign()
+	}
 	if err != nil {
 		logrus.Errorf("Failed to unassign partitions: %v", err)
 		return err

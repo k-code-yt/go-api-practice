@@ -98,7 +98,7 @@ kafka-app-race: build-kafka-app-race
 kafka-consumer-1: build-kafka-app-race
 	@CG_ID=consumer-group-1 SHOULD_PRODUCE=false ./kafka/bin/kafka
 
-kafka-consumer-2: build-kafka-app
+kafka-consumer-2: build-kafka-app-race
 	@CG_ID=consumer-group-2 SHOULD_PRODUCE=false ./kafka/bin/kafka
 
 kafka-producer: build-kafka-app

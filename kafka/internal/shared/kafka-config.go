@@ -1,15 +1,17 @@
 package shared
 
 type KafkaConfig struct {
-	DefaultTopic  string
-	Host          string
-	ConsumerGroup string
+	DefaultTopic             string
+	Host                     string
+	ConsumerGroup            string
+	ParititionAssignStrategy string
 }
 
 func NewKafkaConfig() *KafkaConfig {
 	return &KafkaConfig{
-		DefaultTopic:  "local_topic",
-		Host:          "localhost",
-		ConsumerGroup: "local_cg",
+		ParititionAssignStrategy: "cooperative-sticky",
+		DefaultTopic:             "local_topic_sticky",
+		Host:                     "localhost",
+		ConsumerGroup:            "local_cg",
 	}
 }
