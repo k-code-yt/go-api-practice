@@ -172,7 +172,6 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 		if !exists {
 			continue
 		}
-
 		partitionState.cancel()
 		<-partitionState.exitCH
 
