@@ -82,7 +82,7 @@ func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) (string, err
 }
 
 func (s *Server) produceMsgs() {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	for range ticker.C {
 		event := repo.NewEvent()
 		b, err := json.Marshal(event)
