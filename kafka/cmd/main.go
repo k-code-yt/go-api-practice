@@ -58,7 +58,8 @@ func (s *Server) handleMsg(msg *shared.Message) {
 	<-s.consumer.ReadyCH
 	r := time.Duration(rand.IntN(5))
 	time.Sleep(r * time.Second)
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 	_, err := s.saveToDB(ctx, msg)
 	if err != nil {
 		// fmt.Printf("ERR on DB SAVE = %v\n", err)
@@ -84,7 +85,6 @@ func (s *Server) saveToDB(ctx context.Context, msg *shared.Message) (string, err
 		s.consumer.UpdateState(msg.Metadata, consumer.MsgState_Success)
 		return id, nil
 	})
-
 }
 
 func (s *Server) produceMsgs() {
