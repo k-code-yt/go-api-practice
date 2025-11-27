@@ -169,6 +169,8 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 		if !exists {
 			continue
 		}
+		partitionState.cancel()
+		<-partitionState.exitCH
 
 		latestToCommit, err := partitionState.findLatestToCommit()
 		if err != nil {
@@ -184,7 +186,6 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 			})
 		}
 
-		partitionState.cancel()
 		c.mu.Lock()
 		delete(c.msgsStateMap, tp.Partition)
 		for _, p := range c.msgsStateMap {

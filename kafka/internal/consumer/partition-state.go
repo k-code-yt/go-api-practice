@@ -23,11 +23,15 @@ type PartitionState struct {
 
 func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
 	ctx, cancel := context.WithCancel(context.Background())
+	initialLastCommited := maxReceived.Offset - 1
+	if maxReceived.Offset == kafka.OffsetBeginning || maxReceived.Offset < 0 {
+		initialLastCommited = -1
+	}
 	return &PartitionState{
 		ID:           maxReceived.Partition,
 		state:        map[kafka.Offset]MsgState{},
 		maxReceived:  maxReceived,
-		lastCommited: maxReceived.Offset,
+		lastCommited: initialLastCommited,
 		mu:           &sync.RWMutex{},
 		ctx:          ctx,
 		cancel:       cancel,
@@ -37,6 +41,8 @@ func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
 }
 
 func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaConsumer) {
+	fmt.Println("------RUNNING-COMMIT-LOOP------")
+	fmt.Printf("PRTN = %d, STATE = %+v\n", ps.ID, ps.state)
 	ticker := time.NewTicker(commitDur)
 	defer func() {
 		ticker.Stop()
@@ -45,7 +51,7 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 			logrus.Fields{
 				"PRTN": ps.ID,
 			},
-		).Info("EXIT commitOffsetLoop")
+		).Info("EXIT commitOffsetLoop✅")
 	}()
 	for {
 		select {
@@ -62,21 +68,12 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 			}
 
 			ps.mu.Lock()
-			ps.lastCommited = latestToCommit.Offset - 1
-			for offset, v := range ps.state {
-				logrus.WithFields(
-					logrus.Fields{
-						"OFFSET":    offset,
-						"PRTN":      ps.maxReceived.Partition,
-						"STATE_VAL": v,
-					},
-				).Infof("STATE_AFTER_COMMIT")
-			}
+			ps.lastCommited = latestToCommit.Offset
 			ps.mu.Unlock()
 
 			logrus.WithFields(
 				logrus.Fields{
-					"OFFSET": latestToCommit.Offset - 1,
+					"OFFSET": latestToCommit.Offset,
 					"PRTN":   ps.maxReceived.Partition,
 				},
 			).Warn("Commited on CRON")
