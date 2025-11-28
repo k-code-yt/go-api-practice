@@ -12,9 +12,9 @@ func NewKafkaConfig() *KafkaConfig {
 	return &KafkaConfig{
 		ParititionAssignStrategy: "cooperative-sticky",
 		// ParititionAssignStrategy: "roundrobin",
-		DefaultTopic:  "local_topic_chans4",
+		DefaultTopic:  "local_topic_chans5",
 		Host:          "localhost",
-		ConsumerGroup: "local_cg",
-		NumPartitions: 4,
+		ConsumerGroup: "local_cg3",
+		NumPartitions: 2,
 	}
 }

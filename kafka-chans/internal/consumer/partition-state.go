@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"sync/atomic"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -24,16 +25,18 @@ func NewUpdateStateMsg(offset kafka.Offset, value shared.MsgState) *UpdateStateM
 }
 
 type PartitionState struct {
-	ID                int32
-	state             map[kafka.Offset]shared.MsgState
-	maxReceived       *kafka.TopicPartition
-	lastCommited      kafka.Offset
-	ctx               context.Context
-	cancel            context.CancelFunc
-	exitCH            chan struct{}
-	deleteFromStateCH chan kafka.Offset
-	updateStateCH     chan *UpdateStateMsg
-	getStateSizeCH    chan chan int
+	ID                  int32
+	state               map[kafka.Offset]shared.MsgState
+	maxReceived         *kafka.TopicPartition
+	lastCommited        *atomic.Int32
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	exitCH              chan struct{}
+	deleteFromStateCH   chan kafka.Offset
+	updateStateCH       chan *UpdateStateMsg
+	getStateSizeCH      chan chan int
+	updateMaxReceivedCH chan *kafka.TopicPartition
+	getMaxReceivedCH    chan chan *kafka.TopicPartition
 }
 
 func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
@@ -42,17 +45,21 @@ func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
 	if maxReceived.Offset == kafka.OffsetBeginning || maxReceived.Offset < 0 {
 		initialLastCommited = -1
 	}
+	lastCommited := new(atomic.Int32)
+	lastCommited.Store(int32(initialLastCommited))
 	ps := &PartitionState{
-		ID:                maxReceived.Partition,
-		state:             map[kafka.Offset]shared.MsgState{},
-		maxReceived:       maxReceived,
-		lastCommited:      initialLastCommited,
-		ctx:               ctx,
-		cancel:            cancel,
-		exitCH:            make(chan struct{}),
-		deleteFromStateCH: make(chan kafka.Offset, 128),
-		updateStateCH:     make(chan *UpdateStateMsg, 128),
-		getStateSizeCH:    make(chan chan int, 16),
+		ID:                  maxReceived.Partition,
+		state:               map[kafka.Offset]shared.MsgState{},
+		maxReceived:         maxReceived,
+		lastCommited:        lastCommited,
+		ctx:                 ctx,
+		cancel:              cancel,
+		exitCH:              make(chan struct{}),
+		deleteFromStateCH:   make(chan kafka.Offset, 128),
+		updateStateCH:       make(chan *UpdateStateMsg, 128),
+		getStateSizeCH:      make(chan chan int, 16),
+		updateMaxReceivedCH: make(chan *kafka.TopicPartition, 128),
+		getMaxReceivedCH:    make(chan chan *kafka.TopicPartition, 16),
 	}
 	go ps.acceptMsgLoop()
 	return ps
@@ -72,8 +79,14 @@ func (ps *PartitionState) acceptMsgLoop() {
 
 		case msg := <-ps.updateStateCH:
 			ps.state[msg.offset] = msg.value
+		case tp := <-ps.updateMaxReceivedCH:
+			if ps.maxReceived == nil || ps.maxReceived.Offset < tp.Offset {
+				ps.maxReceived = tp
+			}
 		case respCH := <-ps.getStateSizeCH:
 			respCH <- len(ps.state)
+		case respCH := <-ps.getMaxReceivedCH:
+			respCH <- ps.maxReceived
 		}
 	}
 
@@ -111,18 +124,19 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 				continue
 			}
 
-			ps.lastCommited = latestToCommit.Offset
-			if ps.lastCommited > ps.maxReceived.Offset {
-				ps.maxReceived.Offset = latestToCommit.Offset
+			ps.updateMaxReceivedCH <- &kafka.TopicPartition{
+				Topic:     ps.maxReceived.Topic,
+				Partition: ps.maxReceived.Partition,
+				Offset:    latestToCommit.Offset,
 			}
-			logrus.WithFields(
-				logrus.Fields{
-					"COMMITED_OFFSET": latestToCommit.Offset,
-					"MAX_OFFSET":      ps.maxReceived.Offset,
-					"PRTN":            ps.maxReceived.Partition,
-					"STATE":           ps.state,
-				},
-			).Warn("Commited on CRON")
+			// logrus.WithFields(
+			// 	logrus.Fields{
+			// 		"COMMITED_OFFSET": latestToCommit.Offset,
+			// 		"MAX_OFFSET":      ps.maxReceived.Offset,
+			// 		"PRTN":            ps.maxReceived.Partition,
+			// 		"STATE":           ps.state,
+			// 	},
+			// ).Warn("Commited on CRON")
 
 		case <-ps.ctx.Done():
 			return
@@ -134,22 +148,26 @@ func (ps *PartitionState) findLatestToCommit(stateCopy map[kafka.Offset]shared.M
 	defer func() {
 		stateCopy = nil
 	}()
-	fmt.Printf("PRTN = %d, STATE = %+v\n", ps.ID, ps.state)
-
-	if ps.maxReceived == nil {
+	maxReceived := ps.getMaxReceived()
+	if maxReceived == nil {
 		return nil, fmt.Errorf("maxRec is nil")
 	}
-	latestToCommit := *ps.maxReceived
-	if ps.lastCommited > ps.maxReceived.Offset {
+	latestToCommit := kafka.TopicPartition{
+		Topic:     maxReceived.Topic,
+		Partition: maxReceived.Partition,
+		Offset:    maxReceived.Offset,
+	}
+	lastCommited := kafka.Offset(ps.lastCommited.Load())
+	if lastCommited > maxReceived.Offset {
 		fmt.Println("❌last commit above maxReceived❌")
-		fmt.Printf("last = %d, max = %d\n", ps.lastCommited, ps.maxReceived.Offset)
+		fmt.Printf("last = %d, max = %d\n", lastCommited, maxReceived.Offset)
 		// panic("❌last commit above maxReceived❌")
 	}
-	if ps.lastCommited == ps.maxReceived.Offset {
-		msg := fmt.Sprintf("lastCommit %d == maxReceived in prtn %d -> skipping\n", ps.lastCommited, ps.maxReceived.Partition)
+	if lastCommited == maxReceived.Offset {
+		msg := fmt.Sprintf("lastCommit %d == maxReceived in prtn %d -> skipping\n", lastCommited, maxReceived.Partition)
 		return nil, fmt.Errorf("%v", msg)
 	}
-	for offset := ps.lastCommited; offset <= ps.maxReceived.Offset+1; offset++ {
+	for offset := lastCommited; offset <= maxReceived.Offset+1; offset++ {
 		if ps.getStateSize() == 0 {
 			latestToCommit.Offset = offset + 1
 			break
@@ -174,5 +192,12 @@ func (ps *PartitionState) getStateSize() int {
 	respCH := make(chan int)
 	defer close(respCH)
 	ps.getStateSizeCH <- respCH
+	return <-respCH
+}
+
+func (ps *PartitionState) getMaxReceived() *kafka.TopicPartition {
+	respCH := make(chan *kafka.TopicPartition)
+	defer close(respCH)
+	ps.getMaxReceivedCH <- respCH
 	return <-respCH
 }

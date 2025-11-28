@@ -258,15 +258,13 @@ func (c *KafkaConsumer) consumeLoop() {
 		c.appendMsgState(&msg.TopicPartition)
 
 		msgRequest := shared.NewMessage(&msg.TopicPartition, msg.Value)
-		fmt.Printf("received msg PRTN = %+d, OFF = %d\n", msgRequest.Metadata.Partition, msgRequest.Metadata.Offset)
-		c.MsgCH <- msgRequest
-		// select {
-		// case c.MsgCH <- msgRequest:
-		// case <-time.After(5 * time.Second):
-		// 	logrus.Errorf("MsgCH blocked for 10s, dropping message offset=%d partition=%d",
-		// 		msg.TopicPartition.Offset, msg.TopicPartition.Partition)
-		// 	c.UpdateState(&msg.TopicPartition, shared.MsgState_Error)
-		// }
+		select {
+		case c.MsgCH <- msgRequest:
+		case <-time.After(10 * time.Second):
+			logrus.Errorf("MsgCH blocked for 10s, dropping message offset=%d partition=%d",
+				msg.TopicPartition.Offset, msg.TopicPartition.Partition)
+			c.UpdateState(&msg.TopicPartition, shared.MsgState_Error)
+		}
 	}
 
 }
@@ -278,14 +276,13 @@ func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
 
 	updMsg := NewUpdateStateMsg(tp.Offset, shared.MsgState_Pending)
 	ps.updateStateCH <- updMsg
-	// TODO -> race here???
-	if ps.maxReceived == nil || ps.maxReceived.Offset < tp.Offset {
-		ps.maxReceived = &kafka.TopicPartition{
-			Topic:     tp.Topic,
-			Partition: tp.Partition,
-			Offset:    tp.Offset,
-		}
+
+	tpCopy := &kafka.TopicPartition{
+		Topic:     tp.Topic,
+		Partition: tp.Partition,
+		Offset:    tp.Offset,
 	}
+	ps.updateMaxReceivedCH <- tpCopy
 }
 
 func (c *KafkaConsumer) initializeKafkaTopic(brokers, topicName string) error {
