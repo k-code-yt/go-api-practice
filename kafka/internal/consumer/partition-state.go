@@ -37,7 +37,6 @@ func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
 		cancel:       cancel,
 		exitCH:       make(chan struct{}),
 	}
-
 }
 
 func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaConsumer) {

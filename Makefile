@@ -81,6 +81,7 @@ test-chat-race:
 	@go test -race -v -timeout 300s -run TestRoomsWithKafka ./chat/with-loop-per-client
 
 
+# ---KAFKA with MUTEX---
 build-kafka-app:
 	@go build -o ./kafka/bin/kafka ./kafka/cmd/.
 	@chmod +x ./kafka/bin/kafka
@@ -95,14 +96,35 @@ build-kafka-app-race:
 kafka-app-race: build-kafka-app-race
 	@./kafka/bin/kafka
 
-kafka-consumer-1: build-kafka-app-race
+kafka-c-1: build-kafka-app-race
 	@CG_ID=consumer-group-1 SHOULD_PRODUCE=false ./kafka/bin/kafka
 
-kafka-consumer-2: build-kafka-app-race
+kafka-c-2: build-kafka-app-race
 	@CG_ID=consumer-group-2 SHOULD_PRODUCE=false ./kafka/bin/kafka
 
-kafka-producer: build-kafka-app
+kafka-p: build-kafka-app
 	@CG_ID=producer-group SHOULD_PRODUCE=true ./kafka/bin/kafka
+
+# ---KAFKA with CHANS---
+build-kafka-chans-app:
+	@go build -o ./kafka-chans/bin/kafka-chans ./kafka-chans/cmd/.
+	@chmod +x ./kafka-chans/bin/kafka-chans
+
+kafka-app-chans: build-kafka-chans-app
+	@CG_ID=$(CG_ID) SHOULD_PRODUCE=$(SHOULD_PRODUCE) ./kafka-chans/bin/kafka-chans
+
+build-kafka-chans-app-race:
+	@go build -race -o ./kafka-chans/bin/kafka-chans ./kafka-chans/cmd/.
+	@chmod +x ./kafka-chans/bin/kafka-chans
+
+kafka-c-chans-1: build-kafka-chans-app-race
+	@CG_ID=consumer-group-1 SHOULD_PRODUCE=false ./kafka-chans/bin/kafka-chans
+
+kafka-c-chans-2: build-kafka-chans-app-race
+	@CG_ID=consumer-group-2 SHOULD_PRODUCE=false ./kafka-chans/bin/kafka-chans
+
+kafka-p-chans: build-kafka-chans-app
+	@CG_ID=producer-group SHOULD_PRODUCE=true ./kafka-chans/bin/kafka-chans
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
