@@ -80,6 +80,9 @@ test-chat-race:
 	@echo "Running TestRoomsWithKafka with race detector..."
 	@go test -race -v -timeout 300s -run TestRoomsWithKafka ./chat/with-loop-per-client
 
+# ---PROTO---s
+proto:
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
 
 # ---KAFKA with MUTEX---
 build-kafka-app:
@@ -105,6 +108,8 @@ kafka-c-2: build-kafka-app-race
 kafka-p: build-kafka-app
 	@CG_ID=producer-group SHOULD_PRODUCE=true ./kafka/bin/kafka
 
+	
+
 # ---KAFKA with CHANS---
 build-kafka-chans-app:
 	@go build -o ./kafka-chans/bin/kafka-chans ./kafka-chans/cmd/.
@@ -126,5 +131,18 @@ kafka-c-chans-2: build-kafka-chans-app-race
 kafka-p-chans: build-kafka-chans-app
 	@CG_ID=producer-group SHOULD_PRODUCE=true ./kafka-chans/bin/kafka-chans
 
-proto:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
+
+# ---Benchmarking-mem---
+kafka-chans-test: build-kafka-chans-app
+	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -memprofile=mem-chans.prof -benchmem ./kafka-chans/cmd/
+
+kafka-mutex-test: build-kafka-app
+	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -memprofile=mem-mutex.prof -benchmem ./kafka/cmd/
+
+# ---Benchmarking-cpu---
+kafka-chans-test-cpu: build-kafka-chans-app
+	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -cpuprofile=cpu-chans.prof -benchmem ./kafka-chans/cmd/
+
+kafka-mutex-test-cpu: build-kafka-app
+	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -cpuprofile=cpu-mutex.prof -benchmem ./kafka/cmd/
+

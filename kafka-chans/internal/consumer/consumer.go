@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -87,7 +86,7 @@ func (c *KafkaConsumer) UpdateState(tp *kafka.TopicPartition, newState shared.Ms
 	}
 	// fmt.Printf("sending to PRTN = %d, offset =%d, state = %d\n", prtnState.ID, tp.Offset, newState)
 	updStateMsg := NewUpdateStateMsg(tp.Offset, newState)
-	prtnState.updateStateCH <- updStateMsg
+	prtnState.UpdateStateCH <- updStateMsg
 }
 
 func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
@@ -118,12 +117,12 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 		prtnState := NewPartitionState(&tpCopy)
 		oldPS, exists := c.msgsStateMap[tp.Partition]
 		if exists {
-			oldPS.cancel()
+			oldPS.Cancel()
 			<-oldPS.exitCH
 			oldPS = nil
 		}
 		c.msgsStateMap[tp.Partition] = prtnState
-		go prtnState.commitOffsetLoop(c.commitDur, c)
+		go prtnState.CommitOffsetLoop(c.commitDur, c)
 	}
 
 	c.mu.Unlock()
@@ -156,11 +155,11 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 		if !exists {
 			continue
 		}
-		ps.cancel()
+		ps.Cancel()
 		<-ps.exitCH
 
-		stateCopy := maps.Clone(ps.state)
-		latestToCommit, err := ps.findLatestToCommit(stateCopy)
+		// stateCopy := maps.Clone(ps.state)
+		latestToCommit, err := ps.FindLatestToCommit()
 		if err != nil {
 			fmt.Println(err)
 			continue
@@ -277,10 +276,9 @@ func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
 	c.mu.RUnlock()
 
 	updMsg := NewUpdateStateMsg(tp.Offset, shared.MsgState_Pending)
-	ps.updateStateCH <- updMsg
-	// TODO -> race here???
-	if ps.maxReceived == nil || ps.maxReceived.Offset < tp.Offset {
-		ps.maxReceived = &kafka.TopicPartition{
+	ps.UpdateStateCH <- updMsg
+	if ps.MaxReceived == nil || ps.MaxReceived.Offset < tp.Offset {
+		ps.MaxReceived = &kafka.TopicPartition{
 			Topic:     tp.Topic,
 			Partition: tp.Partition,
 			Offset:    tp.Offset,

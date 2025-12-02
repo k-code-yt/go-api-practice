@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -168,7 +169,7 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 		partitionState.cancel()
 		<-partitionState.exitCH
 
-		latestToCommit, err := partitionState.findLatestToCommit()
+		latestToCommit, err := partitionState.FindLatestToCommit()
 		if err != nil {
 			fmt.Println(err)
 			continue
@@ -429,4 +430,36 @@ func (c *KafkaConsumer) formatPartitions(partitions []kafka.TopicPartition) stri
 		parts[i] = fmt.Sprintf("%d@%d", p.Partition, p.Offset)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// TODO -> remove
+func NewTestKafkaConsumer(topic string, tp *kafka.TopicPartition) *KafkaConsumer {
+	cfg := shared.NewKafkaConfig()
+	ID := repo.GenerateRandomString(15)
+
+	consumer := &KafkaConsumer{
+		ID:           ID,
+		ReadyCH:      make(chan struct{}),
+		exitCH:       make(chan struct{}),
+		IsReady:      false,
+		topic:        topic,
+		mu:           new(sync.RWMutex),
+		msgsStateMap: map[int32]*PartitionState{},
+		cfg:          cfg,
+	}
+
+	consumer.msgsStateMap[0] = NewPartitionState(tp)
+
+	return consumer
+}
+
+func (c *KafkaConsumer) GetPartitionState(id int32) (*PartitionState, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	ps, exists := c.msgsStateMap[id]
+	if !exists {
+		return nil, errors.New("PS does not exist")
+	}
+
+	return ps, nil
 }
