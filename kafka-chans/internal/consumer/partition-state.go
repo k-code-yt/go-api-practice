@@ -168,6 +168,7 @@ func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
 }
 
 func (ps *PartitionState) acceptMsgLoop() {
+	fmt.Println("started acceptMsgLoop")
 	for {
 		select {
 		case <-ps.ctx.Done():

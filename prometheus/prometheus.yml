@@ -1,19 +1,15 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-
-rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  scrape_interval: 5s
 
 scrape_configs:
-  - job_name: "prometheus"
+  - job_name: "kafka-chans"
     static_configs:
-      - targets: ["localhost:9090"]
+      - targets: ["kafka-chans:8080"]
+        labels:
+          implementation: "channels"
 
-  - job_name: "chat-app"
-    static_configs:
-      - targets: ["chat-app:2112"]
-    scrape_interval: 5s
-    metrics_path: /metrics
-    scrape_timeout: 5s
+  # - job_name: "kafka-mutex"
+  #   static_configs:
+  #     - targets: ["kafka-mutex:8080"]
+  #       labels:
+  #         implementation: "mutex"

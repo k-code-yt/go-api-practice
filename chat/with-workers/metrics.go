@@ -12,7 +12,6 @@ import (
 )
 
 var (
-	// Custom metrics
 	httpRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
@@ -48,14 +47,11 @@ func prometheusMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		// Increment active connections
 		activeConnections.Inc()
 		defer activeConnections.Dec()
 
-		// Call the next handler
 		next(w, r)
 
-		// Record metrics
 		duration := time.Since(start).Seconds()
 		httpDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
 		httpRequests.WithLabelValues(r.Method, r.URL.Path, "200").Inc()

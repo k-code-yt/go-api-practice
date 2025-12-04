@@ -1,31 +1,26 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24 AS builder
 
 WORKDIR /app
 
-# Copy go mod and sum files
 COPY go.mod go.sum ./
+RUN go mod download && go mod verify
 
-# Download dependencies
-RUN go mod download
-
-# Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o chat ./chat/.
+# Build argument to choose which app to build
+ARG APP_PATH=kafka-chans
+RUN CGO_ENABLED=1 GOOS=linux go build -a -o app ./${APP_PATH}/cmd/
 
 # Final stage
-FROM alpine:latest
+FROM debian:bookworm-slim
 
-RUN apk --no-cache add ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /root/
 
-# Copy the binary from builder stage
-COPY --from=builder /app/chat .
+COPY --from=builder /app/app .
 
-# Expose ports
-EXPOSE 8080 2112
+EXPOSE 8080
 
-# Command to run
-CMD ["./chat"]
+CMD ["./app"]

@@ -1,0 +1,80 @@
+{
+  "id": 2,
+  "title": "Channels vs Mutex Comparison[Find_Latest_Offset]",
+  "tags": ["go", "application", "monitoring"],
+  "style": "dark",
+  "timezone": "browser",
+  "panels": [
+    {
+      "title": "Memory Usage Comparison",
+      "targets": [
+        {
+          "expr": "memory_alloc_bytes{implementation=\"channels\"}",
+          "legendFormat": "Channels"
+        },
+        {
+          "expr": "memory_alloc_bytes{implementation=\"mutex\"}",
+          "legendFormat": "Mutex"
+        }
+      ],
+      "type": "graph",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "title": "Goroutines Count",
+      "targets": [
+        {
+          "expr": "goroutines_count{implementation=\"channels\"}",
+          "legendFormat": "Channels"
+        },
+        {
+          "expr": "goroutines_count{implementation=\"mutex\"}",
+          "legendFormat": "Mutex"
+        }
+      ],
+      "type": "graph",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 8,
+        "y": 0
+      }
+    },
+    {
+      "title": "Messages Processed Rate",
+      "targets": [
+        {
+          "expr": "rate(kafka_messages_processed_total[1m])",
+          "legendFormat": "{{implementation}}"
+        }
+      ],
+      "type": "graph",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 16,
+        "y": 0
+      }
+    }
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "refresh": "5s",
+  "schemaVersion": 27,
+  "version": 0,
+  "links": []
+}
