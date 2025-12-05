@@ -158,7 +158,7 @@ func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
 			continue
 		}
 		if msgState != shared.MsgState_Pending {
-			ps.DeleteFromStateCH <- offset
+			delete(ps.state, offset)
 			continue
 		}
 		latestToCommit.Offset = offset
@@ -185,6 +185,7 @@ func (ps *PartitionState) acceptMsgLoop() {
 			ps.state[msg.offset] = msg.value
 			ps.stateSize.Add(1)
 		case <-ps.FindLatestToCommitReqCH:
+			fmt.Println("🔥 RECEIVED FindLatestToCommitReqCH")
 			tp, _ := ps.FindLatestToCommit()
 			ps.FindLatestToCommitRespCH <- tp.Offset
 		}
