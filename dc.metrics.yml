@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_PATH: kafka-chans
+        APP_PATH: kafka-chans/cmd/benchmark/
     container_name: kafka-chans
     ports:
       - "8081:8080"

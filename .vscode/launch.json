@@ -6,7 +6,7 @@
       "type": "go",
       "request": "launch",
       "mode": "debug",
-      "program": "${workspaceFolder}/kafka/cmd",
+      "program": "${workspaceFolder}/kafka/cmd/benchmark",
       "env": {
         "CG_ID": "producer-group",
         "SHOULD_PRODUCE": "false",
@@ -18,7 +18,7 @@
       "type": "go",
       "request": "launch",
       "mode": "debug",
-      "program": "${workspaceFolder}/kafka-chans/cmd",
+      "program": "${workspaceFolder}/kafka-chans/cmd/benchmark",
       "env": {
         "CG_ID": "producer-group",
         "SHOULD_PRODUCE": "true",

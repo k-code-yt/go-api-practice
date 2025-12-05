@@ -86,14 +86,14 @@ proto:
 
 # ---KAFKA with MUTEX---
 build-kafka-app:
-	@go build -o ./kafka/bin/kafka ./kafka/cmd/.
+	@go build -o ./kafka/bin/kafka ./kafka/cmd/server/.
 	@chmod +x ./kafka/bin/kafka
 
 kafka-app: build-kafka-app
 	@CG_ID=$(CG_ID) SHOULD_PRODUCE=$(SHOULD_PRODUCE) ./kafka/bin/kafka
 
 build-kafka-app-race:
-	@go build -race -o ./kafka/bin/kafka ./kafka/cmd/.
+	@go build -race -o ./kafka/bin/kafka ./kafka/cmd/server/.
 	@chmod +x ./kafka/bin/kafka
 
 kafka-app-race: build-kafka-app-race
@@ -111,38 +111,47 @@ kafka-p: build-kafka-app
 	
 
 # ---KAFKA with CHANS---
-build-kafka-chans-app:
-	@go build -o ./kafka-chans/bin/kafka-chans ./kafka-chans/cmd/.
-	@chmod +x ./kafka-chans/bin/kafka-chans
+build-kafka-chans-server:
+	@go build -o ./kafka-chans/bin/server ./kafka-chans/cmd/server/.
+	@chmod +x ./kafka-chans/bin/server
 
-kafka-app-chans: build-kafka-chans-app
-	@CG_ID=$(CG_ID) SHOULD_PRODUCE=$(SHOULD_PRODUCE) ./kafka-chans/bin/kafka-chans
+kafka-app-chans: build-kafka-chans-server
+	@CG_ID=$(CG_ID) SHOULD_PRODUCE=$(SHOULD_PRODUCE) ./kafka-chans/bin/server/server/.
 
-build-kafka-chans-app-race:
-	@go build -race -o ./kafka-chans/bin/kafka-chans ./kafka-chans/cmd/.
-	@chmod +x ./kafka-chans/bin/kafka-chans
+build-kafka-chans-server-race:
+	@go build -race -o ./kafka-chans/bin/server ./kafka-chans/cmd/server/.
+	@chmod +x ./kafka-chans/bin/server
 
-kafka-c-chans-1: build-kafka-chans-app-race
-	@CG_ID=consumer-group-1 SHOULD_PRODUCE=false ./kafka-chans/bin/kafka-chans
+kafka-c-chans-1: build-kafka-chans-server-race
+	@CG_ID=consumer-group-1 SHOULD_PRODUCE=false ./kafka-chans/bin/server
 
-kafka-c-chans-2: build-kafka-chans-app-race
-	@CG_ID=consumer-group-2 SHOULD_PRODUCE=false ./kafka-chans/bin/kafka-chans
+kafka-c-chans-2: build-kafka-chans-server-race
+	@CG_ID=consumer-group-2 SHOULD_PRODUCE=false ./kafka-chans/bin/server
 
-kafka-p-chans: build-kafka-chans-app
-	@CG_ID=producer-group SHOULD_PRODUCE=true ./kafka-chans/bin/kafka-chans
+kafka-p-chans: build-kafka-chans-server
+	@CG_ID=producer-group SHOULD_PRODUCE=true ./kafka-chans/bin/server
 
 
 # ---Benchmarking-mem---
-kafka-chans-test: build-kafka-chans-app
-	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -memprofile=mem-chans.prof -benchmem ./kafka-chans/cmd/
+build-kafka-chans-benchmark:
+	@go build -o ./kafka-chans/bin/benchmark ./kafka-chans/cmd/benchmark/.
+	@chmod +x ./kafka-chans/bin/benchmark
+
+build-kafka-mutex-benchmark:
+	@go build -o ./kafka/bin/benchmark ./kafka/cmd/benchmark/.
+	@chmod +x ./kafka/bin/benchmark
+
+
+kafka-chans-test: build-kafka-chans-benchmark
+	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -memprofile=mem-chans.prof -benchmem ./kafka-chans/cmd/benchmark
 
 kafka-mutex-test: build-kafka-app
-	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -memprofile=mem-mutex.prof -benchmem ./kafka/cmd/
+	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -memprofile=mem-mutex.prof -benchmem ./kafka/cmd/benchmark
 
 # ---Benchmarking-cpu---
-kafka-chans-test-cpu: build-kafka-chans-app
-	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -cpuprofile=cpu-chans.prof -benchmem ./kafka-chans/cmd/
+kafka-chans-test-cpu: build-kafka-chans-benchmark
+	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -cpuprofile=cpu-chans.prof -benchmem ./kafka-chans/cmd/benchmark
 
 kafka-mutex-test-cpu: build-kafka-app
-	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -cpuprofile=cpu-mutex.prof -benchmem ./kafka/cmd/
+	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -cpuprofile=cpu-mutex.prof -benchmem ./kafka/cmd/benchmark
 

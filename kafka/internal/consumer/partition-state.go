@@ -17,12 +17,12 @@ type PartitionState struct {
 	mu           *sync.RWMutex
 	lastCommited kafka.Offset
 	ctx          context.Context
-	cancel       context.CancelFunc
-	exitCH       chan struct{}
+	Cancel       context.CancelFunc
+	ExitCH       chan struct{}
 }
 
 func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, Cancel := context.WithCancel(context.Background())
 	initialLastCommited := maxReceived.Offset - 1
 	if maxReceived.Offset == kafka.OffsetBeginning || maxReceived.Offset < 0 {
 		initialLastCommited = -1
@@ -34,15 +34,15 @@ func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
 		lastCommited: initialLastCommited,
 		mu:           &sync.RWMutex{},
 		ctx:          ctx,
-		cancel:       cancel,
-		exitCH:       make(chan struct{}),
+		Cancel:       Cancel,
+		ExitCH:       make(chan struct{}),
 	}
 }
 
 func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaConsumer) {
 	ticker := time.NewTicker(commitDur)
 	defer func() {
-		close(ps.exitCH)
+		close(ps.ExitCH)
 		ticker.Stop()
 		logrus.WithFields(
 			logrus.Fields{

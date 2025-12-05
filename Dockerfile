@@ -10,7 +10,7 @@ COPY . .
 
 # Build argument to choose which app to build
 ARG APP_PATH=kafka-chans
-RUN CGO_ENABLED=1 GOOS=linux go build -a -o app ./${APP_PATH}/cmd/
+RUN CGO_ENABLED=1 GOOS=linux go build -a -o app ./${APP_PATH}
 
 # Final stage
 FROM debian:bookworm-slim
