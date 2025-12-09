@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +33,7 @@ type KafkaConsumer struct {
 	consumer     *kafka.Consumer
 	topic        string
 	msgsStateMap map[int32]*PartitionState
-	mu           *sync.RWMutex
+	Mu           *sync.RWMutex
 	commitDur    time.Duration
 	cfg          *shared.KafkaConfig
 }
@@ -61,7 +62,7 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 		exitCH:       make(chan struct{}),
 		IsReady:      false,
 		topic:        cfg.DefaultTopic,
-		mu:           new(sync.RWMutex),
+		Mu:           new(sync.RWMutex),
 		commitDur:    10 * time.Second,
 		msgsStateMap: map[int32]*PartitionState{},
 		cfg:          cfg,
@@ -85,21 +86,21 @@ func (c *KafkaConsumer) RunConsumer() struct{} {
 
 func (c *KafkaConsumer) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
 	// logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 	prtnState, ok := c.msgsStateMap[tp.Partition]
 	if !ok {
-		logrus.Errorf("state is missing for PRTN %d\n", tp.Partition)
+		logrus.Errorf("State is missing for PRTN %d\n", tp.Partition)
 		return
 	}
 
-	prtnState.mu.Lock()
-	prtnState.state[tp.Offset] = newState
-	prtnState.mu.Unlock()
+	prtnState.Mu.Lock()
+	prtnState.State[tp.Offset] = newState
+	prtnState.Mu.Unlock()
 }
 
 func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
-	c.mu.Lock()
+	c.Mu.Lock()
 	committed, err := c.consumer.Committed(ev.Partitions, int(time.Second)*5)
 	if err != nil {
 		logrus.Errorf("Failed to get committed offsets: %v", err)
@@ -134,7 +135,7 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 		go prtnState.commitOffsetLoop(c.commitDur, c)
 	}
 
-	c.mu.Unlock()
+	c.Mu.Unlock()
 
 	if c.cfg.ParititionAssignStrategy == "cooperative-sticky" {
 		err = c.consumer.IncrementalAssign(ev.Partitions)
@@ -158,9 +159,9 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 	for _, tp := range ev.Partitions {
 		logrus.WithField("PRTN", tp.Partition).Info("❌ Revoking partition")
 
-		c.mu.RLock()
+		c.Mu.RLock()
 		partitionState, exists := c.msgsStateMap[tp.Partition]
-		c.mu.RUnlock()
+		c.Mu.RUnlock()
 		if !exists {
 			continue
 		}
@@ -181,12 +182,12 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 			})
 		}
 
-		c.mu.Lock()
+		c.Mu.Lock()
 		delete(c.msgsStateMap, tp.Partition)
 		for _, p := range c.msgsStateMap {
 			fmt.Printf("PRTN after remove = %d, ConsumerID = %s\n", p.ID, c.ID)
 		}
-		c.mu.Unlock()
+		c.Mu.Unlock()
 	}
 
 	if len(toCommit) > 0 {
@@ -277,15 +278,19 @@ func (c *KafkaConsumer) consumeLoop() {
 }
 
 func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
-	c.mu.RLock()
+	c.Mu.RLock()
 	prtnState := c.msgsStateMap[tp.Partition]
-	c.mu.RUnlock()
+	c.Mu.RUnlock()
 
-	prtnState.mu.Lock()
-	defer prtnState.mu.Unlock()
-	prtnState.state[tp.Offset] = MsgState_Pending
-	if prtnState.maxReceived == nil || prtnState.maxReceived.Offset < tp.Offset {
-		prtnState.maxReceived = &kafka.TopicPartition{
+	if prtnState == nil {
+		return
+	}
+
+	prtnState.Mu.Lock()
+	defer prtnState.Mu.Unlock()
+	prtnState.State[tp.Offset] = MsgState_Pending
+	if prtnState.MaxReceived == nil || prtnState.MaxReceived.Offset < tp.Offset {
+		prtnState.MaxReceived = &kafka.TopicPartition{
 			Topic:     tp.Topic,
 			Partition: tp.Partition,
 			Offset:    tp.Offset,
@@ -421,6 +426,7 @@ func (c *KafkaConsumer) formatPartitions(partitions []kafka.TopicPartition) stri
 }
 
 // TODO -> remove
+// only for benchmark-testing purposes
 func NewTestKafkaConsumer(topic string, tp *kafka.TopicPartition) *KafkaConsumer {
 	cfg := shared.NewKafkaConfig()
 	ID := repo.GenerateRandomString(15)
@@ -431,7 +437,7 @@ func NewTestKafkaConsumer(topic string, tp *kafka.TopicPartition) *KafkaConsumer
 		exitCH:       make(chan struct{}),
 		IsReady:      false,
 		topic:        topic,
-		mu:           new(sync.RWMutex),
+		Mu:           new(sync.RWMutex),
 		msgsStateMap: map[int32]*PartitionState{},
 		cfg:          cfg,
 	}
@@ -442,8 +448,8 @@ func NewTestKafkaConsumer(topic string, tp *kafka.TopicPartition) *KafkaConsumer
 }
 
 func (c *KafkaConsumer) GetPartitionState(id int32) (*PartitionState, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.Mu.RLock()
+	defer c.Mu.RUnlock()
 	ps, exists := c.msgsStateMap[id]
 	if !exists {
 		return nil, errors.New("PS does not exist")
@@ -453,21 +459,27 @@ func (c *KafkaConsumer) GetPartitionState(id int32) (*PartitionState, error) {
 }
 
 func (c *KafkaConsumer) ResetPartitionState(id int32, msgCount int) (*PartitionState, error) {
-	oldPs, err := c.GetPartitionState(0)
-	if err != nil {
-		panic(err)
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	oldPs, exists := c.msgsStateMap[id]
+	if exists {
+		oldPs.Mu.Lock()
+		oldPs.State = nil
+		oldPs.MaxReceived = nil
+		oldPs.Mu.Unlock()
 	}
-	oldPs = nil
-	fmt.Println("cleaned old state", oldPs)
-	c.mu.Lock()
-	defer c.mu.Unlock()
+
 	topic := "test_topic"
 	ps := NewTestPartitionState(c, &kafka.TopicPartition{
 		Topic:     &topic,
 		Partition: id,
 		Offset:    0,
 	}, msgCount)
+
 	c.msgsStateMap[id] = ps
+
+	runtime.GC()
 
 	return ps, nil
 }

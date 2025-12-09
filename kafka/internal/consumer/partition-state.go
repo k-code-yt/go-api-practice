@@ -12,27 +12,27 @@ import (
 
 type PartitionState struct {
 	ID           int32
-	state        map[kafka.Offset]MsgState
-	maxReceived  *kafka.TopicPartition
-	mu           *sync.RWMutex
-	lastCommited kafka.Offset
+	State        map[kafka.Offset]MsgState
+	MaxReceived  *kafka.TopicPartition
+	Mu           *sync.RWMutex
+	LastCommited kafka.Offset
 	ctx          context.Context
 	Cancel       context.CancelFunc
 	ExitCH       chan struct{}
 }
 
-func NewPartitionState(maxReceived *kafka.TopicPartition) *PartitionState {
+func NewPartitionState(MaxReceived *kafka.TopicPartition) *PartitionState {
 	ctx, Cancel := context.WithCancel(context.Background())
-	initialLastCommited := maxReceived.Offset - 1
-	if maxReceived.Offset == kafka.OffsetBeginning || maxReceived.Offset < 0 {
+	initialLastCommited := MaxReceived.Offset - 1
+	if MaxReceived.Offset == kafka.OffsetBeginning || MaxReceived.Offset < 0 {
 		initialLastCommited = -1
 	}
 	return &PartitionState{
-		ID:           maxReceived.Partition,
-		state:        map[kafka.Offset]MsgState{},
-		maxReceived:  maxReceived,
-		lastCommited: initialLastCommited,
-		mu:           &sync.RWMutex{},
+		ID:           MaxReceived.Partition,
+		State:        map[kafka.Offset]MsgState{},
+		MaxReceived:  MaxReceived,
+		LastCommited: initialLastCommited,
+		Mu:           &sync.RWMutex{},
 		ctx:          ctx,
 		Cancel:       Cancel,
 		ExitCH:       make(chan struct{}),
@@ -67,24 +67,24 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 			}
 			_, err = c.consumer.CommitOffsets([]kafka.TopicPartition{*latestToCommit})
 			if err != nil {
-				fmt.Printf("err commiting offset = %d, prtn = %d, err = %v\n", latestToCommit.Offset, ps.maxReceived.Partition, err)
+				fmt.Printf("err commiting offset = %d, prtn = %d, err = %v\n", latestToCommit.Offset, ps.MaxReceived.Partition, err)
 				continue
 			}
 
-			ps.mu.Lock()
-			ps.lastCommited = latestToCommit.Offset
-			if ps.lastCommited > ps.maxReceived.Offset {
-				ps.maxReceived.Offset = latestToCommit.Offset
+			ps.Mu.Lock()
+			ps.LastCommited = latestToCommit.Offset
+			if ps.LastCommited > ps.MaxReceived.Offset {
+				ps.MaxReceived.Offset = latestToCommit.Offset
 			}
 			logrus.WithFields(
 				logrus.Fields{
 					"COMMITED_OFFSET": latestToCommit.Offset,
-					"MAX_OFFSET":      ps.maxReceived.Offset,
-					"PRTN":            ps.maxReceived.Partition,
-					"STATE":           ps.state,
+					"MAX_OFFSET":      ps.MaxReceived.Offset,
+					"PRTN":            ps.MaxReceived.Partition,
+					"STATE":           ps.State,
 				},
 			).Warn("Commited on CRON")
-			ps.mu.Unlock()
+			ps.Mu.Unlock()
 
 		case <-ps.ctx.Done():
 			return
@@ -93,34 +93,34 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 }
 
 func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	// fmt.Printf("PRTN = %d, STATE = %+v\n", ps.ID, ps.state)
+	ps.Mu.Lock()
+	defer ps.Mu.Unlock()
+	// fmt.Printf("PRTN = %d, STATE = %+v\n", ps.ID, ps.State)
 
-	if ps.maxReceived == nil {
+	if ps.MaxReceived == nil {
 		return nil, fmt.Errorf("maxRec is nil")
 	}
-	latestToCommit := *ps.maxReceived
-	if ps.lastCommited > ps.maxReceived.Offset {
+	latestToCommit := *ps.MaxReceived
+	if ps.LastCommited > ps.MaxReceived.Offset {
 		// panic("❌last commit above maxReceived❌")
 	}
-	if ps.lastCommited == ps.maxReceived.Offset {
-		msg := fmt.Sprintf("lastCommit %d == maxReceived in prtn %d -> skipping\n", ps.lastCommited, ps.maxReceived.Partition)
+	if ps.LastCommited == ps.MaxReceived.Offset {
+		msg := fmt.Sprintf("lastCommit %d == MaxReceived in prtn %d -> skipping\n", ps.LastCommited, ps.MaxReceived.Partition)
 		return nil, fmt.Errorf("%v", msg)
 	}
-	for offset := ps.lastCommited; offset <= ps.maxReceived.Offset; offset++ {
-		msgState, exists := ps.state[offset]
+	for offset := ps.LastCommited; offset <= ps.MaxReceived.Offset; offset++ {
+		msgState, exists := ps.State[offset]
 		if !exists {
-			// fmt.Printf("does not exit, off = %d, state = %v\n", offset, ps.state)
+			// fmt.Printf("does not exit, off = %d, State = %v\n", offset, ps.State)
 			continue
 		}
 		if msgState != MsgState_Pending {
-			delete(ps.state, offset)
+			delete(ps.State, offset)
 			// logrus.WithFields(logrus.Fields{
 			// 	"OFFSET": offset,
 			// 	"PRTN":   ps.ID,
 			// }).Info("Removed offset")
-			if len(ps.state) == 0 {
+			if len(ps.State) == 0 {
 				latestToCommit.Offset = offset + 1
 				break
 			}
@@ -130,4 +130,17 @@ func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
 		break
 	}
 	return &latestToCommit, nil
+}
+
+func (ps *PartitionState) ReadState() int {
+	ps.Mu.RLock()
+	defer ps.Mu.RUnlock()
+
+	count := 0
+	for _, State := range ps.State {
+		if State == MsgState_Pending {
+			count++
+		}
+	}
+	return count
 }

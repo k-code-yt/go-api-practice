@@ -1,80 +1,145 @@
 {
-  "id": 2,
-  "title": "Channels vs Mutex Comparison[Find_Latest_Offset]",
-  "tags": ["go", "application", "monitoring"],
-  "style": "dark",
-  "timezone": "browser",
-  "panels": [
-    {
-      "title": "Memory Usage Comparison",
-      "targets": [
-        {
-          "expr": "memory_alloc_bytes{implementation=\"channels\"}",
-          "legendFormat": "Channels"
-        },
-        {
-          "expr": "memory_alloc_bytes{implementation=\"mutex\"}",
-          "legendFormat": "Mutex"
+  "dashboard": {
+    "id": null,
+    "uid": "channels-vs-mutex",
+    "title": "Channels vs Mutex Comparison",
+    "tags": ["go", "benchmark"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 0,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Memory Usage (MB)",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "memory_alloc_mb{implementation=\"channels\"}",
+            "legendFormat": "Channels",
+            "refId": "A"
+          },
+          {
+            "expr": "memory_alloc_mb{implementation=\"mutex\"}",
+            "legendFormat": "Mutex",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          { "format": "mbytes", "label": "Memory (MB)" },
+          { "format": "short" }
+        ],
+        "lines": true,
+        "fill": 0,
+        "linewidth": 2,
+        "pointradius": 1,
+        "points": false
+      },
+      {
+        "id": 2,
+        "title": "Goroutines Count",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "goroutines_count{implementation=\"channels\"}",
+            "legendFormat": "Channels",
+            "refId": "A"
+          },
+          {
+            "expr": "goroutines_count{implementation=\"mutex\"}",
+            "legendFormat": "Mutex",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          { "format": "short", "label": "Count" },
+          { "format": "short" }
+        ],
+        "lines": true,
+        "fill": 0,
+        "linewidth": 2,
+        "pointradius": 1,
+        "points": false
+      },
+      {
+        "id": 3,
+        "title": "Operations Rate by Type",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(operations_total{implementation=\"channels\"}[30s])",
+            "legendFormat": "Channels - {{type}} - {{scenario}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(operations_total{implementation=\"mutex\"}[30s])",
+            "legendFormat": "Mutex - {{type}} - {{scenario}}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          { "format": "ops", "label": "Ops/sec" },
+          { "format": "short" }
+        ],
+        "lines": true,
+        "fill": 0,
+        "linewidth": 2,
+        "pointradius": 1,
+        "points": false
+      },
+      {
+        "id": 4,
+        "title": "Operation Duration (Scenario)",
+        "type": "graph",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(operation_duration_seconds_sum{implementation=\"channels\"}[30s]) / rate(operation_duration_seconds_count{implementation=\"channels\"}[30s])",
+            "legendFormat": "Channels - {{scenario}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(operation_duration_seconds_sum{implementation=\"mutex\"}[30s]) / rate(operation_duration_seconds_count{implementation=\"mutex\"}[30s])",
+            "legendFormat": "Mutex - {{scenario}}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          { "format": "s", "label": "Duration" },
+          { "format": "short" }
+        ],
+        "lines": true,
+        "fill": 0,
+        "linewidth": 2,
+        "pointradius": 1,
+        "points": false
+      },
+      {
+        "id": 5,
+        "title": "Current Scenario",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 24, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "current_scenario",
+            "legendFormat": "{{implementation}} - {{name}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto"
         }
-      ],
-      "type": "graph",
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 0
       }
-    },
-    {
-      "title": "Goroutines Count",
-      "targets": [
-        {
-          "expr": "goroutines_count{implementation=\"channels\"}",
-          "legendFormat": "Channels"
-        },
-        {
-          "expr": "goroutines_count{implementation=\"mutex\"}",
-          "legendFormat": "Mutex"
-        }
-      ],
-      "type": "graph",
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 8,
-        "y": 0
-      }
-    },
-    {
-      "title": "Messages Processed Rate",
-      "targets": [
-        {
-          "expr": "rate(kafka_messages_processed_total[1m])",
-          "legendFormat": "{{implementation}}"
-        }
-      ],
-      "type": "graph",
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 16,
-        "y": 0
-      }
-    }
-  ],
-  "time": {
-    "from": "now-1h",
-    "to": "now"
-  },
-  "timepicker": {},
-  "templating": {
-    "list": []
-  },
-  "annotations": {
-    "list": []
-  },
-  "refresh": "5s",
-  "schemaVersion": 27,
-  "version": 0,
-  "links": []
+    ],
+    "time": { "from": "now-30m", "to": "now" },
+    "timepicker": {},
+    "templating": { "list": [] },
+    "annotations": { "list": [] }
+  }
 }

@@ -141,17 +141,28 @@ build-kafka-mutex-benchmark:
 	@go build -o ./kafka/bin/benchmark ./kafka/cmd/benchmark/.
 	@chmod +x ./kafka/bin/benchmark
 
+kafka-chans-read-test: build-kafka-chans-benchmark
+	@go test -bench=BenchmarkPS_ReadHeavy -benchtime=1000000x -memprofile=mem-chans-read.prof -benchmem ./kafka-chans/cmd/benchmark
 
-kafka-chans-test: build-kafka-chans-benchmark
-	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -memprofile=mem-chans.prof -benchmem ./kafka-chans/cmd/benchmark
+kafka-mutex-read-test: build-kafka-mutex-benchmark
+	@go test -bench=BenchmarkPS_ReadHeavy -benchtime=1000000x -memprofile=mem-mutex-read.prof -benchmem ./kafka/cmd/benchmark
+	
+kafka-chans-balanced-test: build-kafka-chans-benchmark
+	@go test -bench=BenchmarkPS_Balanced -benchtime=1000000x -memprofile=mem-chans-balanced.prof -benchmem ./kafka-chans/cmd/benchmark
 
-kafka-mutex-test: build-kafka-app
-	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -memprofile=mem-mutex.prof -benchmem ./kafka/cmd/benchmark
+kafka-mutex-balanced-test: build-kafka-mutex-benchmark
+	@go test -bench=BenchmarkPS_Balanced -benchtime=1000000x -memprofile=mem-mutex-balanced.prof -benchmem ./kafka/cmd/benchmark
+
+kafka-chans-actual-test: build-kafka-chans-benchmark
+	@go test -bench=BenchmarkPS_KafkaSim -benchtime=1000000x -memprofile=mem-chans-kakfa-sim.prof -benchmem ./kafka-chans/cmd/benchmark
+
+kafka-mutex-actual-test: build-kafka-mutex-benchmark
+	@go test -bench=BenchmarkPS_KafkaSim -benchtime=1000000x -memprofile=mem-mutex-kakfa-sim.prof -benchmem ./kafka/cmd/benchmark
 
 # ---Benchmarking-cpu---
 kafka-chans-test-cpu: build-kafka-chans-benchmark
 	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -cpuprofile=cpu-chans.prof -benchmem ./kafka-chans/cmd/benchmark
 
-kafka-mutex-test-cpu: build-kafka-app
+kafka-mutex-test-cpu: build-kafka-mutex-benchmark
 	@go test -bench=BenchmarkPS_FindLatestToCommit -benchtime=1000000x -cpuprofile=cpu-mutex.prof -benchmem ./kafka/cmd/benchmark
 

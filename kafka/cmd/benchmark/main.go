@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"runtime"
 	"strconv"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -19,20 +19,26 @@ import (
 )
 
 var (
-	findLatestCallsTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "find_latest_calls_total",
-		Help: "Total number of FindLatestToCommit calls",
-	})
+	operationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "operations_total",
+			Help: "Total number of operations by type",
+		},
+		[]string{"type", "scenario"},
+	)
 
-	findLatestDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Name:    "find_latest_duration_seconds",
-		Help:    "Duration of FindLatestToCommit calls",
-		Buckets: prometheus.DefBuckets,
-	})
+	operationDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "operation_duration_seconds",
+			Help:    "Duration of operations",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"scenario"},
+	)
 
-	memoryAlloc = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "memory_alloc_bytes",
-		Help: "Current memory allocation",
+	memoryAllocMB = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "memory_alloc_mb",
+		Help: "Current memory allocation in MB",
 	})
 
 	goroutinesCount = promauto.NewGauge(prometheus.GaugeOpts{
@@ -40,22 +46,25 @@ var (
 		Help: "Number of goroutines",
 	})
 
-	activeRequests atomic.Int64
+	currentScenario = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "current_scenario",
+			Help: "Currently running scenario",
+		},
+		[]string{"name"},
+	)
 )
 
 type BenchmarkServer struct {
-	ps       *consumer.PartitionState
-	cm       *consumer.KafkaConsumer
-	msgCount int
+	kc         *consumer.KafkaConsumer
+	msgCount   int
+	nextOffset kafka.Offset
+	mu         sync.RWMutex
 }
-
-var (
-	MsgCount = 1_000
-)
 
 func NewBenchmarkServer(msgCount int) *BenchmarkServer {
 	if msgCount <= 0 {
-		msgCount = MsgCount
+		msgCount = 1000
 	}
 
 	topic := "test_topic"
@@ -65,98 +74,257 @@ func NewBenchmarkServer(msgCount int) *BenchmarkServer {
 		Offset:    0,
 	}
 
-	cm := consumer.NewTestKafkaConsumer(topic, tp)
+	kc := consumer.NewTestKafkaConsumer(topic, tp)
+	consumer.NewTestPartitionState(kc, tp, msgCount)
 
-	ps, err := cm.GetPartitionState(tp.Partition)
-	if err != nil {
-		panic(err)
-	}
 	return &BenchmarkServer{
-		ps:       ps,
-		cm:       cm,
-		msgCount: msgCount,
+		kc:         kc,
+		msgCount:   msgCount,
+		nextOffset: kafka.Offset(msgCount),
 	}
 }
 
-func (s *BenchmarkServer) handleBenchmark(w http.ResponseWriter, r *http.Request) {
+// Scenario 1: Read-heavy (80% read, 20% write)
+func (s *BenchmarkServer) handleReadHeavy(w http.ResponseWriter, r *http.Request) {
+	iters := s.getIters(r)
+	scenario := "read-heavy"
+
+	currentScenario.WithLabelValues(scenario).Set(1)
+	defer currentScenario.WithLabelValues(scenario).Set(0)
+
 	start := time.Now()
-	qp := r.URL.Query()
-	itersStr := qp.Get("iters")
-	iters := 1_000_000
-	var err error
-	if itersStr != "" {
-		iters, err = strconv.Atoi(itersStr)
-		if err != nil {
-			iters = 1_000_000
+	ps, _ := s.kc.GetPartitionState(0)
+
+	for i := 0; i < iters; i++ {
+		if i%10 < 8 { // 80% reads - just read state, don't delete
+			_ = ps.ReadState()
+			operationsTotal.WithLabelValues("read", scenario).Inc()
+		} else { // 20% writes - update existing messages
+			ps.Mu.RLock()
+			randomOffset := kafka.Offset(rand.Intn(s.msgCount))
+			ps.Mu.RUnlock()
+
+			tp := &kafka.TopicPartition{
+				Topic:     ps.MaxReceived.Topic,
+				Partition: 0,
+				Offset:    randomOffset,
+			}
+
+			s.kc.UpdateState(tp, consumer.MsgState_Success)
+			operationsTotal.WithLabelValues("write", scenario).Inc()
 		}
 	}
 
-	for range iters {
-		findLatestCallsTotal.Inc()
-		latestTP, err := s.ps.FindLatestToCommit()
-		if err != nil {
-			panic(err)
+	duration := time.Since(start)
+	operationDuration.WithLabelValues(scenario).Observe(duration.Seconds())
+
+	s.writeResponse(w, scenario, iters, duration)
+}
+
+// Scenario 2: Balanced (50% read, 50% write)
+func (s *BenchmarkServer) handleBalanced(w http.ResponseWriter, r *http.Request) {
+	iters := s.getIters(r)
+	scenario := "balanced"
+
+	currentScenario.WithLabelValues(scenario).Set(1)
+	defer currentScenario.WithLabelValues(scenario).Set(0)
+
+	start := time.Now()
+	ps, _ := s.kc.GetPartitionState(0)
+
+	for i := 0; i < iters; i++ {
+		if i%2 == 0 { // 50% reads
+			_ = ps.ReadState()
+			operationsTotal.WithLabelValues("read", scenario).Inc()
+		} else { // 50% writes
+			ps.Mu.RLock()
+			randomOffset := kafka.Offset(rand.Intn(s.msgCount))
+			ps.Mu.RUnlock()
+
+			tp := &kafka.TopicPartition{
+				Topic:     ps.MaxReceived.Topic,
+				Partition: 0,
+				Offset:    randomOffset,
+			}
+
+			state := consumer.MsgState_Pending
+			if rand.Intn(5) != 0 {
+				state = consumer.MsgState_Success
+			}
+			s.kc.UpdateState(tp, state)
+			operationsTotal.WithLabelValues("write", scenario).Inc()
+		}
+	}
+
+	duration := time.Since(start)
+	operationDuration.WithLabelValues(scenario).Observe(duration.Seconds())
+
+	s.writeResponse(w, scenario, iters, duration)
+}
+
+// Scenario 3: Kafka simulation
+func (s *BenchmarkServer) handleKafkaSim(w http.ResponseWriter, r *http.Request) {
+	iters := s.getIters(r)
+	scenario := "kafka-sim"
+
+	currentScenario.WithLabelValues(scenario).Set(1)
+	defer currentScenario.WithLabelValues(scenario).Set(0)
+
+	start := time.Now()
+	ps, _ := s.kc.GetPartitionState(0)
+
+	for i := range iters {
+		s.mu.Lock()
+		newOffset := s.nextOffset
+		s.nextOffset++
+		s.mu.Unlock()
+
+		tp := &kafka.TopicPartition{
+			Topic:     ps.MaxReceived.Topic,
+			Partition: 0,
+			Offset:    newOffset,
 		}
 
-		s.cm.UpdateState(latestTP, consumer.MsgState_Success)
+		s.kc.UpdateState(tp, consumer.MsgState_Pending)
+
+		ps.Mu.Lock()
+		if newOffset > ps.MaxReceived.Offset {
+			ps.MaxReceived.Offset = newOffset
+		}
+		ps.Mu.Unlock()
+
+		operationsTotal.WithLabelValues("write", scenario).Inc()
+
+		result, err := ps.FindLatestToCommit()
+		if err == nil && result != nil {
+			operationsTotal.WithLabelValues("read", scenario).Inc()
+			ps.Mu.Lock()
+			ps.LastCommited = result.Offset
+			ps.Mu.Unlock()
+
+			if i%3 == 0 {
+				for offset := result.Offset - kafka.Offset(rand.Intn(10)); offset < result.Offset; offset++ {
+					tp := &kafka.TopicPartition{
+						Topic:     ps.MaxReceived.Topic,
+						Partition: 0,
+						Offset:    offset,
+					}
+					s.kc.UpdateState(tp, consumer.MsgState_Success)
+					operationsTotal.WithLabelValues("update", scenario).Inc()
+				}
+			}
+		}
 	}
 
-	durr := time.Since(start)
-	findLatestDuration.Observe(durr.Seconds())
-	resp := map[string]any{
-		"durr":       durr.Seconds(),
-		"iterations": iters,
-	}
-	s.writeJSON(w, resp)
+	duration := time.Since(start)
+	operationDuration.WithLabelValues(scenario).Observe(duration.Seconds())
 
+	s.writeResponse(w, scenario, iters, duration)
 }
 func (s *BenchmarkServer) handleReset(w http.ResponseWriter, r *http.Request) {
-	qp := r.URL.Query()
-	msgCountStr := qp.Get("msgCount")
-	msgCount := 1_000_000
-	var err error
-	if msgCountStr != "" {
-		msgCount, err = strconv.Atoi(msgCountStr)
-		if err != nil {
-			msgCount = 1_000_000
-		}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	msgCount := s.getMsgCount(r)
+
+	_, err := s.kc.ResetPartitionState(0, msgCount)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	MsgCount = msgCount
+
 	s.msgCount = msgCount
-	s.cm.ResetPartitionState(0, s.msgCount)
+	s.nextOffset = kafka.Offset(msgCount)
 
-	resp := map[string]any{
-		"status":      http.StatusOK,
-		"newMsgCount": msgCount,
-	}
-	s.writeJSON(w, resp)
+	log.Printf("Reset complete. New msgCount: %d", msgCount)
 
+	s.writeJSON(w, map[string]interface{}{
+		"status":        "reset_complete",
+		"new_msg_count": msgCount,
+		"next_offset":   s.nextOffset,
+	})
 }
 
 func (s *BenchmarkServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	m := updateMemStats()
-	resp := map[string]any{
-		"status":       http.StatusOK,
-		"mem_alloc_mb": s.convertToMB(m.Alloc),
-		"mem_sys_mb":   s.convertToMB(m.Sys),
-		"goroutines":   runtime.NumGoroutine(),
+
+	ps, _ := s.kc.GetPartitionState(0)
+	stateSize := 0
+	if ps != nil {
+		ps.Mu.RLock()
+		stateSize = len(ps.State)
+		ps.Mu.RUnlock()
 	}
-	s.writeJSON(w, resp)
+
+	s.writeJSON(w, map[string]interface{}{
+		"status":       "healthy",
+		"mem_alloc_mb": float64(m.Alloc) / 1024 / 1024,
+		"mem_sys_mb":   float64(m.Sys) / 1024 / 1024,
+		"goroutines":   runtime.NumGoroutine(),
+		"msg_count":    s.msgCount,
+		"next_offset":  s.nextOffset,
+		"state_size":   stateSize,
+	})
 }
 
-func (s *BenchmarkServer) convertToMB(val uint64) float64 {
-	return float64(val) / 1024 / 1024
+func (s *BenchmarkServer) getIters(r *http.Request) int {
+	itersStr := r.URL.Query().Get("iters")
+	if itersStr == "" {
+		return 10000
+	}
+	iters, err := strconv.Atoi(itersStr)
+	if err != nil {
+		return 10000
+	}
+	return iters
 }
 
-func (s *BenchmarkServer) writeJSON(w http.ResponseWriter, resp map[string]any) {
+func (s *BenchmarkServer) getMsgCount(r *http.Request) int {
+	msgCountStr := r.URL.Query().Get("msgCount")
+	if msgCountStr == "" {
+		return 1000
+	}
+	msgCount, err := strconv.Atoi(msgCountStr)
+	if err != nil {
+		return 1000
+	}
+	return msgCount
+}
+
+func (s *BenchmarkServer) writeResponse(w http.ResponseWriter, scenario string, iters int, duration time.Duration) {
+	ps, _ := s.kc.GetPartitionState(0)
+	stateSize := 0
+	lastCommited := int64(0)
+	maxReceived := int64(0)
+
+	if ps != nil {
+		ps.Mu.RLock()
+		stateSize = len(ps.State)
+		lastCommited = int64(ps.LastCommited)
+		maxReceived = int64(ps.MaxReceived.Offset)
+		ps.Mu.RUnlock()
+	}
+
+	s.writeJSON(w, map[string]interface{}{
+		"scenario":      scenario,
+		"iterations":    iters,
+		"duration_s":    duration.Seconds(),
+		"ops_per_s":     float64(iters) / duration.Seconds(),
+		"state_size":    stateSize,
+		"last_commited": lastCommited,
+		"max_received":  maxReceived,
+	})
+}
+
+func (s *BenchmarkServer) writeJSON(w http.ResponseWriter, data map[string]interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(data)
 }
 
 func updateMemStats() *runtime.MemStats {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	memoryAlloc.Set(float64(m.Alloc))
+	memoryAllocMB.Set(float64(m.Alloc) / 1024 / 1024)
 	goroutinesCount.Set(float64(runtime.NumGoroutine()))
 	return &m
 }
@@ -167,7 +335,6 @@ func main() {
 		defer ticker.Stop()
 		for range ticker.C {
 			updateMemStats()
-			fmt.Println("Emmiting metrics")
 		}
 	}()
 
@@ -175,13 +342,16 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	s := NewBenchmarkServer(-1)
-	defer s.ps.Cancel()
+
+	s := NewBenchmarkServer(1000)
 
 	http.HandleFunc("/health", s.handleHealth)
-	http.HandleFunc("/run-benchmark", s.handleBenchmark)
+	http.HandleFunc("/scenario/read-heavy", s.handleReadHeavy)
+	http.HandleFunc("/scenario/balanced", s.handleBalanced)
+	http.HandleFunc("/scenario/kafka-sim", s.handleKafkaSim)
 	http.HandleFunc("/reset", s.handleReset)
-	http.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
-	fmt.Printf("Server is running in %s\n", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
+	http.Handle("/metrics", promhttp.Handler())
+
+	log.Printf("Server running on port %s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
