@@ -86,18 +86,6 @@ func BenchmarkPS_ReadHeavy(b *testing.B) {
 	for i := 0; b.Loop(); i++ {
 		randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 		_, _ = ps.ReadOffset(randomOffset)
-		// if i%10 < 8 {
-		// 	randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
-		// 	_, _ = ps.ReadOffset(randomOffset)
-		// } else {
-		// 	randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
-		// 	tp := &kafka.TopicPartition{
-		// 		Topic:     &topic,
-		// 		Partition: 0,
-		// 		Offset:    randomOffset,
-		// 	}
-		// 	cm.UpdateState(tp, consumer.MsgState_Success)
-		// }
 	}
 }
 
@@ -119,8 +107,9 @@ func BenchmarkPS_Balanced(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; b.Loop(); i++ {
-		if i%2 == 0 {
+		if i%10 < 5 {
 			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 			_, _ = ps.ReadOffset(randomOffset)
 		} else {
@@ -130,10 +119,7 @@ func BenchmarkPS_Balanced(b *testing.B) {
 				Partition: 0,
 				Offset:    randomOffset,
 			}
-			state := consumer.MsgState_Pending
-			if rand.Intn(5) != 0 {
-				state = consumer.MsgState_Success
-			}
+			state := consumer.MsgState_Success
 			cm.UpdateState(tp, state)
 		}
 	}

@@ -86,55 +86,41 @@ func BenchmarkPS_ReadHeavy(b *testing.B) {
 		randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 		ps.ReadOffsetReqCH <- randomOffset
 		<-ps.ReadOffsetRespCH
-		// if i%10 < 8 {
-		// 	randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
-		// 	ps.ReadOffsetReqCH <- randomOffset
-		// 	<-ps.ReadOffsetRespCH
-		// } else {
-		// 	randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
-		// 	msg := consumer.NewUpdateStateMsg(randomOffset, shared.MsgState_Success)
-		// 	ps.UpdateStateCH <- msg
-		// }
 	}
 }
 
-// func BenchmarkPS_Balanced(b *testing.B) {
-// 	topic := "test_topic"
-// 	tp := &kafka.TopicPartition{
-// 		Topic:     &topic,
-// 		Partition: 0,
-// 		Offset:    0,
-// 	}
+func BenchmarkPS_Balanced(b *testing.B) {
+	topic := "test_topic"
+	lastMsgOffset := 10_000
 
-// 	lastMsgOffset := 10_000
-// 	cm := consumer.NewTestKafkaConsumer(topic, tp)
-// 	consumer.NewTestPartitionState(cm, tp, lastMsgOffset)
+	tp := &kafka.TopicPartition{
+		Topic:     &topic,
+		Partition: 0,
+		Offset:    kafka.Offset(lastMsgOffset),
+	}
 
-// 	ps, err := cm.GetPartitionState(0)
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
+	ps := consumer.NewTestPartitionState(tp)
 
-// 	b.ResetTimer()
-// 	for i := 0; b.Loop(); i++ {
-// 		if i%2 == 0 {
-// 			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
-// 			_, _ = ps.ReadOffset(randomOffset)
-// 		} else {
-// 			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
-// 			tp := &kafka.TopicPartition{
-// 				Topic:     &topic,
-// 				Partition: 0,
-// 				Offset:    randomOffset,
-// 			}
-// 			state := consumer.MsgState_Pending
-// 			if rand.Intn(5) != 0 {
-// 				state = consumer.MsgState_Success
-// 			}
-// 			cm.UpdateState(tp, state)
-// 		}
-// 	}
-// }
+	for offset := range ps.MaxReceived.Offset {
+		msg := consumer.NewUpdateStateMsg(offset, shared.MsgState_Pending)
+		ps.UpdateStateCH <- msg
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; b.Loop(); i++ {
+		if i%10 < 5 {
+			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
+			ps.ReadOffsetReqCH <- randomOffset
+			<-ps.ReadOffsetRespCH
+		} else {
+			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
+			state := shared.MsgState_Success
+			msg := consumer.NewUpdateStateMsg(randomOffset, state)
+			ps.UpdateStateCH <- msg
+		}
+	}
+}
 
 // func BenchmarkPS_KafkaSim(b *testing.B) {
 // 	topic := "test_topic"
