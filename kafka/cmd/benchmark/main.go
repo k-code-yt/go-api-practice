@@ -96,10 +96,11 @@ func (s *BenchmarkServer) handleReadHeavy(w http.ResponseWriter, r *http.Request
 	ps, _ := s.kc.GetPartitionState(0)
 
 	for i := 0; i < iters; i++ {
-		if i%10 < 8 { // 80% reads - just read state, don't delete
-			_ = ps.ReadState()
+		if i%10 < 8 {
+			randomOffset := kafka.Offset(rand.Intn(10000))
+			_, _ = ps.ReadOffset(randomOffset)
 			operationsTotal.WithLabelValues("read", scenario).Inc()
-		} else { // 20% writes - update existing messages
+		} else {
 			ps.Mu.RLock()
 			randomOffset := kafka.Offset(rand.Intn(s.msgCount))
 			ps.Mu.RUnlock()
@@ -133,10 +134,11 @@ func (s *BenchmarkServer) handleBalanced(w http.ResponseWriter, r *http.Request)
 	ps, _ := s.kc.GetPartitionState(0)
 
 	for i := 0; i < iters; i++ {
-		if i%2 == 0 { // 50% reads
-			_ = ps.ReadState()
+		if i%2 == 0 {
+			randomOffset := kafka.Offset(rand.Intn(10000))
+			_, _ = ps.ReadOffset(randomOffset)
 			operationsTotal.WithLabelValues("read", scenario).Inc()
-		} else { // 50% writes
+		} else {
 			ps.Mu.RLock()
 			randomOffset := kafka.Offset(rand.Intn(s.msgCount))
 			ps.Mu.RUnlock()

@@ -36,6 +36,9 @@ type PartitionState struct {
 	FindLatestToCommitReqCH  chan struct{}
 	FindLatestToCommitRespCH chan kafka.Offset
 
+	ReadOffsetReqCH  chan kafka.Offset
+	ReadOffsetRespCH chan shared.MsgState
+
 	ctx    context.Context
 	Cancel context.CancelFunc
 	exitCH chan struct{}
@@ -73,6 +76,7 @@ func NewPartitionState(MaxReceived *kafka.TopicPartition) *PartitionState {
 func (ps *PartitionState) GetState() map[kafka.Offset]shared.MsgState {
 	return ps.state
 }
+
 func (ps *PartitionState) CommitOffsetLoop(commitDur time.Duration, c *KafkaConsumer) {
 	ticker := time.NewTicker(commitDur)
 	defer func() {
@@ -188,10 +192,50 @@ func (ps *PartitionState) acceptMsgLoop() {
 		case <-ps.FindLatestToCommitReqCH:
 			tp, _ := ps.FindLatestToCommit()
 			ps.FindLatestToCommitRespCH <- tp.Offset
+		case offset := <-ps.ReadOffsetReqCH:
+			v, ok := ps.state[offset]
+			if !ok {
+				ps.ReadOffsetRespCH <- -1
+			}
+			ps.ReadOffsetRespCH <- v
 		}
 	}
 }
 
 func (ps *PartitionState) getStateSize() int {
 	return int(ps.stateSize.Load())
+}
+
+// TODO  -> remove
+// only for bench-testing
+func NewTestPartitionState(MaxReceived *kafka.TopicPartition) *PartitionState {
+	ctx, Cancel := context.WithCancel(context.Background())
+
+	initialLastCommited := MaxReceived.Offset - 1
+	if MaxReceived.Offset == kafka.OffsetBeginning || MaxReceived.Offset < 0 {
+		initialLastCommited = -1
+	}
+	ps := &PartitionState{
+		ID:           MaxReceived.Partition,
+		state:        map[kafka.Offset]shared.MsgState{},
+		stateSize:    new(atomic.Int64),
+		MaxReceived:  MaxReceived,
+		lastCommited: initialLastCommited,
+		exitCH:       make(chan struct{}),
+		ctx:          ctx,
+		Cancel:       Cancel,
+
+		DeleteFromStateCH: make(chan kafka.Offset, 128),
+		UpdateStateCH:     make(chan *UpdateStateMsg, 128),
+		GetStateSizeCH:    make(chan chan int, 16),
+
+		// TODO -> remove - only for testing
+		FindLatestToCommitReqCH:  make(chan struct{}, 1),
+		FindLatestToCommitRespCH: make(chan kafka.Offset, 1),
+		ReadOffsetReqCH:          make(chan kafka.Offset, 1),
+		ReadOffsetRespCH:         make(chan shared.MsgState, 1),
+	}
+
+	go ps.acceptMsgLoop()
+	return ps
 }

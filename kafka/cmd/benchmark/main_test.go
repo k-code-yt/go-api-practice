@@ -72,8 +72,9 @@ func BenchmarkPS_ReadHeavy(b *testing.B) {
 		Offset:    0,
 	}
 
+	lastMsgOffset := 10_000
 	cm := consumer.NewTestKafkaConsumer(topic, tp)
-	consumer.NewTestPartitionState(cm, tp, 10000)
+	consumer.NewTestPartitionState(cm, tp, lastMsgOffset)
 
 	ps, err := cm.GetPartitionState(0)
 	if err != nil {
@@ -81,18 +82,22 @@ func BenchmarkPS_ReadHeavy(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; b.Loop(); i++ {
-		if i%10 < 8 {
-			_ = ps.ReadState()
-		} else {
-			randomOffset := kafka.Offset(rand.Intn(10000))
-			tp := &kafka.TopicPartition{
-				Topic:     &topic,
-				Partition: 0,
-				Offset:    randomOffset,
-			}
-			cm.UpdateState(tp, consumer.MsgState_Success)
-		}
+		randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
+		_, _ = ps.ReadOffset(randomOffset)
+		// if i%10 < 8 {
+		// 	randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
+		// 	_, _ = ps.ReadOffset(randomOffset)
+		// } else {
+		// 	randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
+		// 	tp := &kafka.TopicPartition{
+		// 		Topic:     &topic,
+		// 		Partition: 0,
+		// 		Offset:    randomOffset,
+		// 	}
+		// 	cm.UpdateState(tp, consumer.MsgState_Success)
+		// }
 	}
 }
 
@@ -104,8 +109,9 @@ func BenchmarkPS_Balanced(b *testing.B) {
 		Offset:    0,
 	}
 
+	lastMsgOffset := 10_000
 	cm := consumer.NewTestKafkaConsumer(topic, tp)
-	consumer.NewTestPartitionState(cm, tp, 10000)
+	consumer.NewTestPartitionState(cm, tp, lastMsgOffset)
 
 	ps, err := cm.GetPartitionState(0)
 	if err != nil {
@@ -115,9 +121,10 @@ func BenchmarkPS_Balanced(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
 		if i%2 == 0 {
-			_ = ps.ReadState()
+			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
+			_, _ = ps.ReadOffset(randomOffset)
 		} else {
-			randomOffset := kafka.Offset(rand.Intn(10000))
+			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 			tp := &kafka.TopicPartition{
 				Topic:     &topic,
 				Partition: 0,
@@ -140,15 +147,16 @@ func BenchmarkPS_KafkaSim(b *testing.B) {
 		Offset:    0,
 	}
 
+	latestMsgOffset := 1000
 	cm := consumer.NewTestKafkaConsumer(topic, tp)
-	consumer.NewTestPartitionState(cm, tp, 1000)
+	consumer.NewTestPartitionState(cm, tp, latestMsgOffset)
 
 	ps, err := cm.GetPartitionState(0)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	nextOffset := kafka.Offset(1000)
+	nextOffset := kafka.Offset(latestMsgOffset)
 
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {

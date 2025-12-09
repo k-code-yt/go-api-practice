@@ -132,15 +132,10 @@ func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
 	return &latestToCommit, nil
 }
 
-func (ps *PartitionState) ReadState() int {
+func (ps *PartitionState) ReadOffset(offset kafka.Offset) (MsgState, bool) {
 	ps.Mu.RLock()
 	defer ps.Mu.RUnlock()
 
-	count := 0
-	for _, State := range ps.State {
-		if State == MsgState_Pending {
-			count++
-		}
-	}
-	return count
+	state, exists := ps.State[offset]
+	return state, exists
 }

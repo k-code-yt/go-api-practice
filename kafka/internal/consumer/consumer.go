@@ -86,11 +86,15 @@ func (c *KafkaConsumer) RunConsumer() struct{} {
 
 func (c *KafkaConsumer) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
 	// logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
+	c.Mu.RLock()
 	prtnState, ok := c.msgsStateMap[tp.Partition]
 	if !ok {
 		logrus.Errorf("State is missing for PRTN %d\n", tp.Partition)
+		return
+	}
+	c.Mu.RUnlock()
+
+	if prtnState == nil {
 		return
 	}
 
