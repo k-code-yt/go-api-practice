@@ -9,7 +9,7 @@ import (
 var (
 	ErrDuplicateCode  = "23505"
 	ErrDuplicateMsg   = "duplicate key violation"
-	NonExistingIntKey = -1
+	NonExistingIntKey = -1001
 )
 
 func IsDuplicateKeyErr(err error) bool {

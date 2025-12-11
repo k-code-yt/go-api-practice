@@ -17,9 +17,8 @@ func NewKafkaProducer() *KafkaProducer {
 		panic(err)
 	}
 
-	// defer p.Close()
-
 	go func() {
+		defer p.Close()
 		for e := range p.Events() {
 			switch ev := e.(type) {
 			case *kafka.Message:
@@ -37,12 +36,11 @@ func NewKafkaProducer() *KafkaProducer {
 	}
 }
 
-func (p *KafkaProducer) Produce(msg []byte) {
+func (p *KafkaProducer) Produce(msg []byte) error {
 	cfg := shared.NewKafkaConfig()
 	topic := cfg.DefaultTopic
-	p.producer.Produce(&kafka.Message{
+	return p.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          msg,
 	}, nil)
-
 }

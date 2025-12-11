@@ -1,0 +1,5 @@
+ALTER TABLE events 
+ADD COLUMN status VARCHAR(50),
+ADD COLUMN parent_id INTEGER,
+ADD COLUMN parent_type VARCHAR(100),
+ADD COLUMN parent_metadata JSONB;

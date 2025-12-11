@@ -1,4 +1,4 @@
-[] db entities
-[] entry point -> db
-[] outbox pulling -> publish
+[x] db entities
+[x] entry point -> db
+[x] outbox pulling -> publish
 [] consumer -> inbox

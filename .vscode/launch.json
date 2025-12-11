@@ -24,6 +24,18 @@
         "SHOULD_PRODUCE": "true",
         "APP_ENV": "debug"
       }
+    },
+    {
+      "name": "Debug Kafka Outbox",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/kafka-outbox/cmd/server",
+      "env": {
+        "CG_ID": "producer-group",
+        "SHOULD_PRODUCE": "true",
+        "APP_ENV": "debug"
+      }
     }
   ]
 }
