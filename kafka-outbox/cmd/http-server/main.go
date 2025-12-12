@@ -18,7 +18,7 @@ import (
 
 type Server struct {
 	addr           string
-	msgCH          chan *pkgtypes.Message
+	msgCH          chan *pkgtypes.Message[*repo.Event]
 	paymentService *service.PaymentService
 	outboxService  *service.OutboxService
 	exitCH         chan struct{}
@@ -30,7 +30,7 @@ func NewServer(addr string, db *sqlx.DB) *Server {
 	ps := service.NewPaymentService(pr, eventRepo)
 	os := service.NewOutbox(eventRepo)
 	return &Server{
-		msgCH:  make(chan *pkgtypes.Message, 512),
+		msgCH:  make(chan *pkgtypes.Message[*repo.Event], 64),
 		exitCH: make(chan struct{}),
 		addr:   addr,
 
