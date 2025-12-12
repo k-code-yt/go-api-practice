@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	reposhared "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repo/repo-shared"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/shared"
+	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/config"
+	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-outbox/pkg/types"
+	pkgutils "github.com/k-code-yt/go-api-practice/kafka-outbox/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,9 +23,9 @@ const (
 	MsgState_Error   MsgState = iota
 )
 
-type KafkaConsumer struct {
+type KafkaConsumer[T any] struct {
 	ID           string
-	MsgCH        chan *shared.Message
+	MsgCH        chan *pkgtypes.Message[T]
 	IsReady      bool
 	ReadyCH      chan struct{}
 	exitCH       chan struct{}
@@ -33,12 +34,12 @@ type KafkaConsumer struct {
 	msgsStateMap map[int32]*PartitionState
 	Mu           *sync.RWMutex
 	commitDur    time.Duration
-	cfg          *shared.KafkaConfig
+	cfg          *config.KafkaConfig
 }
 
-func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
-	cfg := shared.NewKafkaConfig()
-	ID := reposhared.GenerateRandomString(15)
+func NewKafkaConsumer[T any](msgCH chan *pkgtypes.Message[T]) *KafkaConsumer[T] {
+	cfg := config.NewKafkaConfig()
+	ID := pkgutils.GenerateRandomString(15)
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":               cfg.Host,
 		"group.id":                        cfg.ConsumerGroup,
@@ -52,7 +53,7 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 		panic(err)
 	}
 
-	consumer := &KafkaConsumer{
+	consumer := &KafkaConsumer[T]{
 		ID:           ID,
 		consumer:     c,
 		MsgCH:        msgCH,
@@ -76,13 +77,13 @@ func NewKafkaConsumer(msgCH chan *shared.Message) *KafkaConsumer {
 	return consumer
 }
 
-func (c *KafkaConsumer) RunConsumer() struct{} {
+func (c *KafkaConsumer[T]) RunConsumer() struct{} {
 	go c.checkReadyToAccept()
 	go c.consumeLoop()
 	return <-c.exitCH
 }
 
-func (c *KafkaConsumer) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
+func (c *KafkaConsumer[T]) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
 	// logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
 	c.Mu.RLock()
 	prtnState, ok := c.msgsStateMap[tp.Partition]
@@ -101,7 +102,7 @@ func (c *KafkaConsumer) UpdateState(tp *kafka.TopicPartition, newState MsgState)
 	prtnState.Mu.Unlock()
 }
 
-func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
+func (c *KafkaConsumer[T]) assignPrntCB(ev *kafka.AssignedPartitions) error {
 	c.Mu.Lock()
 	committed, err := c.consumer.Committed(ev.Partitions, int(time.Second)*5)
 	if err != nil {
@@ -125,8 +126,10 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 			Partition: tp.Partition,
 			Offset:    startOffset,
 		}
-
-		prtnState := NewPartitionState(&tpCopy)
+		commitFunc := func(offsets []kafka.TopicPartition) ([]kafka.TopicPartition, error) {
+			return c.consumer.CommitOffsets(offsets)
+		}
+		prtnState := NewPartitionState(&tpCopy, commitFunc)
 		oldPS, exists := c.msgsStateMap[tp.Partition]
 		if exists {
 			oldPS.Cancel()
@@ -134,7 +137,7 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 			oldPS = nil
 		}
 		c.msgsStateMap[tp.Partition] = prtnState
-		go prtnState.commitOffsetLoop(c.commitDur, c)
+		go prtnState.commitOffsetLoop(c.commitDur)
 	}
 
 	c.Mu.Unlock()
@@ -156,7 +159,7 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 	return nil
 }
 
-func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
+func (c *KafkaConsumer[T]) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 	var toCommit []kafka.TopicPartition
 	for _, tp := range ev.Partitions {
 		logrus.WithField("PRTN", tp.Partition).Info("❌ Revoking partition")
@@ -221,7 +224,7 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 	return nil
 }
 
-func (c *KafkaConsumer) rebalanceCB(_ *kafka.Consumer, event kafka.Event) error {
+func (c *KafkaConsumer[T]) rebalanceCB(_ *kafka.Consumer, event kafka.Event) error {
 	switch ev := event.(type) {
 	case kafka.AssignedPartitions:
 		err := c.assignPrntCB(&ev)
@@ -239,7 +242,7 @@ func (c *KafkaConsumer) rebalanceCB(_ *kafka.Consumer, event kafka.Event) error 
 	return nil
 }
 
-func (c *KafkaConsumer) consumeLoop() {
+func (c *KafkaConsumer[T]) consumeLoop() {
 	defer func() {
 		c.consumer.Close()
 		close(c.exitCH)
@@ -267,7 +270,11 @@ func (c *KafkaConsumer) consumeLoop() {
 
 		c.appendMsgState(&msg.TopicPartition)
 
-		msgRequest := shared.NewMessage(&msg.TopicPartition, msg.Value)
+		msgRequest, err := pkgtypes.NewMessage[T](&msg.TopicPartition, msg.Value)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
 		select {
 		case c.MsgCH <- msgRequest:
 		case <-time.After(5 * time.Second):
@@ -279,7 +286,7 @@ func (c *KafkaConsumer) consumeLoop() {
 
 }
 
-func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
+func (c *KafkaConsumer[T]) appendMsgState(tp *kafka.TopicPartition) {
 	c.Mu.RLock()
 	prtnState := c.msgsStateMap[tp.Partition]
 	c.Mu.RUnlock()
@@ -300,7 +307,7 @@ func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
 	}
 }
 
-func (c *KafkaConsumer) initializeKafkaTopic(brokers, topicName string) error {
+func (c *KafkaConsumer[T]) initializeKafkaTopic(brokers, topicName string) error {
 	adminClient, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers": brokers,
 	})
@@ -337,7 +344,7 @@ func (c *KafkaConsumer) initializeKafkaTopic(brokers, topicName string) error {
 	return c.waitForTopicReady(brokers, topicName)
 }
 
-func (c *KafkaConsumer) waitForTopicReady(brokers, topicName string) error {
+func (c *KafkaConsumer[T]) waitForTopicReady(brokers, topicName string) error {
 	adminClient, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers": brokers,
 	})
@@ -384,7 +391,7 @@ func (c *KafkaConsumer) waitForTopicReady(brokers, topicName string) error {
 
 }
 
-func (c *KafkaConsumer) checkReadyToAccept() error {
+func (c *KafkaConsumer[T]) checkReadyToAccept() error {
 	defer func() {
 		c.IsReady = true
 	}()
@@ -409,7 +416,7 @@ func (c *KafkaConsumer) checkReadyToAccept() error {
 	}
 }
 
-func (c *KafkaConsumer) readyCheck() (bool, error) {
+func (c *KafkaConsumer[T]) readyCheck() (bool, error) {
 	assignment, err := c.consumer.Assignment()
 	if err != nil {
 		logrus.Errorf("Failed to get assignment: %v", err)
@@ -419,7 +426,7 @@ func (c *KafkaConsumer) readyCheck() (bool, error) {
 	return len(assignment) > 0, nil
 }
 
-func (c *KafkaConsumer) formatPartitions(partitions []kafka.TopicPartition) string {
+func (c *KafkaConsumer[T]) formatPartitions(partitions []kafka.TopicPartition) string {
 	parts := make([]string, len(partitions))
 	for i, p := range partitions {
 		parts[i] = fmt.Sprintf("%d@%d", p.Partition, p.Offset)

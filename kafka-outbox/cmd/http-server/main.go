@@ -10,29 +10,27 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repo"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repo/event"
-	paymentrepo "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repo/payment"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/service/outbox"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/service/payment"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/shared"
+	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/db/postgres"
+	repo "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repos"
+	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/service"
+	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-outbox/pkg/types"
 )
 
 type Server struct {
 	addr           string
-	msgCH          chan *shared.Message
-	paymentService *payment.PaymentService
-	outboxService  *outbox.OutboxService
+	msgCH          chan *pkgtypes.Message
+	paymentService *service.PaymentService
+	outboxService  *service.OutboxService
 	exitCH         chan struct{}
 }
 
 func NewServer(addr string, db *sqlx.DB) *Server {
-	eventRepo := event.NewEventRepo(db)
-	pr := paymentrepo.NewPaymentRepo(db, eventRepo)
-	ps := payment.NewPaymentService(pr)
-	os := outbox.NewOutbox(eventRepo)
+	eventRepo := repo.NewEventRepo(db)
+	pr := repo.NewPaymentRepo(db)
+	ps := service.NewPaymentService(pr, eventRepo)
+	os := service.NewOutbox(eventRepo)
 	return &Server{
-		msgCH:  make(chan *shared.Message, 512),
+		msgCH:  make(chan *pkgtypes.Message, 512),
 		exitCH: make(chan struct{}),
 		addr:   addr,
 
@@ -44,7 +42,7 @@ func NewServer(addr string, db *sqlx.DB) *Server {
 func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	paym := paymentrepo.NewPayment("123", 123, "created")
+	paym := repo.NewPayment("123", 123, "created")
 	s.paymentService.Save(ctx, paym)
 }
 
@@ -53,12 +51,12 @@ func (s *Server) simulateCreatePayment() {
 	defer cancel()
 	amount := rand.Intn(1000)
 	orderN := strconv.Itoa(amount)
-	paym := paymentrepo.NewPayment(orderN, amount, "created")
+	paym := repo.NewPayment(orderN, amount, "created")
 	s.paymentService.Save(ctx, paym)
 }
 
 func main() {
-	db, err := repo.NewDBConn()
+	db, err := dbpostgres.NewDBConn()
 	if err != nil {
 		panic(fmt.Sprintf("unable to conn to db, err = %v\n", err))
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/shared"
+	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/config"
 )
 
 type KafkaProducer struct {
@@ -37,7 +37,7 @@ func NewKafkaProducer() *KafkaProducer {
 }
 
 func (p *KafkaProducer) Produce(msg []byte) error {
-	cfg := shared.NewKafkaConfig()
+	cfg := config.NewKafkaConfig()
 	topic := cfg.DefaultTopic
 	return p.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},

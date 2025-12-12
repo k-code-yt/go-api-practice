@@ -1,4 +1,4 @@
-package outbox
+package service
 
 import (
 	"context"
@@ -9,18 +9,18 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/producer"
-	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repo/event"
-	reposhared "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repo/repo-shared"
+	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/kafka/producer"
+	repo "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repos"
+	reposhared "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repos/repo-shared"
 )
 
 type OutboxService struct {
-	eventRepo *event.EventRepo
+	eventRepo *repo.EventRepo
 	producer  *producer.KafkaProducer
 	// consumer  *consumer.KafkaConsumer
 }
 
-func NewOutbox(er *event.EventRepo) *OutboxService {
+func NewOutbox(er *repo.EventRepo) *OutboxService {
 	s := &OutboxService{
 		eventRepo: er,
 	}
@@ -57,8 +57,8 @@ func (s *OutboxService) handlePending() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	repo := s.eventRepo.GetRepo()
-	_, err := reposhared.TxClosure(ctx, repo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
+	txrepo := s.eventRepo.GetRepo()
+	_, err := reposhared.TxClosure(ctx, txrepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
 		events, err := s.eventRepo.GetAllPending(ctx, tx)
 		if err != nil {
 			return 0, err
@@ -81,7 +81,7 @@ func (s *OutboxService) handlePending() {
 			toUpdateIds = append(toUpdateIds, e.EventId)
 		}
 
-		rows, err := s.eventRepo.UpdateStatusByIds(ctx, tx, toUpdateIds, event.EventStatus_Produced)
+		rows, err := s.eventRepo.UpdateStatusByIds(ctx, tx, toUpdateIds, repo.EventStatus_Produced)
 		if err != nil {
 			return 0, err
 		}
@@ -97,19 +97,3 @@ func (s *OutboxService) handlePending() {
 		fmt.Printf("err outbox service %v\n", err)
 	}
 }
-
-// func (s *OutboxService) addConsumer() *OutboxService {
-// 	c := consumer.NewKafkaConsumer(s.msgCH)
-// 	s.consumer = c
-// 	return s
-// }
-
-// func (s *OutboxService) handlePending() {
-// 	ticker := time.NewTicker(time.Second * 5)
-
-// 	for {
-// 		select {
-// 		case <-ticker.C:
-// 		}
-// 	}
-// }

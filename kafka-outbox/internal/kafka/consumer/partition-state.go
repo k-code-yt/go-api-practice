@@ -10,18 +10,22 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type CommitFunc func([]kafka.TopicPartition) ([]kafka.TopicPartition, error)
+
 type PartitionState struct {
 	ID           int32
 	State        map[kafka.Offset]MsgState
 	MaxReceived  *kafka.TopicPartition
 	Mu           *sync.RWMutex
 	LastCommited kafka.Offset
-	ctx          context.Context
-	Cancel       context.CancelFunc
-	ExitCH       chan struct{}
+	commitFunc   CommitFunc
+
+	ctx    context.Context
+	Cancel context.CancelFunc
+	ExitCH chan struct{}
 }
 
-func NewPartitionState(MaxReceived *kafka.TopicPartition) *PartitionState {
+func NewPartitionState(MaxReceived *kafka.TopicPartition, commitFunc CommitFunc) *PartitionState {
 	ctx, Cancel := context.WithCancel(context.Background())
 	initialLastCommited := MaxReceived.Offset - 1
 	if MaxReceived.Offset == kafka.OffsetBeginning || MaxReceived.Offset < 0 {
@@ -29,17 +33,19 @@ func NewPartitionState(MaxReceived *kafka.TopicPartition) *PartitionState {
 	}
 	return &PartitionState{
 		ID:           MaxReceived.Partition,
+		Mu:           &sync.RWMutex{},
 		State:        map[kafka.Offset]MsgState{},
 		MaxReceived:  MaxReceived,
 		LastCommited: initialLastCommited,
-		Mu:           &sync.RWMutex{},
-		ctx:          ctx,
-		Cancel:       Cancel,
-		ExitCH:       make(chan struct{}),
+		commitFunc:   commitFunc,
+
+		ctx:    ctx,
+		Cancel: Cancel,
+		ExitCH: make(chan struct{}),
 	}
 }
 
-func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaConsumer) {
+func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration) {
 	ticker := time.NewTicker(commitDur)
 	defer func() {
 		close(ps.ExitCH)
@@ -65,7 +71,7 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration, c *KafkaCons
 				fmt.Println(err)
 				continue
 			}
-			_, err = c.consumer.CommitOffsets([]kafka.TopicPartition{*latestToCommit})
+			_, err = ps.commitFunc([]kafka.TopicPartition{*latestToCommit})
 			if err != nil {
 				fmt.Printf("err commiting offset = %d, prtn = %d, err = %v\n", latestToCommit.Offset, ps.MaxReceived.Partition, err)
 				continue

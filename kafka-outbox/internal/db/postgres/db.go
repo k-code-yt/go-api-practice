@@ -1,11 +1,12 @@
-package repo
+package dbpostgres
 
 import (
 	"github.com/jmoiron/sqlx"
+	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/config"
 )
 
 func getDBConnString() string {
-	return "host=localhost port=5432 user=user password=pass dbname=events sslmode=disable"
+	return config.GetDefaultConnString()
 }
 
 func NewDBConn() (*sqlx.DB, error) {

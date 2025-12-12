@@ -1,4 +1,4 @@
-package shared
+package config
 
 type KafkaConfig struct {
 	DefaultTopic             string

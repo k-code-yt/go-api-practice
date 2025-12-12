@@ -1,4 +1,4 @@
-package reposhared
+package dbpostgres
 
 import (
 	"errors"

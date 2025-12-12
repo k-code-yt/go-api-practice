@@ -1,4 +1,4 @@
-package reposhared
+package pkgutils
 
 import (
 	"math/rand"

@@ -1,4 +1,4 @@
-package event
+package repo
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	reposhared "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repo/repo-shared"
+	pkgutils "github.com/k-code-yt/go-api-practice/kafka-outbox/pkg/utils"
 	_ "github.com/lib/pq"
 )
 
@@ -44,7 +44,7 @@ type Event struct {
 }
 
 func NewEvent(eventName EventType, parentId string, parentType EventParentType, parentMetadata json.RawMessage) *Event {
-	id := reposhared.GenerateRandomString(15)
+	id := pkgutils.GenerateRandomString(15)
 	return &Event{
 		EventId:        id,
 		EventType:      string(eventName),
