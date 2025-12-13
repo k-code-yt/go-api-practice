@@ -41,9 +41,11 @@ func NewKafkaConsumer[T any](msgCH chan *pkgtypes.Message[T]) *KafkaConsumer[T] 
 	cfg := config.NewKafkaConfig()
 	ID := pkgutils.GenerateRandomString(15)
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":               cfg.Host,
-		"group.id":                        cfg.ConsumerGroup,
-		"enable.auto.commit":              false,
+		"bootstrap.servers": cfg.Host,
+		"group.id":          cfg.ConsumerGroup,
+		// TODO(@INBOX) -> remove autocommit
+		"enable.auto.commit": true,
+		// "enable.auto.commit":              false,
 		"auto.offset.reset":               "earliest",
 		"go.application.rebalance.enable": true,
 		"partition.assignment.strategy":   cfg.ParititionAssignStrategy,
@@ -137,7 +139,8 @@ func (c *KafkaConsumer[T]) assignPrntCB(ev *kafka.AssignedPartitions) error {
 			oldPS = nil
 		}
 		c.msgsStateMap[tp.Partition] = prtnState
-		go prtnState.commitOffsetLoop(c.commitDur)
+		// TODO(@INBOX) -> revert
+		// go prtnState.commitOffsetLoop(c.commitDur)
 	}
 
 	c.Mu.Unlock()
@@ -319,7 +322,7 @@ func (c *KafkaConsumer[T]) initializeKafkaTopic(brokers, topicName string) error
 	log.Printf("Creating topic '%s'...", topicName)
 	topicSpec := kafka.TopicSpecification{
 		Topic:         topicName,
-		NumPartitions: 4,
+		NumPartitions: c.cfg.NumPartitions,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

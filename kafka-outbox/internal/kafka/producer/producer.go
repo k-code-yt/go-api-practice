@@ -1,10 +1,9 @@
 package producer
 
 import (
-	"fmt"
-
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/config"
+	"github.com/sirupsen/logrus"
 )
 
 type KafkaProducer struct {
@@ -23,9 +22,14 @@ func NewKafkaProducer() *KafkaProducer {
 			switch ev := e.(type) {
 			case *kafka.Message:
 				if ev.TopicPartition.Error != nil {
-					fmt.Printf("Delivery failed: %v\n", ev.TopicPartition)
+					logrus.WithFields(logrus.Fields{
+						"PRTN": ev.TopicPartition,
+					}).Warn("Delivery failed")
 				} else {
-					fmt.Printf("Delivered message to PRTN = %d OFF = %d\n", ev.TopicPartition.Partition, ev.TopicPartition.Offset)
+					logrus.WithFields(logrus.Fields{
+						"PRTN":   ev.TopicPartition.Partition,
+						"OFFSET": ev.TopicPartition.Offset,
+					}).Warn("Delivery success")
 				}
 			}
 		}

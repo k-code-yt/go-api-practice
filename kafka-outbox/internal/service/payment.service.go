@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -11,6 +10,7 @@ import (
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/db/postgres"
 	repo "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repos"
 	reposhared "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repos/repo-shared"
+	"github.com/sirupsen/logrus"
 )
 
 type PaymentService struct {
@@ -32,11 +32,6 @@ func (pr *PaymentService) Save(ctx context.Context, p *repo.Payment) (int, error
 
 		paymentID, err := pr.paymentRepo.Insert(ctx, tx, p)
 		if err != nil {
-			exists := dbpostgres.IsDuplicateKeyErr(err)
-			if exists {
-				eMsg := fmt.Sprintf("already exists paymentID = %d\n", paymentID)
-				return dbpostgres.NonExistingIntKey, errors.New(eMsg)
-			}
 			return dbpostgres.NonExistingIntKey, err
 		}
 		p.ID = paymentID
@@ -47,22 +42,21 @@ func (pr *PaymentService) Save(ctx context.Context, p *repo.Payment) (int, error
 
 		event := repo.NewEvent(repo.EventType_PaymentCreated, strconv.Itoa(paymentID), repo.EventParentType_Payment, metadata)
 		eventID, err := pr.eventRepo.Insert(ctx, tx, event)
-
 		if err != nil {
-			exists := dbpostgres.IsDuplicateKeyErr(err)
-			if exists {
-				eMsg := fmt.Sprintf("already exists paymentID = %d, eventID = %s\n", paymentID, eventID)
-
-				return dbpostgres.NonExistingIntKey, errors.New(eMsg)
-			}
 			return dbpostgres.NonExistingIntKey, err
 		}
+		logrus.WithFields(
+			logrus.Fields{
+				"eventID":   eventID,
+				"paymentID": paymentID,
+				"order#":    p.OrderNumber,
+			},
+		).Info("INSERT SUCCESS")
 		return paymentID, nil
 	})
 
 	if err != nil || id == dbpostgres.NonExistingIntKey {
 		fmt.Printf("ERR on DB SAVE = %v\n", err)
 	}
-	fmt.Printf("INSERT SUCCESS for PaymentID = %d\n", id)
 	return id, err
 }

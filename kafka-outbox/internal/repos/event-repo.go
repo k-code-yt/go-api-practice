@@ -33,14 +33,14 @@ const (
 )
 
 type Event struct {
-	EventId   string      `db:"event_id"`
-	EventType string      `db:"event_type"`
-	Timespamp time.Time   `db:"timestamp"`
-	Status    EventStatus `db:"status"`
+	EventId   string      `db:"event_id" json:"EventId"`
+	EventType string      `db:"event_type" json:"EventType"`
+	Timespamp time.Time   `db:"timestamp" json:"Timespamp"`
+	Status    EventStatus `db:"status" json:"Status"`
 
-	ParentId       string          `db:"parent_id"`
-	ParentType     EventParentType `db:"parent_type"`
-	ParentMetadata json.RawMessage `db:"parent_metadata"`
+	ParentId       string          `db:"parent_id" json:"ParentId"`
+	ParentType     EventParentType `db:"parent_type" json:"ParentType"`
+	ParentMetadata json.RawMessage `db:"parent_metadata" json:"ParentMetadata"`
 }
 
 func NewEvent(eventName EventType, parentId string, parentType EventParentType, parentMetadata json.RawMessage) *Event {

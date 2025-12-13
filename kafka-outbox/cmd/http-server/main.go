@@ -40,23 +40,24 @@ func NewServer(addr string, db *sqlx.DB) *Server {
 }
 
 func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	paym := repo.NewPayment("123", 123, "created")
-	s.paymentService.Save(ctx, paym)
+	_, err := s.createPayment()
+	if err != nil {
+		fmt.Printf("err creating PMNT %v\n", err)
+	}
 }
 
-func (s *Server) simulateCreatePayment() {
+func (s *Server) createPayment() (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	amount := rand.Intn(1000)
+	amount := rand.Intn(100_000)
 	orderN := strconv.Itoa(amount)
 	paym := repo.NewPayment(orderN, amount, "created")
-	s.paymentService.Save(ctx, paym)
+	return s.paymentService.Save(ctx, paym)
 }
 
 func main() {
-	db, err := dbpostgres.NewDBConn()
+	dbOpts := new(dbpostgres.DBPostgresOptions)
+	db, err := dbpostgres.NewDBConn(dbOpts)
 	if err != nil {
 		panic(fmt.Sprintf("unable to conn to db, err = %v\n", err))
 	}
@@ -66,12 +67,12 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/payment", s.handleCreatePayment)
 
-	// go func() {
-	// 	ticker := time.NewTicker(time.Second * 2)
-	// 	for range ticker.C {
-	// 		s.simulateCreatePayment()
-	// 	}
-	// }()
+	go func() {
+		ticker := time.NewTicker(time.Second * 2)
+		for range ticker.C {
+			s.createPayment()
+		}
+	}()
 
 	log.Fatal(http.ListenAndServe(s.addr, nil))
 }

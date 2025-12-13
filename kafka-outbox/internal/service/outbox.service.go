@@ -3,9 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -17,42 +15,28 @@ import (
 type OutboxService struct {
 	eventRepo *repo.EventRepo
 	producer  *producer.KafkaProducer
-	// consumer  *consumer.KafkaConsumer
 }
 
 func NewOutbox(er *repo.EventRepo) *OutboxService {
-	s := &OutboxService{
+	pr := producer.NewKafkaProducer()
+	outbox := &OutboxService{
 		eventRepo: er,
+		producer:  pr,
 	}
 
-	s.addProducer()
-	go s.outboxLoop()
-	return s
-}
-
-func (s *OutboxService) addProducer() *OutboxService {
-	shouldProduce := os.Getenv("SHOULD_PRODUCE") == "true"
-	if !shouldProduce {
-		shouldProduce = *flag.Bool("SHOULD_PRODUCE", false, "Enable message production")
-		flag.Parse()
-	}
-	fmt.Printf("SHOULD_PRODUCE = %t\n", shouldProduce)
-
-	if shouldProduce {
-		s.producer = producer.NewKafkaProducer()
-	}
-	return s
+	go outbox.outboxLoop()
+	return outbox
 }
 
 func (s *OutboxService) outboxLoop() {
 	// TODO -> adjust dur > 30sec
-	ticker := time.NewTicker(time.Second * 2)
+	ticker := time.NewTicker(time.Second * 5)
 	defer ticker.Stop()
 	for range ticker.C {
 		s.handlePending()
 	}
-
 }
+
 func (s *OutboxService) handlePending() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -76,6 +60,7 @@ func (s *OutboxService) handlePending() {
 			err = s.producer.Produce(b)
 			if err != nil {
 				fmt.Printf("error producing event %v\n", err)
+				// TODO -> add err status && save err
 				continue
 			}
 			toUpdateIds = append(toUpdateIds, e.EventId)

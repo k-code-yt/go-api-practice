@@ -1,16 +1,21 @@
-build-server:
-	@go build -o ./bin/server ./cmd/server/.
-	@chmod +x ./bin/server
+build-http-server:
+	@go build -o ./bin/http-server ./cmd/http-server/.
+	@chmod +x ./bin/http-server
 
-kafka-app-chans: build-server
-	@CG_ID=$(CG_ID) SHOULD_PRODUCE=$(SHOULD_PRODUCE) ./bin/server/server/.
+build-msg-server:
+	@go build -o ./bin/msg-server ./cmd/msg-server/.
+	@chmod +x ./bin/msg-server
 
-build-server-race:
-	@go build -race -o ./bin/server ./cmd/server/.
-	@chmod +x ./bin/server
+build-http-server-race:
+	@go build -race -o ./bin/http-server ./cmd/http-server/.
+	@chmod +x ./bin/http-server
 
-kafka-c-chans-1: build-server-race
-	@CG_ID=consumer-group-1 SHOULD_PRODUCE=false ./bin/server
+build-msg-server-race:
+	@go build -race -o ./bin/msg-server ./cmd/msg-server/.
+	@chmod +x ./bin/msg-server
 
-kafka-p-chans: build-server
-	@CG_ID=producer-group SHOULD_PRODUCE=true ./bin/server
+api: build-http-server-race
+	@CG_ID=api-cg ./bin/http-server
+
+audit: build-msg-server-race
+	@CG_ID=audit-cg ./bin/msg-server

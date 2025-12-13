@@ -5,12 +5,19 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/config"
 )
 
-func getDBConnString() string {
-	return config.GetDefaultConnString()
+type DBPostgresOptions struct {
+	DBname string
 }
 
-func NewDBConn() (*sqlx.DB, error) {
-	db, err := sqlx.Connect("postgres", getDBConnString())
+func getDBConnString(opts *DBPostgresOptions) string {
+	if opts.DBname == "" {
+		return config.GetDefaultConnString()
+	}
+	return config.GetConnString(opts.DBname)
+}
+
+func NewDBConn(opts *DBPostgresOptions) (*sqlx.DB, error) {
+	db, err := sqlx.Connect("postgres", getDBConnString(opts))
 	if err != nil {
 		return nil, err
 	}

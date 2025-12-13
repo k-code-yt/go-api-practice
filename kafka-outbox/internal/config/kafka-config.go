@@ -5,6 +5,7 @@ type KafkaConfig struct {
 	Host                     string
 	ConsumerGroup            string
 	ParititionAssignStrategy string
+	NumPartitions            int
 }
 
 func NewKafkaConfig() *KafkaConfig {
@@ -13,5 +14,6 @@ func NewKafkaConfig() *KafkaConfig {
 		DefaultTopic:             "local_topic_sticky",
 		Host:                     "localhost",
 		ConsumerGroup:            "local_cg",
+		NumPartitions:            4,
 	}
 }
