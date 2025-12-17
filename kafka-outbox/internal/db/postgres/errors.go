@@ -10,6 +10,7 @@ var (
 	ErrDuplicateCode  = "23505"
 	ErrDuplicateMsg   = "duplicate key violation"
 	NonExistingIntKey = -1001
+	JSONParsingError  = -1002
 )
 
 func IsDuplicateKeyErr(err error) bool {
