@@ -36,6 +36,12 @@ func (s *InboxService) Save(ctx context.Context, msg *pkgtypes.Message[repo.Even
 		inboxEvent := repo.NewInboxEvent(&msg.Data)
 
 		inboxID, err := s.inboxRepo.Insert(ctx, tx, inboxEvent)
+
+		// --- BL---
+		// 1. do BL here -> longer commits to kafka
+		// 2. many service -> chan || cron by status "pending"
+		//  	go routine -> service factory
+		//  faster -> save event -> one by one seq.
 		if err != nil {
 			exists := dbpostgres.IsDuplicateKeyErr(err)
 			if exists {

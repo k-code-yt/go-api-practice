@@ -21,7 +21,6 @@ type Server struct {
 }
 
 func NewServer(inboxRepo *repo.InboxEventRepo) *Server {
-
 	s := service.NewInboxService(inboxRepo)
 	return &Server{
 		msgCH:   make(chan *pkgtypes.Message[repo.Event], 64),

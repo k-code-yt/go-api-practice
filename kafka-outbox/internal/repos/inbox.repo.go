@@ -8,7 +8,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/db/postgres"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-outbox/pkg/constants"
 )
 
 type InboxEventType string
@@ -33,7 +32,7 @@ const (
 type InboxEvent struct {
 	ID              int              `db:"id" json:"EventId"`
 	InboxEventType  string           `db:"type" json:"EventType"`
-	OutboxEventId   string           `db:"outbox_event_id" js_an:"OutboxEventId"`
+	OutboxEventId   string           `db:"outbox_event_id" json:"OutboxEventId"`
 	OutboxCreatedAt time.Time        `db:"outbox_created_at" json:"Timespamp"`
 	CreatedAt       time.Time        `db:"created_at" json:"CreatedAt"`
 	Status          InboxEventStatus `db:"status" json:"Status"`
@@ -64,7 +63,7 @@ type InboxEventRepo struct {
 func NewInboxEventRepo(db *sqlx.DB) *InboxEventRepo {
 	return &InboxEventRepo{
 		repo:      db,
-		tableName: pkgconstants.DBNameAudit,
+		tableName: "audit",
 	}
 }
 
