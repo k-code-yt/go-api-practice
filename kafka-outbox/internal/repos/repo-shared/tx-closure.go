@@ -8,12 +8,12 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-func TxClosure[T any](ctx context.Context, repo *sqlx.DB, fn func(ctx context.Context, tx *sqlx.Tx) (T, error)) (T, error) {
+func TxClosure[T any](ctx context.Context, repo *sqlx.DB, fn func(ctx context.Context, tx *sqlx.Tx) (T, error)) (res T, err error) {
 	tx, err := repo.BeginTxx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelReadCommitted,
 	})
 	if err != nil {
-		panic("unable to start TX")
+		return res, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -22,16 +22,18 @@ func TxClosure[T any](ctx context.Context, repo *sqlx.DB, fn func(ctx context.Co
 		}
 
 		if err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				err = fmt.Errorf("tx failed: %w, rollback failed: %v", err, rbErr)
+			}
 			return
 		}
 
 		err = tx.Commit()
 		if err != nil {
-			fmt.Printf("err on commit = %v\n", err)
+			err = fmt.Errorf("failed to commit transaction: %w", err)
 		}
 	}()
 
-	res, err := fn(ctx, tx)
+	res, err = fn(ctx, tx)
 	return res, err
 }

@@ -42,8 +42,25 @@ func NewPaymentRepo(db *sqlx.DB) *PaymentRepo {
 }
 
 func (r *PaymentRepo) Insert(ctx context.Context, tx *sqlx.Tx, p *Payment) (int, error) {
-	query := fmt.Sprintf("INSERT INTO %s (order_number, amount, status, created_at, updated_at) VALUES($1, $2, $3, $4, $5) RETURNING id", r.tableName)
+	// ----
+	// TODO -> investigate perfomance
+	// v1 -> pretty, but overhead of prepare
+	// ----
 
+	// query := fmt.Sprintf("INSERT INTO %s (order_number, amount, status, created_at, updated_at) VALUES(:order_number, :amount, :status, :created_at, :updated_at) RETURNING id", r.tableName)
+	// stmt, err := tx.PrepareNamedContext(ctx, query)
+	// if err != nil {
+	// 	return dbpostgres.NonExistingIntKey, err
+	// }
+	// defer stmt.Close()
+	// err = stmt.Get(p, p)
+	// if err != nil {
+	// 	return dbpostgres.NonExistingIntKey, err
+	// }
+	// return p.ID, nil
+
+	// v2 -> no prepare, better perf-ce
+	query := fmt.Sprintf("INSERT INTO %s (order_number, amount, status, created_at, updated_at) VALUES($1, $2, $3, $4, $5) RETURNING id", r.tableName)
 	rows, err := tx.QueryxContext(ctx, query, p.OrderNumber, p.Amount, p.Status, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		fmt.Printf("err on insert = %v\n", err)

@@ -41,11 +41,9 @@ func NewKafkaConsumer[T any](msgCH chan *pkgtypes.Message[T]) *KafkaConsumer[T] 
 	cfg := config.NewKafkaConfig()
 	ID := pkgutils.GenerateRandomString(15)
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": cfg.Host,
-		"group.id":          cfg.ConsumerGroup,
-		// TODO(@INBOX) -> remove autocommit
-		"enable.auto.commit": true,
-		// "enable.auto.commit":              false,
+		"bootstrap.servers":               cfg.Host,
+		"group.id":                        cfg.ConsumerGroup,
+		"enable.auto.commit":              false,
 		"auto.offset.reset":               "earliest",
 		"go.application.rebalance.enable": true,
 		"partition.assignment.strategy":   cfg.ParititionAssignStrategy,
@@ -64,7 +62,7 @@ func NewKafkaConsumer[T any](msgCH chan *pkgtypes.Message[T]) *KafkaConsumer[T] 
 		IsReady:      false,
 		topic:        cfg.DefaultTopic,
 		Mu:           new(sync.RWMutex),
-		commitDur:    10 * time.Second,
+		commitDur:    15 * time.Second,
 		msgsStateMap: map[int32]*PartitionState{},
 		cfg:          cfg,
 	}
@@ -86,7 +84,7 @@ func (c *KafkaConsumer[T]) RunConsumer() struct{} {
 }
 
 func (c *KafkaConsumer[T]) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
-	// logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
+	logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
 	c.Mu.RLock()
 	prtnState, ok := c.msgsStateMap[tp.Partition]
 	if !ok {
@@ -139,8 +137,7 @@ func (c *KafkaConsumer[T]) assignPrntCB(ev *kafka.AssignedPartitions) error {
 			oldPS = nil
 		}
 		c.msgsStateMap[tp.Partition] = prtnState
-		// TODO(@INBOX) -> revert
-		// go prtnState.commitOffsetLoop(c.commitDur)
+		go prtnState.commitOffsetLoop(c.commitDur)
 	}
 
 	c.Mu.Unlock()

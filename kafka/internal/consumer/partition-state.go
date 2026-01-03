@@ -101,9 +101,6 @@ func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
 		return nil, fmt.Errorf("maxRec is nil")
 	}
 	latestToCommit := *ps.MaxReceived
-	if ps.LastCommited > ps.MaxReceived.Offset {
-		// panic("❌last commit above maxReceived❌")
-	}
 	if ps.LastCommited == ps.MaxReceived.Offset {
 		msg := fmt.Sprintf("lastCommit %d == MaxReceived in prtn %d -> skipping\n", ps.LastCommited, ps.MaxReceived.Partition)
 		return nil, fmt.Errorf("%v", msg)
