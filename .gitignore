@@ -2,3 +2,9 @@
 */*.xlsx
 go.sum
 */go.sum
+*.test
+*.prof
+*/*.test
+*/*.prof
+*.out
+*/*.out

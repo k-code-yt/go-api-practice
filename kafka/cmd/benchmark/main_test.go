@@ -3,6 +3,7 @@ package main
 import (
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/k-code-yt/go-api-practice/kafka/internal/consumer"
@@ -109,11 +110,10 @@ func BenchmarkPS_Balanced(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; b.Loop(); i++ {
+		randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 		if i%10 < 5 {
-			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 			_, _ = ps.ReadOffset(randomOffset)
 		} else {
-			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 			tp := &kafka.TopicPartition{
 				Topic:     &topic,
 				Partition: 0,
@@ -161,6 +161,13 @@ func BenchmarkPS_KafkaSim(b *testing.B) {
 
 		nextOffset++
 
+		someCh := make(chan struct{}, 1028)
+
+		if rand.Intn(100) > 95 {
+			go SleeperFunc(someCh)
+			<-someCh
+		}
+
 		result, err := ps.FindLatestToCommit()
 		if err == nil && result != nil {
 			ps.Mu.Lock()
@@ -179,4 +186,9 @@ func BenchmarkPS_KafkaSim(b *testing.B) {
 			}
 		}
 	}
+}
+
+func SleeperFunc(someCh chan<- struct{}) {
+	someCh <- struct{}{}
+	time.Sleep(time.Second)
 }

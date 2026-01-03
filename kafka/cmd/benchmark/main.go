@@ -15,10 +15,45 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka/internal/consumer"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
+	operationsTotal   *prometheus.CounterVec
+	operationDuration *prometheus.HistogramVec
+	memoryAllocMB     prometheus.Gauge
+	goroutinesCount   prometheus.Gauge
+	currentScenario   *prometheus.GaugeVec
+)
+
+type BenchmarkServer struct {
+	kc         *consumer.KafkaConsumer
+	msgCount   int
+	nextOffset kafka.Offset
+	mu         sync.RWMutex
+}
+
+func NewBenchmarkServer(msgCount int) *BenchmarkServer {
+	if msgCount <= 0 {
+		msgCount = 1000
+	}
+
+	topic := "test_topic"
+	tp := &kafka.TopicPartition{
+		Topic:     &topic,
+		Partition: 0,
+		Offset:    0,
+	}
+
+	kc := consumer.NewTestKafkaConsumer(topic, tp)
+	consumer.NewTestPartitionState(kc, tp, msgCount)
+
+	return &BenchmarkServer{
+		kc:         kc,
+		msgCount:   msgCount,
+		nextOffset: kafka.Offset(msgCount),
+	}
+}
+func (s *BenchmarkServer) enableProm() {
 	operationsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "operations_total",
@@ -53,35 +88,6 @@ var (
 		},
 		[]string{"name"},
 	)
-)
-
-type BenchmarkServer struct {
-	kc         *consumer.KafkaConsumer
-	msgCount   int
-	nextOffset kafka.Offset
-	mu         sync.RWMutex
-}
-
-func NewBenchmarkServer(msgCount int) *BenchmarkServer {
-	if msgCount <= 0 {
-		msgCount = 1000
-	}
-
-	topic := "test_topic"
-	tp := &kafka.TopicPartition{
-		Topic:     &topic,
-		Partition: 0,
-		Offset:    0,
-	}
-
-	kc := consumer.NewTestKafkaConsumer(topic, tp)
-	consumer.NewTestPartitionState(kc, tp, msgCount)
-
-	return &BenchmarkServer{
-		kc:         kc,
-		msgCount:   msgCount,
-		nextOffset: kafka.Offset(msgCount),
-	}
 }
 
 // Scenario 1: Read-heavy (80% read, 20% write)
@@ -223,6 +229,7 @@ func (s *BenchmarkServer) handleKafkaSim(w http.ResponseWriter, r *http.Request)
 
 	s.writeResponse(w, scenario, iters, duration)
 }
+
 func (s *BenchmarkServer) handleReset(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -345,15 +352,17 @@ func main() {
 		port = "8080"
 	}
 
-	s := NewBenchmarkServer(1000)
+	NewBenchmarkServer(1000)
 
-	http.HandleFunc("/health", s.handleHealth)
-	http.HandleFunc("/scenario/read-heavy", s.handleReadHeavy)
-	http.HandleFunc("/scenario/balanced", s.handleBalanced)
-	http.HandleFunc("/scenario/kafka-sim", s.handleKafkaSim)
-	http.HandleFunc("/reset", s.handleReset)
-	http.Handle("/metrics", promhttp.Handler())
+	// s := NewBenchmarkServer(1000)
+	// s.enableProm()
+	// http.HandleFunc("/health", s.handleHealth)
+	// http.HandleFunc("/scenario/read-heavy", s.handleReadHeavy)
+	// http.HandleFunc("/scenario/balanced", s.handleBalanced)
+	// http.HandleFunc("/scenario/kafka-sim", s.handleKafkaSim)
+	// http.HandleFunc("/reset", s.handleReset)
+	// http.Handle("/metrics", promhttp.Handler())
 
-	log.Printf("Server running on port %s", port)
+	log.Printf("Server running on port %s\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

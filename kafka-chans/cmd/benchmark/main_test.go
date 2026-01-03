@@ -101,25 +101,35 @@ func BenchmarkPS_Balanced(b *testing.B) {
 
 	ps := consumer.NewTestPartitionState(tp)
 
+	// for offset := range ps.MaxReceived.Offset {
+	// 	msg := consumer.NewUpdateStateMsg(offset, shared.MsgState_Pending)
+	// 	ps.UpdateStateCH <- msg
+	// }
+	// -----------------------
+
+	// ---OPTIMIZED
 	for offset := range ps.MaxReceived.Offset {
-		msg := consumer.NewUpdateStateMsg(offset, shared.MsgState_Pending)
+		msg := ps.MsgPool.Get().(*consumer.UpdateStateMsg)
+		msg.SetOffset(offset)
+		msg.SetStateValue(shared.MsgState_Pending)
 		ps.UpdateStateCH <- msg
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; b.Loop(); i++ {
+		randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 		if i%10 < 5 {
-			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
 			ps.ReadOffsetReqCH <- randomOffset
 			<-ps.ReadOffsetRespCH
 		} else {
-			randomOffset := kafka.Offset(rand.Intn(lastMsgOffset))
-			state := shared.MsgState_Success
-			msg := consumer.NewUpdateStateMsg(randomOffset, state)
+			msg := ps.MsgPool.Get().(*consumer.UpdateStateMsg)
+			msg.SetOffset(randomOffset)
+			msg.SetStateValue(shared.MsgState_Pending)
 			ps.UpdateStateCH <- msg
 		}
 	}
+	// -----------------------
 }
 
 // func BenchmarkPS_KafkaSim(b *testing.B) {

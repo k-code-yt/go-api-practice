@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +22,14 @@ func NewUpdateStateMsg(offset kafka.Offset, value shared.MsgState) *UpdateStateM
 		offset: offset,
 		value:  value,
 	}
+}
+
+func (s *UpdateStateMsg) SetOffset(offset kafka.Offset) {
+	s.offset = offset
+}
+
+func (s *UpdateStateMsg) SetStateValue(value shared.MsgState) {
+	s.value = value
 }
 
 type PartitionState struct {
@@ -42,6 +51,8 @@ type PartitionState struct {
 	ctx    context.Context
 	Cancel context.CancelFunc
 	exitCH chan struct{}
+
+	MsgPool *sync.Pool
 }
 
 func NewPartitionState(MaxReceived *kafka.TopicPartition) *PartitionState {
@@ -189,6 +200,7 @@ func (ps *PartitionState) acceptMsgLoop() {
 		case msg := <-ps.UpdateStateCH:
 			ps.state[msg.offset] = msg.value
 			ps.stateSize.Add(1)
+			ps.MsgPool.Put(msg)
 		case <-ps.FindLatestToCommitReqCH:
 			tp, _ := ps.FindLatestToCommit()
 			ps.FindLatestToCommitRespCH <- tp.Offset
@@ -235,6 +247,14 @@ func NewTestPartitionState(MaxReceived *kafka.TopicPartition) *PartitionState {
 		ReadOffsetReqCH:          make(chan kafka.Offset, 1),
 		ReadOffsetRespCH:         make(chan shared.MsgState, 1),
 	}
+
+	var msgPool = sync.Pool{
+		New: func() interface{} {
+			return &UpdateStateMsg{}
+		},
+	}
+
+	ps.MsgPool = &msgPool
 
 	go ps.acceptMsgLoop()
 	return ps
