@@ -1,7 +1,10 @@
 package config
 
+import "fmt"
+
 type KafkaConfig struct {
-	DefaultTopic             string
+	DefaultTopics            []string
+	TopicsCount              int
 	Host                     string
 	ConsumerGroup            string
 	ParititionAssignStrategy string
@@ -9,10 +12,18 @@ type KafkaConfig struct {
 }
 
 func NewKafkaConfig() *KafkaConfig {
+	strategy := "range"
+	count := 2
+	topics := []string{}
+	for id := range count {
+		t := fmt.Sprintf("%s_topic_%d", strategy, id)
+		topics = append(topics, t)
+	}
+
 	return &KafkaConfig{
 		// ParititionAssignStrategy: "cooperative-sticky",
-		ParititionAssignStrategy: "range",
-		DefaultTopic:             "local_topic_range",
+		ParititionAssignStrategy: strategy,
+		DefaultTopics:            topics,
 		Host:                     "localhost",
 		ConsumerGroup:            "local_cg",
 		NumPartitions:            4,

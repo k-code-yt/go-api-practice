@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 
 	"github.com/jmoiron/sqlx"
@@ -55,7 +54,7 @@ func (pr *PaymentService) Save(ctx context.Context, p *repo.Payment) (int, error
 	})
 
 	if err != nil || id == dbpostgres.NonExistingIntKey {
-		fmt.Printf("ERR on DB SAVE = %v\n", err)
+		// fmt.Printf("ERR on DB SAVE = %v\n", err)
 	}
 	return id, err
 }

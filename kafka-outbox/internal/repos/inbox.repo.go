@@ -75,7 +75,7 @@ func (r *InboxEventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *InboxEvent)
 	query := fmt.Sprintf(`INSERT INTO %s (type, "outbox_event_id", "outbox_created_at", "created_at", parent_id, parent_metadata, status, parent_type) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`, r.tableName)
 	rows, err := tx.QueryxContext(ctx, query, e.InboxEventType, e.OutboxEventId, e.OutboxCreatedAt, e.CreatedAt, e.ParentId, e.ParentMetadata, e.Status, e.ParentType)
 	if err != nil {
-		fmt.Printf("err on insert = %v\n", err)
+		// fmt.Printf("err on insert = %v\n", err)
 		return dbpostgres.NonExistingIntKey, err
 	}
 	defer rows.Close()

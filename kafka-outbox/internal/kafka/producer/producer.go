@@ -23,13 +23,12 @@ func NewKafkaProducer() *KafkaProducer {
 			case *kafka.Message:
 				if ev.TopicPartition.Error != nil {
 					logrus.WithFields(logrus.Fields{
-						"PRTN": ev.TopicPartition,
-					}).Warn("Delivery failed")
+						"TOPIC_PRTN": ev.TopicPartition,
+					}).Info("Delivery failed")
 				} else {
 					logrus.WithFields(logrus.Fields{
-						"PRTN":   ev.TopicPartition.Partition,
-						"OFFSET": ev.TopicPartition.Offset,
-					}).Warn("Delivery success")
+						"TOPIC_PRTN": ev.TopicPartition,
+					}).Info("Delivery success")
 				}
 			}
 		}
@@ -42,9 +41,17 @@ func NewKafkaProducer() *KafkaProducer {
 
 func (p *KafkaProducer) Produce(msg []byte) error {
 	cfg := config.NewKafkaConfig()
-	topic := cfg.DefaultTopic
-	return p.producer.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          msg,
-	}, nil)
+	topics := cfg.DefaultTopics
+	var err error
+
+	for _, topic := range topics {
+		err = p.producer.Produce(&kafka.Message{
+			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+			Value:          msg,
+		}, nil)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

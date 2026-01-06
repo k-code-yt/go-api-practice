@@ -42,7 +42,7 @@ func (s *Server) handleMsg(msg *pkgtypes.Message[repo.Event]) {
 	defer cancel()
 	_, err := s.service.Save(ctx, msg)
 	if err != nil {
-		fmt.Printf("ERR on DB SAVE = %v\n", err)
+		// fmt.Printf("ERR on DB SAVE = %v\n", err)
 		return
 	}
 	// logrus.WithFields(logrus.Fields{

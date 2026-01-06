@@ -63,7 +63,7 @@ func (r *PaymentRepo) Insert(ctx context.Context, tx *sqlx.Tx, p *Payment) (int,
 	query := fmt.Sprintf("INSERT INTO %s (order_number, amount, status, created_at, updated_at) VALUES($1, $2, $3, $4, $5) RETURNING id", r.tableName)
 	rows, err := tx.QueryxContext(ctx, query, p.OrderNumber, p.Amount, p.Status, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
-		fmt.Printf("err on insert = %v\n", err)
+		// fmt.Printf("err on insert = %v\n", err)
 		return dbpostgres.NonExistingIntKey, err
 	}
 	defer rows.Close()

@@ -68,7 +68,7 @@ func main() {
 	mux.HandleFunc("/payment", s.handleCreatePayment)
 
 	go func() {
-		ticker := time.NewTicker(time.Second * 2)
+		ticker := time.NewTicker(time.Second * 10)
 		for range ticker.C {
 			s.createPayment()
 		}
