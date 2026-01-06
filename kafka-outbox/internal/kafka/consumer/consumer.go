@@ -84,7 +84,7 @@ func (c *KafkaConsumer[T]) RunConsumer() struct{} {
 }
 
 func (c *KafkaConsumer[T]) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
-	logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
+	// logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
 	c.Mu.RLock()
 	prtnState, ok := c.msgsStateMap[tp.Partition]
 	if !ok {
@@ -175,7 +175,7 @@ func (c *KafkaConsumer[T]) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 
 		latestToCommit, err := partitionState.FindLatestToCommit()
 		if err != nil {
-			fmt.Println(err)
+			// fmt.Println(err)
 			continue
 		}
 
@@ -336,7 +336,7 @@ func (c *KafkaConsumer[T]) initializeKafkaTopic(brokers, topicName string) error
 			continue
 		}
 		if result.Error.Code() != kafka.ErrNoError {
-			return fmt.Errorf("failed to create topic: %v", result.Error)
+			// return fmt.Errorf("failed to create topic: %v", result.Error)
 		}
 		log.Printf("Topic '%s' created successfully", result.Topic)
 	}

@@ -10,7 +10,6 @@ import (
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/db/postgres"
 	repo "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repos"
 	reposhared "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repos/repo-shared"
-	"github.com/sirupsen/logrus"
 )
 
 type PaymentService struct {
@@ -28,7 +27,7 @@ func NewPaymentService(pr *repo.PaymentRepo, er *repo.EventRepo) *PaymentService
 func (pr *PaymentService) Save(ctx context.Context, p *repo.Payment) (int, error) {
 	txRepo := pr.eventRepo.GetRepo()
 	id, err := reposhared.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
-		fmt.Printf("starting DB operation for order# = %s\n", p.OrderNumber)
+		// fmt.Printf("starting DB operation for order# = %s\n", p.OrderNumber)
 
 		paymentID, err := pr.paymentRepo.Insert(ctx, tx, p)
 		if err != nil {
@@ -41,17 +40,17 @@ func (pr *PaymentService) Save(ctx context.Context, p *repo.Payment) (int, error
 		}
 
 		event := repo.NewEvent(repo.EventType_PaymentCreated, strconv.Itoa(paymentID), repo.EventParentType_Payment, metadata)
-		eventID, err := pr.eventRepo.Insert(ctx, tx, event)
+		_, err = pr.eventRepo.Insert(ctx, tx, event)
 		if err != nil {
 			return dbpostgres.NonExistingIntKey, err
 		}
-		logrus.WithFields(
-			logrus.Fields{
-				"eventID":   eventID,
-				"paymentID": paymentID,
-				"order#":    p.OrderNumber,
-			},
-		).Info("INSERT SUCCESS")
+		// logrus.WithFields(
+		// 	logrus.Fields{
+		// 		"eventID":   eventID,
+		// 		"paymentID": paymentID,
+		// 		"order#":    p.OrderNumber,
+		// 	},
+		// ).Info("INSERT SUCCESS")
 		return paymentID, nil
 	})
 

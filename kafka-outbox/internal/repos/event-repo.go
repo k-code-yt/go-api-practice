@@ -140,14 +140,7 @@ func (r *EventRepo) Get(ctx context.Context, tx *sqlx.Tx, eventID string) *Event
 func (r *EventRepo) GetAllPending(ctx context.Context, tx *sqlx.Tx) ([]*Event, error) {
 	events := []*Event{}
 	q := fmt.Sprintf("SELECT * FROM %s WHERE status = $1", r.tableName)
-	// eventsDirect := []*Event{}
-	// err := tx.SelectContext(ctx, &eventsDirect, q, EventStatus_Pending)
-	// if err != nil {
-	// 	if err == sql.ErrNoRows {
-	// 		return events, nil
-	// 	}
-	// 	return nil, err
-	// }
+
 	rows, err := tx.QueryxContext(ctx, q, EventStatus_Pending)
 	if err != nil {
 		if err == sql.ErrNoRows {

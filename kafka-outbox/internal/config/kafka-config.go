@@ -10,8 +10,9 @@ type KafkaConfig struct {
 
 func NewKafkaConfig() *KafkaConfig {
 	return &KafkaConfig{
-		ParititionAssignStrategy: "cooperative-sticky",
-		DefaultTopic:             "local_topic_sticky",
+		// ParititionAssignStrategy: "cooperative-sticky",
+		ParititionAssignStrategy: "range",
+		DefaultTopic:             "local_topic_range",
 		Host:                     "localhost",
 		ConsumerGroup:            "local_cg",
 		NumPartitions:            4,

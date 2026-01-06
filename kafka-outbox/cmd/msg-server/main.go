@@ -11,7 +11,6 @@ import (
 	repo "github.com/k-code-yt/go-api-practice/kafka-outbox/internal/repos"
 	"github.com/k-code-yt/go-api-practice/kafka-outbox/internal/service"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-outbox/pkg/types"
-	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
@@ -46,11 +45,11 @@ func (s *Server) handleMsg(msg *pkgtypes.Message[repo.Event]) {
 		fmt.Printf("ERR on DB SAVE = %v\n", err)
 		return
 	}
-	logrus.WithFields(logrus.Fields{
-		"EventID": msg.Data.EventId,
-		"Offset":  msg.Metadata.Offset,
-		"PRTN":    msg.Metadata.Partition,
-	}).Info("MSG:SAVED")
+	// logrus.WithFields(logrus.Fields{
+	// 	"EventID": msg.Data.EventId,
+	// 	"Offset":  msg.Metadata.Offset,
+	// 	"PRTN":    msg.Metadata.Partition,
+	// }).Info("MSG:SAVED")
 }
 
 func main() {
