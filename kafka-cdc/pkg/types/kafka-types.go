@@ -12,7 +12,6 @@ type Message[T any] struct {
 	Data     T
 }
 
-// TODO -> make generic
 func NewMessage[T any](metadata *kafka.TopicPartition, data []byte) (*Message[T], error) {
 	var payload T
 	err := json.Unmarshal(data, &payload)

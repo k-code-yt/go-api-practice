@@ -2,9 +2,7 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/jmoiron/sqlx"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
@@ -35,19 +33,19 @@ func (pr *PaymentService) Save(ctx context.Context, p *repo.Payment) (int, error
 			return dbpostgres.NonExistingIntKey, err
 		}
 		p.ID = paymentID
-		metadata, err := json.Marshal(p)
-		if err != nil {
-			return dbpostgres.NonExistingIntKey, err
-		}
+		// metadata, err := json.Marshal(p)
+		// if err != nil {
+		// 	return dbpostgres.NonExistingIntKey, err
+		// }
 
-		event := repo.NewEvent(repo.EventType_PaymentCreated, strconv.Itoa(paymentID), repo.EventParentType_Payment, metadata)
-		eventID, err := pr.eventRepo.Insert(ctx, tx, event)
-		if err != nil {
-			return dbpostgres.NonExistingIntKey, err
-		}
+		// event := repo.NewEvent(repo.EventType_PaymentCreated, strconv.Itoa(paymentID), repo.EventParentType_Payment, metadata)
+		// eventID, err := pr.eventRepo.Insert(ctx, tx, event)
+		// if err != nil {
+		// 	return dbpostgres.NonExistingIntKey, err
+		// }
 		logrus.WithFields(
 			logrus.Fields{
-				"eventID":   eventID,
+				// "eventID":   eventID,
 				"paymentID": paymentID,
 				"order#":    p.OrderNumber,
 			},

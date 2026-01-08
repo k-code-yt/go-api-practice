@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/sirupsen/logrus"
 )
 
 type CommitFunc func([]kafka.TopicPartition) ([]kafka.TopicPartition, error)
@@ -83,14 +84,14 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration) {
 			if ps.LastCommited > ps.MaxReceived.Offset {
 				ps.MaxReceived.Offset = latestToCommit.Offset
 			}
-			// logrus.WithFields(
-			// 	logrus.Fields{
-			// 		"COMMITED_OFFSET": latestToCommit.Offset,
-			// 		"MAX_OFFSET":      ps.MaxReceived.Offset,
-			// 		"PRTN":            ps.MaxReceived.Partition,
-			// 		"STATE":           ps.State,
-			// 	},
-			// ).Warn("Commited on CRON")
+			logrus.WithFields(
+				logrus.Fields{
+					"COMMITED_OFFSET": latestToCommit.Offset,
+					"MAX_OFFSET":      ps.MaxReceived.Offset,
+					"PRTN":            ps.MaxReceived.Partition,
+					"STATE":           ps.State,
+				},
+			).Warn("Commited on CRON")
 			ps.Mu.Unlock()
 
 		case <-ps.ctx.Done():
@@ -120,10 +121,10 @@ func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
 		}
 		if msgState != MsgState_Pending {
 			delete(ps.State, offset)
-			// logrus.WithFields(logrus.Fields{
-			// 	"OFFSET": offset,
-			// 	"PRTN":   ps.ID,
-			// }).Info("Removed offset")
+			logrus.WithFields(logrus.Fields{
+				"OFFSET": offset,
+				"PRTN":   ps.ID,
+			}).Info("Removed offset")
 			if len(ps.State) == 0 {
 				latestToCommit.Offset = offset + 1
 				break

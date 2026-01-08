@@ -37,7 +37,7 @@ type PaymentRepo struct {
 func NewPaymentRepo(db *sqlx.DB) *PaymentRepo {
 	return &PaymentRepo{
 		repo:      db,
-		tableName: "payment_orders",
+		tableName: "payment",
 	}
 }
 

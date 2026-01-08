@@ -1,4 +1,4 @@
-CREATE TABLE payment_orders (
+CREATE TABLE payment (
     id SERIAL PRIMARY KEY,
     order_number VARCHAR(50) UNIQUE NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,

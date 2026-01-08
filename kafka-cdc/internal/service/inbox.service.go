@@ -14,9 +14,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// TODO -> either make generic OR make sep-te for each domain event
 type InboxService struct {
 	inboxRepo *repo.InboxEventRepo
-	consumer  *consumer.KafkaConsumer[repo.Event]
+	consumer  *consumer.KafkaConsumer
 }
 
 func NewInboxService(ier *repo.InboxEventRepo) *InboxService {
@@ -25,10 +26,11 @@ func NewInboxService(ier *repo.InboxEventRepo) *InboxService {
 	}
 }
 
-func (s *InboxService) AddConsumer(consumer *consumer.KafkaConsumer[repo.Event]) {
+func (s *InboxService) AddConsumer(consumer *consumer.KafkaConsumer) {
 	s.consumer = consumer
 }
 
+// TODO -> adjust for payment_created to work
 func (s *InboxService) Save(ctx context.Context, msg *pkgtypes.Message[repo.Event]) (int, error) {
 	txRepo := s.inboxRepo.GetRepo()
 	id, err := reposhared.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
@@ -37,11 +39,6 @@ func (s *InboxService) Save(ctx context.Context, msg *pkgtypes.Message[repo.Even
 
 		inboxID, err := s.inboxRepo.Insert(ctx, tx, inboxEvent)
 
-		// --- BL---
-		// 1. do BL here -> longer commits to kafka
-		// 2. many service -> chan || cron by status "pending"
-		//  	go routine -> service factory
-		//  faster -> save event -> one by one seq.
 		if err != nil {
 			exists := dbpostgres.IsDuplicateKeyErr(err)
 			if exists {

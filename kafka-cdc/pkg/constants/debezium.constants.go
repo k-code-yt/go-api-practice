@@ -3,10 +3,10 @@ package pkgconstants
 import "fmt"
 
 const (
-	DebConnectorName = "audit_cdc"
-	DebDefaultTable  = DBTableName_Events
+	DebConnectorName    = "audit_cdc"
+	CDCPaymentTableName = "payment"
 )
 
 var (
-	DebDefaultTopic = fmt.Sprintf("%s.payment_created", DebDefaultTable)
+	DebDefaultTopic = fmt.Sprintf("cdc.public.%s", CDCPaymentTableName)
 )

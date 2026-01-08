@@ -10,6 +10,15 @@ import (
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
 )
 
+type PaymentCreatedEvent struct {
+	ID          int    `json:"id"`
+	OrderNumber string `json:"order_number"`
+	Amount      string `json:"amount"`
+	Status      string `json:"status"`
+	CreatedAt   int    `json:"create_at"`
+	UpdatedAt   int    `json:"updated_at"`
+}
+
 type InboxEventType string
 
 const (
