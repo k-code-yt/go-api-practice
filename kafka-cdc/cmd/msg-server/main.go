@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer/handlers"
 	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/service"
 	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
+	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
@@ -32,20 +35,30 @@ func (s *Server) addConsumer(handlerResigry *handlers.Registry) *Server {
 	return s
 }
 
-func (s *Server) handleMsg(msg repo.PaymentCreatedEvent) {
+func (s *Server) handleMsg(paymentEvent *debezium.DebeziumMessage[domain.Payment]) {
 	<-s.consumer.ReadyCH
-	_, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	// TODO -> share context w/ handler
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	// _, err := s.service.Save(ctx, msg)
-	// if err != nil {
-	// 	fmt.Printf("ERR on DB SAVE = %v\n", err)
-	// 	return
-	// }
-	// logrus.WithFields(logrus.Fields{
-	// 	"EventID": msg.Data.EventId,
-	// 	"Offset":  msg.Metadata.Offset,
-	// 	"PRTN":    msg.Metadata.Partition,
-	// }).Info("MSG:SAVED")
+
+	inboxEvent, err := service.PaymentToInbox(paymentEvent)
+	if err != nil {
+		fmt.Printf("ERR on DB SAVE = %v\n", err)
+		return
+	}
+
+	inboxID, err := s.service.Save(ctx, inboxEvent, paymentEvent.Metadata)
+	if err != nil {
+		logrus.WithFields(
+			logrus.Fields{
+				"eventID":     inboxID,
+				"aggregateID": inboxEvent.ParentId,
+				"OFFSET":      paymentEvent.Metadata.Offset,
+				"PRTN":        paymentEvent.Metadata.Partition,
+			},
+		).Error("INSERT:ERROR")
+		return
+	}
 }
 
 func main() {
@@ -62,7 +75,7 @@ func main() {
 	registry := handlers.NewRegistry()
 	paymentCreatedHandler := handlers.NewPaymentCreatedHandler()
 
-	registry.AddHandler(paymentCreatedHandler.Handler, repo.EventType_PaymentCreated)
+	registry.AddHandler(paymentCreatedHandler.Handler, pkgconstants.EventType_PaymentCreated)
 
 	s.addConsumer(registry)
 

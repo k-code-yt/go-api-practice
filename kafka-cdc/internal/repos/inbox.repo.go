@@ -8,21 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
-)
-
-type PaymentCreatedEvent struct {
-	ID          int    `json:"id"`
-	OrderNumber string `json:"order_number"`
-	Amount      string `json:"amount"`
-	Status      string `json:"status"`
-	CreatedAt   int    `json:"create_at"`
-	UpdatedAt   int    `json:"updated_at"`
-}
-
-type InboxEventType string
-
-const (
-	InboxEventType_PaymentCreated InboxEventType = "payment_created"
+	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 )
 
 type InboxEventStatus string
@@ -39,29 +25,16 @@ const (
 )
 
 type InboxEvent struct {
-	ID              int              `db:"id" json:"EventId"`
-	InboxEventType  string           `db:"type" json:"EventType"`
-	OutboxEventId   string           `db:"outbox_event_id" json:"OutboxEventId"`
-	OutboxCreatedAt time.Time        `db:"outbox_created_at" json:"Timespamp"`
-	CreatedAt       time.Time        `db:"created_at" json:"CreatedAt"`
-	Status          InboxEventStatus `db:"status" json:"Status"`
+	ID              int                    `db:"id" json:"EventId"`
+	InboxEventType  pkgconstants.EventType `db:"type" json:"EventType"`
+	OutboxEventId   string                 `db:"outbox_event_id" json:"OutboxEventId"`
+	OutboxCreatedAt time.Time              `db:"outbox_created_at" json:"Timespamp"`
+	CreatedAt       time.Time              `db:"created_at" json:"CreatedAt"`
+	Status          InboxEventStatus       `db:"status" json:"Status"`
 
 	ParentId       string               `db:"parent_id" json:"ParentId"`
 	ParentType     InboxEventParentType `db:"parent_type" json:"ParentType"`
 	ParentMetadata json.RawMessage      `db:"parent_metadata" json:"ParentMetadata"`
-}
-
-func NewInboxEvent(outboxEvent *Event) *InboxEvent {
-	return &InboxEvent{
-		InboxEventType:  outboxEvent.EventType,
-		OutboxEventId:   outboxEvent.EventId,
-		OutboxCreatedAt: outboxEvent.Timespamp,
-		CreatedAt:       time.Now(),
-		ParentId:        outboxEvent.ParentId,
-		ParentType:      InboxEventParentType(outboxEvent.ParentType),
-		ParentMetadata:  outboxEvent.ParentMetadata,
-		Status:          InboxEventStatus(outboxEvent.Status),
-	}
 }
 
 type InboxEventRepo struct {

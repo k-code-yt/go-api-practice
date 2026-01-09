@@ -32,41 +32,25 @@ func RegisterConnector(connectURL, connectorName string) error {
 			"topic.prefix":          "cdc",
 			"slot.name":             "debezium_slot",
 			"heartbeat.interval.ms": "10000",
+			"decimal.handling.mode": "string",
 		},
 	}
-
-	// "transforms":                                    "outbox",
-	// "transforms.outbox.type":                        "io.debezium.transforms.outbox.EventRouter",
-	// "transforms.outbox.table.field.event.id":        "event_id",
-	// "transforms.outbox.table.field.event.type":      "event_type",
-	// "transforms.outbox.table.field.event.key":       "parent_id",
-	// "transforms.outbox.table.field.event.payload":   "parent_metadata",
-	// "transforms.outbox.table.field.event.timestamp": "timestamp",
-	// "transforms.outbox.route.topic.replacement":     "events.${routedByValue}",
-	// "transforms.outbox.route.by.field":              "event_type",
-	// "predicates":                                    "isEventsTable",
-	// "predicates.isEventsTable.type":                 "org.apache.kafka.connect.transforms.predicates.TopicNameMatches",
-	// "predicates.isEventsTable.pattern":              "cdc.public.events",
-	// "transforms.outbox.predicate":                   "isEventsTable",
 
 	body, err := json.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Wait for Kafka Connect to be ready
 	if err := waitForKafkaConnect(connectURL); err != nil {
 		return err
 	}
 
-	// Check if connector already exists
 	resp, err := http.Get(fmt.Sprintf("%s/connectors/%s", connectURL, connectorName))
 	if err == nil && resp.StatusCode == http.StatusOK {
 		fmt.Printf("Connector %s already exists\n", connectorName)
 		return nil
 	}
 
-	// Create connector
 	resp, err = http.Post(
 		fmt.Sprintf("%s/connectors", connectURL),
 		"application/json",
@@ -101,3 +85,17 @@ func waitForKafkaConnect(connectURL string) error {
 	}
 	return fmt.Errorf("kafka connect not ready after %d retries", maxRetries)
 }
+
+// "transforms":                                    "outbox",
+// "transforms.outbox.type":                        "io.debezium.transforms.outbox.EventRouter",
+// "transforms.outbox.table.field.event.id":        "event_id",
+// "transforms.outbox.table.field.event.type":      "event_type",
+// "transforms.outbox.table.field.event.key":       "parent_id",
+// "transforms.outbox.table.field.event.payload":   "parent_metadata",
+// "transforms.outbox.table.field.event.timestamp": "timestamp",
+// "transforms.outbox.route.topic.replacement":     "events.${routedByValue}",
+// "transforms.outbox.route.by.field":              "event_type",
+// "predicates":                                    "isEventsTable",
+// "predicates.isEventsTable.type":                 "org.apache.kafka.connect.transforms.predicates.TopicNameMatches",
+// "predicates.isEventsTable.pattern":              "cdc.public.events",
+// "transforms.outbox.predicate":                   "isEventsTable",

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -12,7 +11,6 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/config"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer/handlers"
-	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
 	pkgutils "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
@@ -283,26 +281,23 @@ func (c *KafkaConsumer) consumeLoop() {
 
 		firstMsg = false
 
-		c.appendMsgState(&msg.TopicPartition)
+		// TODO -> revert
+		// c.appendMsgState(&msg.TopicPartition)
 
-		// TODO -> add func to determine event type
-		eventType := repo.EventType("payment_created")
-		handler, err := c.HandlerRegistry.GetHandler(eventType)
+		handler, err := c.HandlerRegistry.GetHandlerFromMsg(msg)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		handler(context.Background(), msg.Value, &msg.TopicPartition)
+
+		err = handler(context.Background(), msg.Value, &msg.TopicPartition)
+		if err != nil {
+			fmt.Println(err)
+			c.UpdateState(&msg.TopicPartition, MsgState_Error)
+			continue
+		}
 	}
 
-}
-
-type PaymentCreatedHeaders struct {
-	Topic     string
-	Key       string
-	EventId   string
-	EventType string
-	Timestamp string
 }
 
 func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {
@@ -451,14 +446,4 @@ func (c *KafkaConsumer) formatPartitions(partitions []kafka.TopicPartition) stri
 		parts[i] = fmt.Sprintf("%d@%d", p.Partition, p.Offset)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
-}
-
-func getHeaders(headers []kafka.Header, keys []string) []string {
-	res := []string{}
-	for _, header := range headers {
-		if slices.Contains(keys, header.Key) {
-			res = append(res, string(header.Value))
-		}
-	}
-	return res
 }

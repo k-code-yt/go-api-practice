@@ -12,6 +12,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
 	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/service"
 	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
@@ -56,7 +57,7 @@ func (s *Server) createPayment() (int, error) {
 	defer cancel()
 	amount := rand.Intn(100_000)
 	orderN := strconv.Itoa(amount)
-	paym := repo.NewPayment(orderN, amount, "created")
+	paym := domain.NewPayment(orderN, amount, "created")
 	return s.paymentService.Save(ctx, paym)
 }
 

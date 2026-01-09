@@ -6,6 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
 	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
 	reposhared "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos/repo-shared"
 	"github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ func NewPaymentService(pr *repo.PaymentRepo, er *repo.EventRepo) *PaymentService
 	}
 }
 
-func (pr *PaymentService) Save(ctx context.Context, p *repo.Payment) (int, error) {
+func (pr *PaymentService) Save(ctx context.Context, p *domain.Payment) (int, error) {
 	txRepo := pr.eventRepo.GetRepo()
 	id, err := reposhared.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
 		fmt.Printf("starting DB operation for order# = %s\n", p.OrderNumber)

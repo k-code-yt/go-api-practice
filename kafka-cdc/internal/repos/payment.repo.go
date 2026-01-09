@@ -4,30 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/jmoiron/sqlx"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
 )
-
-type Payment struct {
-	ID          int       `db:"id"`
-	OrderNumber string    `db:"order_number"`
-	Amount      int       `db:"amount"`
-	Status      string    `db:"status"`
-	CreatedAt   time.Time `db:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at"`
-}
-
-func NewPayment(orderNumber string, amount int, status string) *Payment {
-	return &Payment{
-		OrderNumber: orderNumber,
-		Amount:      amount,
-		Status:      status,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-}
 
 type PaymentRepo struct {
 	repo      *sqlx.DB
@@ -41,7 +22,7 @@ func NewPaymentRepo(db *sqlx.DB) *PaymentRepo {
 	}
 }
 
-func (r *PaymentRepo) Insert(ctx context.Context, tx *sqlx.Tx, p *Payment) (int, error) {
+func (r *PaymentRepo) Insert(ctx context.Context, tx *sqlx.Tx, p *domain.Payment) (int, error) {
 	// ----
 	// TODO -> investigate perfomance
 	// v1 -> pretty, but overhead of prepare
@@ -79,8 +60,8 @@ func (r *PaymentRepo) Insert(ctx context.Context, tx *sqlx.Tx, p *Payment) (int,
 	return id, nil
 }
 
-func (r *PaymentRepo) Get(ctx context.Context, tx *sqlx.Tx, ID int) *Payment {
-	e := &Payment{}
+func (r *PaymentRepo) Get(ctx context.Context, tx *sqlx.Tx, ID int) *domain.Payment {
+	e := &domain.Payment{}
 	q := fmt.Sprintf("SELECT id from %s WHERE id = $1", r.tableName)
 	err := tx.GetContext(ctx, e, q, ID)
 

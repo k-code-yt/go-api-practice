@@ -14,12 +14,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type EventType string
-
-const (
-	EventType_PaymentCreated EventType = "payment_created"
-)
-
 type EventStatus string
 
 const (
@@ -44,7 +38,7 @@ type Event struct {
 	ParentMetadata json.RawMessage `db:"parent_metadata" json:"ParentMetadata"`
 }
 
-func NewEvent(eventName EventType, parentId string, parentType EventParentType, parentMetadata json.RawMessage) *Event {
+func NewEvent(eventName pkgconstants.EventType, parentId string, parentType EventParentType, parentMetadata json.RawMessage) *Event {
 	id := pkgutils.GenerateRandomString(15)
 	return &Event{
 		EventId:        id,

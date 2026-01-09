@@ -3,11 +3,19 @@ package debezium
 import (
 	"fmt"
 	"strings"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 )
 
 type DebeziumMessage[T any] struct {
-	Payload Payload[T]
+	Payload  Payload[T]
+	Metadata *kafka.TopicPartition
 	// Schema  json.RawMessage
+}
+
+func (msg *DebeziumMessage[T]) AddMetadata(m *kafka.TopicPartition) {
+	msg.Metadata = m
 }
 
 type Payload[T any] struct {
@@ -16,7 +24,7 @@ type Payload[T any] struct {
 	Source    Source
 	Op        string `json:"op"`
 	Timestamp int    `json:"ts_ms"`
-	EventType string
+	EventType pkgconstants.EventType
 }
 
 type Source struct {
@@ -30,20 +38,40 @@ type Source struct {
 	Lsn       int    `json:"lsn"`
 }
 
+type PartialPayload struct {
+	Op string `json:"op"`
+}
+
+type PartialDebeziumMessage struct {
+	Payload PartialPayload `json:"payload"`
+}
+
 func (p *Payload[T]) AddEventType(topic string) error {
+	event, err := GetEventType(topic, p.Op)
+	if err != nil {
+		return err
+	}
+	p.EventType = event
+	return nil
+}
+
+func GetEventType(topic string, op string) (pkgconstants.EventType, error) {
 	r := strings.Split(topic, ".")
 	if topic == "" || len(r) < 3 {
-		return fmt.Errorf("Invalid topic & event type combination")
+		return "", fmt.Errorf("Invalid topic & event type combination")
 	}
 
-	et := r[2]
-	switch p.Op {
+	event := r[2]
+	switch op {
 	case "c", "r":
-		et = fmt.Sprintf("%s_%s", et, "created")
+		event = fmt.Sprintf("%s_%s", event, "created")
 	case "u":
-		et = fmt.Sprintf("%s_%s", et, "updated")
+		event = fmt.Sprintf("%s_%s", event, "updated")
+	case "d":
+		event = fmt.Sprintf("%s_%s", event, "deleted")
+	case "t":
+		event = fmt.Sprintf("%s_%s", event, "truncated")
 	}
 
-	p.EventType = et
-	return nil
+	return pkgconstants.EventType(event), nil
 }
