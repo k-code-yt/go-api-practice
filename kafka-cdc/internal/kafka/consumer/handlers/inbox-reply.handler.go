@@ -3,58 +3,43 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
+	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
+	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
-type CDCPayment struct {
-	ID          int    `json:"id"`
-	OrderNumber string `json:"order_number"`
-	Amount      string `json:"amount"`
-	Status      string `json:"status"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+type CDCInboxMsg struct {
+	ID             int                   `json:"id"`
+	InboxEventType string                `json:"type"`
+	AggregateId    string                `json:"aggregate_id"`
+	AggregateType  string                `json:"aggregate_type"`
+	Status         repo.InboxEventStatus `json:"status"`
 }
 
-func (cdc *CDCPayment) toDomain() (*domain.Payment, error) {
-	amount, err := strconv.ParseFloat(cdc.Amount, 2)
-	if err != nil {
-		amount, err = decodeDebeziumDecimal(cdc.Amount, 2)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &domain.Payment{
-		ID:          cdc.ID,
-		OrderNumber: cdc.OrderNumber,
-		Amount:      amount,
-		Status:      cdc.Status,
-		CreatedAt:   convertIntTimeToUnix(cdc.CreatedAt),
-		UpdatedAt:   convertIntTimeToUnix(cdc.UpdatedAt),
+func (cdc *CDCInboxMsg) toDomain() (*repo.InboxEvent, error) {
+	return &repo.InboxEvent{
+		ID:             cdc.ID,
+		AggregateId:    cdc.AggregateId,
+		InboxEventType: pkgconstants.EventType(cdc.InboxEventType),
+		AggregateType:  repo.InboxEventParentType(cdc.AggregateType),
+		Status:         cdc.Status,
 	}, nil
 }
 
-func convertIntTimeToUnix(microSeconds int64) time.Time {
-	seconds := microSeconds / 1_000_000
-	nanos := (microSeconds % 1_000_000) * 1000
-	return time.Unix(int64(seconds), int64(nanos))
-}
-
-type PaymentCreatedHandler struct {
+type InboxReplyHandler struct {
 	Handler Handler
-	MsgCH   chan *debezium.DebeziumMessage[domain.Payment]
+	MsgCH   chan *debezium.DebeziumMessage[repo.InboxEvent]
 	timeout time.Duration
 }
 
-func NewPaymentCreatedHandler() *PaymentCreatedHandler {
-	h := &PaymentCreatedHandler{
-		MsgCH:   make(chan *debezium.DebeziumMessage[domain.Payment], 64),
+func NewInboxReplyCreatedHandler() *InboxReplyHandler {
+	h := &InboxReplyHandler{
+		MsgCH:   make(chan *debezium.DebeziumMessage[repo.InboxEvent], 64),
 		timeout: time.Second * 10,
 	}
 	handlerFunc := h.CreateHandlerFunc()
@@ -63,14 +48,14 @@ func NewPaymentCreatedHandler() *PaymentCreatedHandler {
 
 }
 
-func (h *PaymentCreatedHandler) CreateHandlerFunc() Handler {
+func (h *InboxReplyHandler) CreateHandlerFunc() Handler {
 	return func(ctx context.Context, msg []byte, metadata *kafka.TopicPartition) error {
-		parsed, err := pkgtypes.NewMessage[debezium.DebeziumMessage[CDCPayment]](metadata, msg)
+		parsed, err := pkgtypes.NewMessage[debezium.DebeziumMessage[CDCInboxMsg]](metadata, msg)
 		if err != nil {
 			return err
 		}
-		msgRequest := debezium.DebeziumMessage[domain.Payment]{
-			Payload: debezium.Payload[domain.Payment]{
+		msgRequest := debezium.DebeziumMessage[repo.InboxEvent]{
+			Payload: debezium.Payload[repo.InboxEvent]{
 				Source:    parsed.Data.Payload.Source,
 				Op:        parsed.Data.Payload.Op,
 				Timestamp: parsed.Data.Payload.Timestamp,

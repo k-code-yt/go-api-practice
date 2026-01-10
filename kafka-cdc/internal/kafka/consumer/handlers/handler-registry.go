@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -58,4 +60,21 @@ func (r *Registry) getHandler(event pkgconstants.EventType) (Handler, error) {
 		return nil, fmt.Errorf("handler is missing for %s event type", event)
 	}
 	return h, nil
+}
+
+func decodeDebeziumDecimal(encoded string, scale int) (float64, error) {
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return 0, err
+	}
+
+	bigInt := new(big.Int).SetBytes(decoded)
+
+	bigFloat := new(big.Float).SetInt(bigInt)
+
+	divisor := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil))
+	result := new(big.Float).Quo(bigFloat, divisor)
+
+	val, _ := result.Float64()
+	return val, nil
 }
