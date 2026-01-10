@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"time"
 
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
@@ -37,9 +35,6 @@ func (s *Server) addConsumer(handlerResigry *handlers.Registry) *Server {
 
 func (s *Server) handleMsg(paymentEvent *debezium.DebeziumMessage[domain.Payment]) {
 	<-s.consumer.ReadyCH
-	// TODO -> share context w/ handler
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
 
 	inboxEvent, err := service.PaymentToInbox(paymentEvent)
 	if err != nil {
@@ -47,7 +42,7 @@ func (s *Server) handleMsg(paymentEvent *debezium.DebeziumMessage[domain.Payment
 		return
 	}
 
-	inboxID, err := s.service.Save(ctx, inboxEvent, paymentEvent.Metadata)
+	inboxID, err := s.service.Save(paymentEvent.Ctx, inboxEvent, paymentEvent.Metadata)
 	if err != nil {
 		logrus.WithFields(
 			logrus.Fields{

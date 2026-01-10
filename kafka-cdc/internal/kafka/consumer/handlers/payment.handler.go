@@ -77,6 +77,7 @@ func (h *PaymentCreatedHandler) CreateHandlerFunc() Handler {
 				EventType: parsed.Data.Payload.EventType,
 			},
 			Metadata: metadata,
+			Ctx:      ctx,
 		}
 		after, err := parsed.Data.Payload.After.toDomain()
 		msgRequest.Payload.After = *after

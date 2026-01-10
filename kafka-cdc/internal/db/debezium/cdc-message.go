@@ -1,6 +1,7 @@
 package debezium
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 )
 
 type DebeziumMessage[T any] struct {
+	Ctx      context.Context
 	Payload  Payload[T]
 	Metadata *kafka.TopicPartition
 	// Schema  json.RawMessage
