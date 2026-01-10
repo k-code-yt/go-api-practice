@@ -59,7 +59,7 @@ type EventRepo struct {
 func NewEventRepo(db *sqlx.DB) *EventRepo {
 	return &EventRepo{
 		repo:      db,
-		tableName: pkgconstants.DBTableName_Events,
+		tableName: pkgconstants.DBTableName_OutboxEvents,
 	}
 }
 

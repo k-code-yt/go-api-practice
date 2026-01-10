@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
@@ -15,11 +16,12 @@ func PaymentToInbox(p *debezium.DebeziumMessage[domain.Payment]) (*repo.InboxEve
 		return nil, err
 	}
 	return &repo.InboxEvent{
-		InboxEventType: p.Payload.EventType,
-		CreatedAt:      p.Payload.After.CreatedAt,
-		Status:         repo.InboxEventStatus_Pending,
-		ParentId:       strconv.Itoa(p.Payload.After.ID),
-		ParentType:     "payment",
-		ParentMetadata: afterJson,
+		Status:             repo.InboxEventStatus_Pending,
+		InboxEventType:     p.Payload.EventType,
+		AggregateId:        strconv.Itoa(p.Payload.After.ID),
+		AggregateType:      "payment",
+		AggregateMetadata:  afterJson,
+		AggregateCreatedAt: p.Payload.After.CreatedAt,
+		CreatedAt:          time.Now(),
 	}, nil
 }

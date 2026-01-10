@@ -57,7 +57,7 @@ func (s *Server) createPayment() (int, error) {
 	defer cancel()
 	amount := rand.Intn(100_000)
 	orderN := strconv.Itoa(amount)
-	paym := domain.NewPayment(orderN, amount, "created")
+	paym := domain.NewPayment(orderN, float64(amount), "created")
 	return s.paymentService.Save(ctx, paym)
 }
 

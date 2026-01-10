@@ -29,7 +29,6 @@ func (s *InboxService) AddConsumer(consumer *consumer.KafkaConsumer) {
 	s.consumer = consumer
 }
 
-// TODO -> adjust for payment_created to work
 func (s *InboxService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, metadata *kafka.TopicPartition) (int, error) {
 	txRepo := s.inboxRepo.GetRepo()
 	id, err := reposhared.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
@@ -37,16 +36,15 @@ func (s *InboxService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, me
 			logrus.Fields{
 				"OFFSET":      metadata.Offset,
 				"PRTN":        metadata.Partition,
-				"aggregateID": inboxEvent.ParentId,
+				"aggregateID": inboxEvent.AggregateId,
 			},
 		).Info("INSERT:START")
 
 		inboxID, err := s.inboxRepo.Insert(ctx, tx, inboxEvent)
-
 		if err != nil {
 			exists := dbpostgres.IsDuplicateKeyErr(err)
 			if exists {
-				eMsg := fmt.Sprintf("already exists ID = %d, PRTN = %d, AggregateID = %s\n", metadata.Offset, metadata.Partition, inboxEvent.ParentId)
+				eMsg := fmt.Sprintf("already exists ID = %d, PRTN = %d, AggregateID = %s\n", metadata.Offset, metadata.Partition, inboxEvent.AggregateId)
 				s.consumer.UpdateState(metadata, consumer.MsgState_Success)
 				return dbpostgres.DuplicateKeyViolation, errors.New(eMsg)
 			}
@@ -58,7 +56,7 @@ func (s *InboxService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, me
 		logrus.WithFields(
 			logrus.Fields{
 				"eventID":     inboxID,
-				"aggregateID": inboxEvent.ParentId,
+				"aggregateID": inboxEvent.AggregateId,
 				"OFFSET":      metadata.Offset,
 				"PRTN":        metadata.Partition,
 			},

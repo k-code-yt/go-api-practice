@@ -25,16 +25,14 @@ const (
 )
 
 type InboxEvent struct {
-	ID              int                    `db:"id" json:"EventId"`
-	InboxEventType  pkgconstants.EventType `db:"type" json:"EventType"`
-	OutboxEventId   string                 `db:"outbox_event_id" json:"OutboxEventId"`
-	OutboxCreatedAt time.Time              `db:"outbox_created_at" json:"Timespamp"`
-	CreatedAt       time.Time              `db:"created_at" json:"CreatedAt"`
-	Status          InboxEventStatus       `db:"status" json:"Status"`
-
-	ParentId       string               `db:"parent_id" json:"ParentId"`
-	ParentType     InboxEventParentType `db:"parent_type" json:"ParentType"`
-	ParentMetadata json.RawMessage      `db:"parent_metadata" json:"ParentMetadata"`
+	ID                 int                    `db:"id" json:"EventId"`
+	InboxEventType     pkgconstants.EventType `db:"type" json:"EventType"`
+	AggregateId        string                 `db:"aggregate_id" json:"AggregateEventId"`
+	AggregateCreatedAt time.Time              `db:"aggregate_created_at" json:"Timespamp"`
+	AggregateType      InboxEventParentType   `db:"aggregate_type" json:"AggregateType"`
+	AggregateMetadata  json.RawMessage        `db:"aggregate_metadata" json:"AggregateMetadata"`
+	CreatedAt          time.Time              `db:"created_at" json:"CreatedAt"`
+	Status             InboxEventStatus       `db:"status" json:"Status"`
 }
 
 type InboxEventRepo struct {
@@ -45,7 +43,7 @@ type InboxEventRepo struct {
 func NewInboxEventRepo(db *sqlx.DB) *InboxEventRepo {
 	return &InboxEventRepo{
 		repo:      db,
-		tableName: "audit",
+		tableName: pkgconstants.DBTableName_InboxEvents,
 	}
 }
 
@@ -54,8 +52,8 @@ func (r *InboxEventRepo) GetRepo() *sqlx.DB {
 }
 
 func (r *InboxEventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *InboxEvent) (int, error) {
-	query := fmt.Sprintf(`INSERT INTO %s (type, "outbox_event_id", "outbox_created_at", "created_at", parent_id, parent_metadata, status, parent_type) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`, r.tableName)
-	rows, err := tx.QueryxContext(ctx, query, e.InboxEventType, e.OutboxEventId, e.OutboxCreatedAt, e.CreatedAt, e.ParentId, e.ParentMetadata, e.Status, e.ParentType)
+	query := fmt.Sprintf(`INSERT INTO %s (type, "aggregate_id", "aggregate_created_at", "created_at", aggregate_metadata, status, aggregate_type) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`, r.tableName)
+	rows, err := tx.QueryxContext(ctx, query, e.InboxEventType, e.AggregateId, e.AggregateCreatedAt, e.CreatedAt, e.AggregateMetadata, e.Status, e.AggregateType)
 	if err != nil {
 		// fmt.Printf("err on insert = %v\n", err)
 		return dbpostgres.NonExistingIntKey, err

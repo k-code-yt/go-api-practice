@@ -3,6 +3,7 @@
 [x] consume only payment created && remove events
 [x] generic msg for deb -> add switch/case into consumer
 [x] send more data via MsgCH -> offset etc
+[x] add mapping for kafka msg to domain
 [x] udpate inbox logic
 [] add one context for handler and repo
 [] respond back to producer(basic saga??)

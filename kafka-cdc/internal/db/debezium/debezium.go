@@ -27,7 +27,7 @@ func RegisterConnector(connectURL, connectorName string) error {
 			"database.password":     "pass",
 			"database.dbname":       "kafka_cdc",
 			"database.server.name":  "payment_server",
-			"table.include.list":    "public.payment",
+			"table.include.list":    "public.payment, public.event_inbox",
 			"plugin.name":           "pgoutput",
 			"topic.prefix":          "cdc",
 			"slot.name":             "debezium_slot",
@@ -50,7 +50,6 @@ func RegisterConnector(connectURL, connectorName string) error {
 		fmt.Printf("Connector %s already exists\n", connectorName)
 		return nil
 	}
-
 	resp, err = http.Post(
 		fmt.Sprintf("%s/connectors", connectURL),
 		"application/json",

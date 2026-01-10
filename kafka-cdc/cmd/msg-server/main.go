@@ -52,7 +52,7 @@ func (s *Server) handleMsg(paymentEvent *debezium.DebeziumMessage[domain.Payment
 		logrus.WithFields(
 			logrus.Fields{
 				"eventID":     inboxID,
-				"aggregateID": inboxEvent.ParentId,
+				"aggregateID": inboxEvent.AggregateId,
 				"OFFSET":      paymentEvent.Metadata.Offset,
 				"PRTN":        paymentEvent.Metadata.Partition,
 			},

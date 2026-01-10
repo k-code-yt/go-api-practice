@@ -5,13 +5,13 @@ import "time"
 type Payment struct {
 	ID          int       `db:"id"`
 	OrderNumber string    `db:"order_number"`
-	Amount      int       `db:"amount"`
+	Amount      float64   `db:"amount"`
 	Status      string    `db:"status"`
 	CreatedAt   time.Time `db:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at"`
 }
 
-func NewPayment(orderNumber string, amount int, status string) *Payment {
+func NewPayment(orderNumber string, amount float64, status string) *Payment {
 	return &Payment{
 		OrderNumber: orderNumber,
 		Amount:      amount,

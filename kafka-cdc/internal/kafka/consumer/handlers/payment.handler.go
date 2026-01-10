@@ -16,18 +16,18 @@ import (
 )
 
 type CDCPayment struct {
-	ID          int       `db:"id"`
-	OrderNumber string    `db:"order_number"`
-	Amount      string    `db:"amount"`
-	Status      string    `db:"status"`
-	CreatedAt   time.Time `db:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at"`
+	ID          int    `json:"id"`
+	OrderNumber string `json:"order_number"`
+	Amount      string `json:"amount"`
+	Status      string `json:"status"`
+	CreatedAt   int64  `json:"created_at"`
+	UpdatedAt   int64  `json:"updated_at"`
 }
 
 func (cdc *CDCPayment) toDomain() (*domain.Payment, error) {
-	amount, err := strconv.Atoi(cdc.Amount)
+	amount, err := strconv.ParseFloat(cdc.Amount, 2)
 	if err != nil {
-		// amount, err := decodeDebeziumDecimal(cdc.Amount)
+		amount, err = decodeDebeziumDecimal(cdc.Amount, 2)
 		if err != nil {
 			return nil, err
 		}
@@ -37,9 +37,15 @@ func (cdc *CDCPayment) toDomain() (*domain.Payment, error) {
 		OrderNumber: cdc.OrderNumber,
 		Amount:      amount,
 		Status:      cdc.Status,
-		CreatedAt:   cdc.CreatedAt,
-		UpdatedAt:   cdc.UpdatedAt,
+		CreatedAt:   convertIntTimeToUnix(cdc.CreatedAt),
+		UpdatedAt:   convertIntTimeToUnix(cdc.UpdatedAt),
 	}, nil
+}
+
+func convertIntTimeToUnix(microSeconds int64) time.Time {
+	seconds := microSeconds / 1_000_000
+	nanos := (microSeconds % 1_000_000) * 1000
+	return time.Unix(int64(seconds), int64(nanos))
 }
 
 type PaymentCreatedHandler struct {

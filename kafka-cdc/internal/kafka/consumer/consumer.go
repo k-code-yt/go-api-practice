@@ -281,8 +281,7 @@ func (c *KafkaConsumer) consumeLoop() {
 
 		firstMsg = false
 
-		// TODO -> revert
-		// c.appendMsgState(&msg.TopicPartition)
+		c.appendMsgState(&msg.TopicPartition)
 
 		handler, err := c.HandlerRegistry.GetHandlerFromMsg(msg)
 		if err != nil {
