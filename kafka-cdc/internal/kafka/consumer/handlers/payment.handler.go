@@ -40,12 +40,6 @@ func (cdc *CDCPayment) toDomain() (*domain.Payment, error) {
 	}, nil
 }
 
-func convertIntTimeToUnix(microSeconds int64) time.Time {
-	seconds := microSeconds / 1_000_000
-	nanos := (microSeconds % 1_000_000) * 1000
-	return time.Unix(int64(seconds), int64(nanos))
-}
-
 type PaymentCreatedHandler struct {
 	Handler Handler
 	MsgCH   chan *debezium.DebeziumMessage[domain.Payment]

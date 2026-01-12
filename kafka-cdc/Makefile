@@ -1,21 +1,21 @@
-build-http-server:
-	@go build -o ./bin/http-server ./cmd/http-server/.
-	@chmod +x ./bin/http-server
+build-payment-server:
+	@go build -o ./bin/payment-server ./cmd/payment-server/.
+	@chmod +x ./bin/payment-server
 
-build-msg-server:
-	@go build -o ./bin/msg-server ./cmd/msg-server/.
-	@chmod +x ./bin/msg-server
+build-inventory-server:
+	@go build -o ./bin/inventory-server ./cmd/inventory-server/.
+	@chmod +x ./bin/inventory-server
 
-build-http-server-race:
-	@go build -race -o ./bin/http-server ./cmd/http-server/.
-	@chmod +x ./bin/http-server
+build-payment-server-race:
+	@go build -race -o ./bin/payment-server ./cmd/payment-server/.
+	@chmod +x ./bin/payment-server
 
-build-msg-server-race:
-	@go build -race -o ./bin/msg-server ./cmd/msg-server/.
-	@chmod +x ./bin/msg-server
+build-inventory-server-race:
+	@go build -race -o ./bin/inventory-server ./cmd/inventory-server/.
+	@chmod +x ./bin/inventory-server
 
-api: build-http-server-race
-	@CG_ID=api-cg ./bin/http-server
+payment: build-payment-server-race
+	@CG_ID=api-cg ./bin/payment-server
 
-audit: build-msg-server-race
-	@CG_ID=audit-cg ./bin/msg-server
+inventory: build-inventory-server-race
+	@CG_ID=audit-cg ./bin/inventory-server

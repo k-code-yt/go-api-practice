@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
+	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 )
 
 type PaymentRepo struct {
@@ -18,7 +19,7 @@ type PaymentRepo struct {
 func NewPaymentRepo(db *sqlx.DB) *PaymentRepo {
 	return &PaymentRepo{
 		repo:      db,
-		tableName: "payment",
+		tableName: pkgconstants.DBTableName_Payment,
 	}
 }
 
@@ -71,4 +72,23 @@ func (r *PaymentRepo) Get(ctx context.Context, tx *sqlx.Tx, ID int) *domain.Paym
 		}
 	}
 	return e
+}
+
+func (r *PaymentRepo) UpdateStatus(ctx context.Context, tx *sqlx.Tx, ID int, status string) error {
+	q := fmt.Sprintf(`UPDATE "%s" SET "status" = $1 WHERE id = $2`, r.tableName)
+	res, err := tx.ExecContext(ctx, q, status, ID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("ID does not exist, errCode = %d", dbpostgres.NonExistingIntKey)
+	}
+
+	return nil
 }

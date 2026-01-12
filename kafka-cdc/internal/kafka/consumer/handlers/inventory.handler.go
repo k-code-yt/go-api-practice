@@ -7,39 +7,43 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
-	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
-type CDCInboxMsg struct {
-	ID             int                   `json:"id"`
-	InboxEventType string                `json:"type"`
-	AggregateId    string                `json:"aggregate_id"`
-	AggregateType  string                `json:"aggregate_type"`
-	Status         repo.InboxEventStatus `json:"status"`
+type CDCInventoryMsg struct {
+	ID          int    `db:"id"`
+	ProductName string `db:"product_name"`
+	Status      string `db:"status"`
+	Quantity    int    `db:"quantity"`
+	LastUpdated int64  `db:"last_updated"`
+
+	OrderNumber string `db:"order_number"`
+	PaymentId   string `db:"payment_id"`
 }
 
-func (cdc *CDCInboxMsg) toDomain() (*repo.InboxEvent, error) {
-	return &repo.InboxEvent{
-		ID:             cdc.ID,
-		AggregateId:    cdc.AggregateId,
-		InboxEventType: pkgconstants.EventType(cdc.InboxEventType),
-		AggregateType:  repo.InboxEventParentType(cdc.AggregateType),
-		Status:         cdc.Status,
+func (cdc *CDCInventoryMsg) toDomain() (*domain.Inventory, error) {
+	return &domain.Inventory{
+		ID:          cdc.ID,
+		Status:      cdc.Status,
+		ProductName: cdc.ProductName,
+		Quantity:    cdc.Quantity,
+		LastUpdated: convertIntTimeToUnix(cdc.LastUpdated),
+		OrderNumber: cdc.OrderNumber,
+		PaymentId:   cdc.PaymentId,
 	}, nil
 }
 
-type InboxReplyHandler struct {
+type InventoryHandler struct {
 	Handler Handler
-	MsgCH   chan *debezium.DebeziumMessage[repo.InboxEvent]
+	MsgCH   chan *debezium.DebeziumMessage[domain.Inventory]
 	timeout time.Duration
 }
 
-func NewInboxReplyCreatedHandler() *InboxReplyHandler {
-	h := &InboxReplyHandler{
-		MsgCH:   make(chan *debezium.DebeziumMessage[repo.InboxEvent], 64),
+func NewInventoryCreatedHandler() *InventoryHandler {
+	h := &InventoryHandler{
+		MsgCH:   make(chan *debezium.DebeziumMessage[domain.Inventory], 64),
 		timeout: time.Second * 10,
 	}
 	handlerFunc := h.CreateHandlerFunc()
@@ -48,14 +52,14 @@ func NewInboxReplyCreatedHandler() *InboxReplyHandler {
 
 }
 
-func (h *InboxReplyHandler) CreateHandlerFunc() Handler {
+func (h *InventoryHandler) CreateHandlerFunc() Handler {
 	return func(ctx context.Context, msg []byte, metadata *kafka.TopicPartition) error {
-		parsed, err := pkgtypes.NewMessage[debezium.DebeziumMessage[CDCInboxMsg]](metadata, msg)
+		parsed, err := pkgtypes.NewMessage[debezium.DebeziumMessage[CDCInventoryMsg]](metadata, msg)
 		if err != nil {
 			return err
 		}
-		msgRequest := debezium.DebeziumMessage[repo.InboxEvent]{
-			Payload: debezium.Payload[repo.InboxEvent]{
+		msgRequest := debezium.DebeziumMessage[domain.Inventory]{
+			Payload: debezium.Payload[domain.Inventory]{
 				Source:    parsed.Data.Payload.Source,
 				Op:        parsed.Data.Payload.Op,
 				Timestamp: parsed.Data.Payload.Timestamp,

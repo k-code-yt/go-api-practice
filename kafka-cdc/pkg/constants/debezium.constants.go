@@ -3,12 +3,13 @@ package pkgconstants
 import "fmt"
 
 const (
-	DebConnectorName       = "audit_cdc"
-	CDCPaymentTableName    = "payment"
-	CDCInboxEventTableName = DBTableName_InboxEvents
+	CDCPaymentTableName  = DBTableName_Payment
+	CDCInvntoryTableName = DBTableName_Inventory
 )
 
 var (
-	DebDefaultTopic = fmt.Sprintf("cdc.public.%s", CDCPaymentTableName)
-	DebInboxTopic   = fmt.Sprintf("cdc.public.%s", CDCInboxEventTableName)
+	DebPaymentTopic             = fmt.Sprintf("cdc.public.%s", CDCPaymentTableName)
+	DebInventoryTopic           = fmt.Sprintf("cdc.public.%s", DBTableName_Inventory)
+	DebInventoryDBConnectorName = fmt.Sprintf("%s_conn", DBNameInventory)
+	DebPaymentDBConnectorName   = fmt.Sprintf("%s_conn", DBNamePrimary)
 )

@@ -50,7 +50,7 @@ services:
     environment:
       POSTGRES_USER: "user"
       POSTGRES_PASSWORD: "pass"
-      POSTGRES_DB: "kafka_cdc"
+      POSTGRES_DB: "db"
     volumes:
       - saga-api-db:/var/lib/postgresql/sagadata
     # Enable logical replication for Debezium

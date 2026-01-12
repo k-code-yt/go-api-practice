@@ -15,7 +15,7 @@ type ConnectorConfig struct {
 }
 
 // TODO -> how to run deb migrations?
-func RegisterConnector(connectURL, connectorName string) error {
+func RegisterConnector(connectURL, connectorName, dbName, tables string) error {
 	config := ConnectorConfig{
 		Name: connectorName,
 		Config: map[string]interface{}{
@@ -25,12 +25,12 @@ func RegisterConnector(connectURL, connectorName string) error {
 			"database.port":         "5432",
 			"database.user":         "user",
 			"database.password":     "pass",
-			"database.dbname":       "kafka_cdc",
-			"database.server.name":  "payment_server",
-			"table.include.list":    "public.payment, public.event_inbox",
+			"database.dbname":       dbName,
+			"database.server.name":  fmt.Sprintf("%s_server", dbName),
+			"table.include.list":    tables,
 			"plugin.name":           "pgoutput",
 			"topic.prefix":          "cdc",
-			"slot.name":             "debezium_slot",
+			"slot.name":             connectorName,
 			"heartbeat.interval.ms": "10000",
 			"decimal.handling.mode": "string",
 		},

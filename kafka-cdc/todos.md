@@ -5,6 +5,9 @@
 [x] send more data via MsgCH -> offset etc
 [x] add mapping for kafka msg to domain
 [x] udpate inbox logic
-[] add one context for handler and repo
-[] respond back to producer(basic saga??)
+[x] add one context for handler and repo
+[x] respond back to producer(basic saga??)
+[] add inventory service
+[] add sep-te db for each -> pg && deb configs -> read from .env???
+[] adjust folder structure
 [] deb migration -> add like in DB. Store entire JSON with version -> read file -> compare -> update DB

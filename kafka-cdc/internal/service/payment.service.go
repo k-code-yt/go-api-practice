@@ -34,19 +34,8 @@ func (pr *PaymentService) Save(ctx context.Context, p *domain.Payment) (int, err
 			return dbpostgres.NonExistingIntKey, err
 		}
 		p.ID = paymentID
-		// metadata, err := json.Marshal(p)
-		// if err != nil {
-		// 	return dbpostgres.NonExistingIntKey, err
-		// }
-
-		// event := repo.NewEvent(repo.EventType_PaymentCreated, strconv.Itoa(paymentID), repo.EventParentType_Payment, metadata)
-		// eventID, err := pr.eventRepo.Insert(ctx, tx, event)
-		// if err != nil {
-		// 	return dbpostgres.NonExistingIntKey, err
-		// }
 		logrus.WithFields(
 			logrus.Fields{
-				// "eventID":   eventID,
 				"paymentID": paymentID,
 				"order#":    p.OrderNumber,
 			},
@@ -58,4 +47,15 @@ func (pr *PaymentService) Save(ctx context.Context, p *domain.Payment) (int, err
 		fmt.Printf("ERR on DB SAVE = %v\n", err)
 	}
 	return id, err
+}
+
+func (pr *PaymentService) Confirm(ctx context.Context, ID int) error {
+	txRepo := pr.eventRepo.GetRepo()
+	_, err := reposhared.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
+		return 0, pr.paymentRepo.UpdateStatus(ctx, tx, ID, "confirmed")
+	})
+	if err != nil {
+		fmt.Printf("ERR on DB STATUS UPDATE = %v\n", err)
+	}
+	return err
 }

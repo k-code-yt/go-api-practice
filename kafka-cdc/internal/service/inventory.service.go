@@ -2,34 +2,41 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/jmoiron/sqlx"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
 	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer"
 	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
 	reposhared "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos/repo-shared"
 	"github.com/sirupsen/logrus"
 )
 
-type InboxService struct {
-	inboxRepo *repo.InboxEventRepo
-	consumer  *consumer.KafkaConsumer
+type InventoryService struct {
+	inboxRepo     *repo.InboxEventRepo
+	inventoryRepo *repo.InventoryRepo
+	consumer      *consumer.KafkaConsumer
 }
 
-func NewInboxService(ier *repo.InboxEventRepo) *InboxService {
-	return &InboxService{
-		inboxRepo: ier,
+func NewInventoryService(inboxRepo *repo.InboxEventRepo, invRepo *repo.InventoryRepo) *InventoryService {
+	return &InventoryService{
+		inboxRepo:     inboxRepo,
+		inventoryRepo: invRepo,
 	}
 }
 
-func (s *InboxService) AddConsumer(consumer *consumer.KafkaConsumer) {
+func (s *InventoryService) AddConsumer(consumer *consumer.KafkaConsumer) {
 	s.consumer = consumer
 }
 
-func (s *InboxService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, metadata *kafka.TopicPartition) (int, error) {
+func (s *InventoryService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, inv *domain.Inventory, metadata *kafka.TopicPartition) (int, error) {
 	txRepo := s.inboxRepo.GetRepo()
 	id, err := reposhared.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
 		logrus.WithFields(
@@ -52,6 +59,8 @@ func (s *InboxService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, me
 			s.consumer.UpdateState(metadata, consumer.MsgState_Error)
 			return dbpostgres.NonExistingIntKey, err
 		}
+		s.inventoryRepo.Insert(ctx, tx, inv)
+
 		s.consumer.UpdateState(metadata, consumer.MsgState_Success)
 		logrus.WithFields(
 			logrus.Fields{
@@ -65,4 +74,24 @@ func (s *InboxService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, me
 	})
 
 	return id, err
+}
+
+func PaymentToInventory(p *debezium.DebeziumMessage[domain.Payment]) (*domain.Inventory, *repo.InboxEvent, error) {
+	payment := p.Payload.After
+	afterJson, err := json.Marshal(payment)
+	if err != nil {
+		return nil, nil, err
+	}
+	inbox := &repo.InboxEvent{
+		Status:             repo.InboxEventStatus_Pending,
+		InboxEventType:     p.Payload.EventType,
+		AggregateId:        strconv.Itoa(payment.ID),
+		AggregateType:      "payment",
+		AggregateMetadata:  afterJson,
+		AggregateCreatedAt: payment.CreatedAt,
+		CreatedAt:          time.Now(),
+	}
+	inv := domain.NewInventoryReservation(payment.OrderNumber, strconv.Itoa(payment.ID), int(payment.Amount))
+	return inv, inbox, err
+
 }

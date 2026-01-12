@@ -13,7 +13,6 @@ type DebeziumMessage[T any] struct {
 	Ctx      context.Context
 	Payload  Payload[T]
 	Metadata *kafka.TopicPartition
-	// Schema  json.RawMessage
 }
 
 func (msg *DebeziumMessage[T]) AddMetadata(m *kafka.TopicPartition) {

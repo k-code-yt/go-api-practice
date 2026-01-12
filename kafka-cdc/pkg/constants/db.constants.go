@@ -1,7 +1,10 @@
 package pkgconstants
 
 const (
-	DBName                   = "kafka_cdc"
+	DBNamePrimary            = "kafka_primary"
+	DBNameInventory          = "kafka_inventory"
 	DBTableName_OutboxEvents = "events"
 	DBTableName_InboxEvents  = "event_inbox"
+	DBTableName_Inventory    = "inventory"
+	DBTableName_Payment      = "payment"
 )

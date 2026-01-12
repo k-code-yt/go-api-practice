@@ -31,7 +31,8 @@ type Server struct {
 }
 
 func NewServer(addr string, db *sqlx.DB) *Server {
-	err := debezium.RegisterConnector("http://localhost:8083", "audit_cdc")
+	// TODO -> add propper config && take it from .env OR make it static per service
+	err := debezium.RegisterConnector("http://localhost:8083", pkgconstants.DebPaymentDBConnectorName, pkgconstants.DBNamePrimary, fmt.Sprintf("public.%s", pkgconstants.DBTableName_Payment))
 	if err != nil {
 		fmt.Printf("err on deb-m conn %v\n", err)
 		panic(err)
@@ -50,11 +51,12 @@ func NewServer(addr string, db *sqlx.DB) *Server {
 }
 
 func (s *Server) addConsumer(handlerResigry *handlers.Registry) *Server {
-	c := consumer.NewKafkaConsumer([]string{pkgconstants.DebInboxTopic}, handlerResigry)
+	c := consumer.NewKafkaConsumer([]string{pkgconstants.DebInventoryTopic}, handlerResigry)
 	s.consumer = c
 	return s
 }
 
+// TODO -> remove from main
 func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 	_, err := s.createPayment()
 	if err != nil {
@@ -62,13 +64,20 @@ func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleInboxReplyMsg(msg *repo.InboxEvent) {
+// TODO -> remove from main
+func (s *Server) handleInventoryReplyMsg(msg *debezium.DebeziumMessage[domain.Inventory]) error {
+	err := s.paymentService.Confirm(msg.Ctx, msg.Payload.After.ID)
+	if err != nil {
+		return err
+	}
+
 	logrus.WithFields(
 		logrus.Fields{
-			"ID":   msg.AggregateId,
-			"TYPE": msg.AggregateType,
+			"PAY_ID": msg.Payload.After.PaymentId,
+			"ORDER#": msg.Payload.After.OrderNumber,
 		},
-	).Info("INBOX_REPLY:SUCCESS")
+	).Info("PAYMENT:UPDATED")
+	return nil
 }
 
 func (s *Server) createPayment() (int, error) {
@@ -76,13 +85,13 @@ func (s *Server) createPayment() (int, error) {
 	defer cancel()
 	amount := rand.Intn(100_000)
 	orderN := strconv.Itoa(amount)
-	paym := domain.NewPayment(orderN, float64(amount), "created")
+	paym := domain.NewPayment(orderN, float64(amount), "reserved")
 	return s.paymentService.Save(ctx, paym)
 }
 
 func main() {
 	dbOpts := new(dbpostgres.DBPostgresOptions)
-	dbOpts.DBname = pkgconstants.DBName
+	dbOpts.DBname = pkgconstants.DBNamePrimary
 	db, err := dbpostgres.NewDBConn(dbOpts)
 	if err != nil {
 		panic(fmt.Sprintf("unable to conn to db, err = %v\n", err))
@@ -101,15 +110,15 @@ func main() {
 	}()
 
 	registry := handlers.NewRegistry()
-	inboxCretedHandler := handlers.NewInboxReplyCreatedHandler()
+	invCretedHandler := handlers.NewInventoryCreatedHandler()
 
-	registry.AddHandler(inboxCretedHandler.Handler, pkgconstants.EventType_InboxCreated)
+	registry.AddHandler(invCretedHandler.Handler, pkgconstants.EventType_InvetoryCreated)
 
 	s.addConsumer(registry)
 
 	go func() {
-		for msg := range inboxCretedHandler.MsgCH {
-			go s.handleInboxReplyMsg(&msg.Payload.After)
+		for msg := range invCretedHandler.MsgCH {
+			go s.handleInventoryReplyMsg(msg)
 		}
 	}()
 	go s.consumer.RunConsumer()

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
@@ -77,4 +78,10 @@ func decodeDebeziumDecimal(encoded string, scale int) (float64, error) {
 
 	val, _ := result.Float64()
 	return val, nil
+}
+
+func convertIntTimeToUnix(microSeconds int64) time.Time {
+	seconds := microSeconds / 1_000_000
+	nanos := (microSeconds % 1_000_000) * 1000
+	return time.Unix(int64(seconds), int64(nanos))
 }
