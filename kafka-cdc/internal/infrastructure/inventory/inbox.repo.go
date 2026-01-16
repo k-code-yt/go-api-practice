@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory/constants"
+	libtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/lib/types"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
 )
 
 type InboxEventStatus string
@@ -25,14 +26,14 @@ const (
 )
 
 type InboxEvent struct {
-	ID                 int                    `db:"id" json:"EventId"`
-	InboxEventType     pkgconstants.EventType `db:"type" json:"EventType"`
-	AggregateId        string                 `db:"aggregate_id" json:"AggregateEventId"`
-	AggregateCreatedAt time.Time              `db:"aggregate_created_at" json:"Timespamp"`
-	AggregateType      InboxEventParentType   `db:"aggregate_type" json:"AggregateType"`
-	AggregateMetadata  json.RawMessage        `db:"aggregate_metadata" json:"AggregateMetadata"`
-	CreatedAt          time.Time              `db:"created_at" json:"CreatedAt"`
-	Status             InboxEventStatus       `db:"status" json:"Status"`
+	ID                 int                  `db:"id" json:"EventId"`
+	InboxEventType     libtypes.EventType   `db:"type" json:"EventType"`
+	AggregateId        string               `db:"aggregate_id" json:"AggregateEventId"`
+	AggregateCreatedAt time.Time            `db:"aggregate_created_at" json:"Timespamp"`
+	AggregateType      InboxEventParentType `db:"aggregate_type" json:"AggregateType"`
+	AggregateMetadata  json.RawMessage      `db:"aggregate_metadata" json:"AggregateMetadata"`
+	CreatedAt          time.Time            `db:"created_at" json:"CreatedAt"`
+	Status             InboxEventStatus     `db:"status" json:"Status"`
 }
 
 type InboxEventRepo struct {
@@ -43,7 +44,7 @@ type InboxEventRepo struct {
 func NewInboxEventRepo(db *sqlx.DB) *InboxEventRepo {
 	return &InboxEventRepo{
 		repo:      db,
-		tableName: pkgconstants.DBTableName_InboxEvents,
+		tableName: constants.DBTableName_InboxEvents,
 	}
 }
 
@@ -56,7 +57,7 @@ func (r *InboxEventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *InboxEvent)
 	rows, err := tx.QueryxContext(ctx, query, e.InboxEventType, e.AggregateId, e.AggregateCreatedAt, e.CreatedAt, e.AggregateMetadata, e.Status, e.AggregateType)
 	if err != nil {
 		// fmt.Printf("err on insert = %v\n", err)
-		return dbpostgres.NonExistingIntKey, err
+		return postgres.NonExistingIntKey, err
 	}
 	defer rows.Close()
 	var id int
@@ -64,7 +65,7 @@ func (r *InboxEventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *InboxEvent)
 		ids, err := rows.SliceScan()
 		if err != nil {
 			fmt.Printf("unable to get last insetID = %v\n", err)
-			return dbpostgres.NonExistingIntKey, err
+			return postgres.NonExistingIntKey, err
 		}
 		id = int(ids[0].(int64))
 	}

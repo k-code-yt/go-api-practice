@@ -1,4 +1,4 @@
-package dbpostgres
+package postgres
 
 import (
 	"errors"

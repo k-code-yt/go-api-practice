@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
-	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/inventory"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory/constants"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
 )
 
 type InventoryRepo struct {
@@ -18,7 +18,7 @@ type InventoryRepo struct {
 func NewInventoryRepo(db *sqlx.DB) *InventoryRepo {
 	return &InventoryRepo{
 		repo:      db,
-		tableName: pkgconstants.DBTableName_Inventory,
+		tableName: constants.DBTableName_Inventory,
 	}
 }
 
@@ -26,11 +26,11 @@ func (r *InventoryRepo) GetRepo() *sqlx.DB {
 	return r.repo
 }
 
-func (r *InventoryRepo) Insert(ctx context.Context, tx *sqlx.Tx, inv *domain.Inventory) (int, error) {
+func (r *InventoryRepo) Insert(ctx context.Context, tx *sqlx.Tx, inv *inventory.Inventory) (int, error) {
 	query := fmt.Sprintf(`INSERT INTO %s ("product_name", "status", "quantity", "last_updated", "order_number", "payment_id") VALUES($1, $2, $3, $4, $5, $6) RETURNING id`, r.tableName)
 	rows, err := tx.QueryxContext(ctx, query, inv.ProductName, inv.Status, inv.Quantity, inv.LastUpdated, inv.OrderNumber, inv.PaymentId)
 	if err != nil {
-		return dbpostgres.NonExistingIntKey, err
+		return postgres.NonExistingIntKey, err
 	}
 	defer rows.Close()
 	var id int
@@ -38,7 +38,7 @@ func (r *InventoryRepo) Insert(ctx context.Context, tx *sqlx.Tx, inv *domain.Inv
 		ids, err := rows.SliceScan()
 		if err != nil {
 			fmt.Printf("unable to get last insetID = %v\n", err)
-			return dbpostgres.NonExistingIntKey, err
+			return postgres.NonExistingIntKey, err
 		}
 		id = int(ids[0].(int64))
 	}

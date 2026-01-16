@@ -1,4 +1,4 @@
-package service
+package inventory
 
 import (
 	"context"
@@ -10,12 +10,12 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/jmoiron/sqlx"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
-	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/inventory"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/payment"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure"
+	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer"
-	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
-	reposhared "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos/repo-shared"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
 	"github.com/sirupsen/logrus"
 )
 
@@ -36,9 +36,9 @@ func (s *InventoryService) AddConsumer(consumer *consumer.KafkaConsumer) {
 	s.consumer = consumer
 }
 
-func (s *InventoryService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, inv *domain.Inventory, metadata *kafka.TopicPartition) (int, error) {
+func (s *InventoryService) Save(ctx context.Context, inboxEvent *repo.InboxEvent, inv *inventory.Inventory, metadata *kafka.TopicPartition) (int, error) {
 	txRepo := s.inboxRepo.GetRepo()
-	id, err := reposhared.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
+	id, err := postgres.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
 		logrus.WithFields(
 			logrus.Fields{
 				"OFFSET":      metadata.Offset,
@@ -49,15 +49,15 @@ func (s *InventoryService) Save(ctx context.Context, inboxEvent *repo.InboxEvent
 
 		inboxID, err := s.inboxRepo.Insert(ctx, tx, inboxEvent)
 		if err != nil {
-			exists := dbpostgres.IsDuplicateKeyErr(err)
+			exists := postgres.IsDuplicateKeyErr(err)
 			if exists {
 				eMsg := fmt.Sprintf("already exists ID = %d, PRTN = %d, AggregateID = %s\n", metadata.Offset, metadata.Partition, inboxEvent.AggregateId)
 				s.consumer.UpdateState(metadata, consumer.MsgState_Success)
-				return dbpostgres.DuplicateKeyViolation, errors.New(eMsg)
+				return postgres.DuplicateKeyViolation, errors.New(eMsg)
 			}
 			// TODO -> add DLQ handling
 			s.consumer.UpdateState(metadata, consumer.MsgState_Error)
-			return dbpostgres.NonExistingIntKey, err
+			return postgres.NonExistingIntKey, err
 		}
 		s.inventoryRepo.Insert(ctx, tx, inv)
 
@@ -76,7 +76,7 @@ func (s *InventoryService) Save(ctx context.Context, inboxEvent *repo.InboxEvent
 	return id, err
 }
 
-func PaymentToInventory(p *debezium.DebeziumMessage[domain.Payment]) (*domain.Inventory, *repo.InboxEvent, error) {
+func PaymentToInventory(p *infrastructure.DebeziumMessage[payment.Payment]) (*inventory.Inventory, *repo.InboxEvent, error) {
 	payment := p.Payload.After
 	afterJson, err := json.Marshal(payment)
 	if err != nil {
@@ -91,7 +91,7 @@ func PaymentToInventory(p *debezium.DebeziumMessage[domain.Payment]) (*domain.In
 		AggregateCreatedAt: payment.CreatedAt,
 		CreatedAt:          time.Now(),
 	}
-	inv := domain.NewInventoryReservation(payment.OrderNumber, strconv.Itoa(payment.ID), int(payment.Amount))
+	inv := inventory.NewInventoryReservation(payment.OrderNumber, strconv.Itoa(payment.ID), int(payment.Amount))
 	return inv, inbox, err
 
 }

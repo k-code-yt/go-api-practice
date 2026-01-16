@@ -1,4 +1,4 @@
-package debezium
+package infrastructure
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
+	libtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/lib/types"
 )
 
 type DebeziumMessage[T any] struct {
@@ -25,7 +25,7 @@ type Payload[T any] struct {
 	Source    Source
 	Op        string `json:"op"`
 	Timestamp int    `json:"ts_ms"`
-	EventType pkgconstants.EventType
+	EventType libtypes.EventType
 }
 
 type Source struct {
@@ -56,7 +56,7 @@ func (p *Payload[T]) AddEventType(topic string) error {
 	return nil
 }
 
-func GetEventType(topic string, op string) (pkgconstants.EventType, error) {
+func GetEventType(topic string, op string) (libtypes.EventType, error) {
 	r := strings.Split(topic, ".")
 	if topic == "" || len(r) < 3 {
 		return "", fmt.Errorf("Invalid topic & event type combination")
@@ -74,5 +74,5 @@ func GetEventType(topic string, op string) (pkgconstants.EventType, error) {
 		event = fmt.Sprintf("%s_%s", event, "truncated")
 	}
 
-	return pkgconstants.EventType(event), nil
+	return libtypes.EventType(event), nil
 }

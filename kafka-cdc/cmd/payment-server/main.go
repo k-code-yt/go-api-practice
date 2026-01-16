@@ -6,43 +6,50 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
-	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
+	"github.com/joho/godotenv"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/application/payment"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/inventory"
+	paymdomain "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/payment"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure"
+	invrepo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory/constants"
+	outboxrepo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/outbox"
+	paymentrepo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/payment"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer/handlers"
-	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/service"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
 	addr           string
-	msgCH          chan *pkgtypes.Message[*repo.InboxEvent]
-	paymentService *service.PaymentService
+	msgCH          chan *pkgtypes.Message[*invrepo.InboxEvent]
+	paymentService *payment.PaymentService
 	exitCH         chan struct{}
 	consumer       *consumer.KafkaConsumer
 }
 
 func NewServer(addr string, db *sqlx.DB) *Server {
-	// TODO -> add propper config && take it from .env OR make it static per service
-	err := debezium.RegisterConnector("http://localhost:8083", pkgconstants.DebPaymentDBConnectorName, pkgconstants.DBNamePrimary, fmt.Sprintf("public.%s", pkgconstants.DBTableName_Payment))
+	DBNamePrimary := ""
+	err := debezium.RegisterConnector("http://localhost:8083", debezium.GetDebPaymentDBConnectorName(DBNamePrimary), DBNamePrimary, fmt.Sprintf("public.%s", constants.DBTableName_Inventory))
 	if err != nil {
 		fmt.Printf("err on deb-m conn %v\n", err)
 		panic(err)
 	}
 
-	eventRepo := repo.NewEventRepo(db)
-	pr := repo.NewPaymentRepo(db)
-	ps := service.NewPaymentService(pr, eventRepo)
+	eventRepo := outboxrepo.NewEventRepo(db)
+	pr := paymentrepo.NewPaymentRepo(db)
+	ps := payment.NewPaymentService(pr, eventRepo)
 	return &Server{
-		msgCH:  make(chan *pkgtypes.Message[*repo.InboxEvent], 64),
+		msgCH:  make(chan *pkgtypes.Message[*invrepo.InboxEvent], 64),
 		exitCH: make(chan struct{}),
 		addr:   addr,
 
@@ -51,7 +58,7 @@ func NewServer(addr string, db *sqlx.DB) *Server {
 }
 
 func (s *Server) addConsumer(handlerResigry *handlers.Registry) *Server {
-	c := consumer.NewKafkaConsumer([]string{pkgconstants.DebInventoryTopic}, handlerResigry)
+	c := consumer.NewKafkaConsumer([]string{infrastructure.DebInventoryTopic}, handlerResigry)
 	s.consumer = c
 	return s
 }
@@ -65,7 +72,7 @@ func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 }
 
 // TODO -> remove from main
-func (s *Server) handleInventoryReplyMsg(msg *debezium.DebeziumMessage[domain.Inventory]) error {
+func (s *Server) handleInventoryReplyMsg(msg *infrastructure.DebeziumMessage[inventory.Inventory]) error {
 	err := s.paymentService.Confirm(msg.Ctx, msg.Payload.After.ID)
 	if err != nil {
 		return err
@@ -85,14 +92,27 @@ func (s *Server) createPayment() (int, error) {
 	defer cancel()
 	amount := rand.Intn(100_000)
 	orderN := strconv.Itoa(amount)
-	paym := domain.NewPayment(orderN, float64(amount), "reserved")
+	paym := paymdomain.NewPayment(orderN, float64(amount), "reserved")
 	return s.paymentService.Save(ctx, paym)
 }
 
+func init() {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		log.Fatal("Unable to get current file path")
+	}
+
+	dir := filepath.Dir(filename)
+	envPath := filepath.Join(dir, ".env")
+
+	if err := godotenv.Load(envPath); err != nil {
+		log.Printf("No .env file found at %s", envPath)
+	}
+}
+
 func main() {
-	dbOpts := new(dbpostgres.DBPostgresOptions)
-	dbOpts.DBname = pkgconstants.DBNamePrimary
-	db, err := dbpostgres.NewDBConn(dbOpts)
+	dbOpts := postgres.NewPostgresConfig("kafka_primary")
+	db, err := postgres.NewDBConn(dbOpts)
 	if err != nil {
 		panic(fmt.Sprintf("unable to conn to db, err = %v\n", err))
 	}
@@ -112,7 +132,7 @@ func main() {
 	registry := handlers.NewRegistry()
 	invCretedHandler := handlers.NewInventoryCreatedHandler()
 
-	registry.AddHandler(invCretedHandler.Handler, pkgconstants.EventType_InvetoryCreated)
+	registry.AddHandler(invCretedHandler.Handler, paymdomain.EventType_InvetoryCreated)
 
 	s.addConsumer(registry)
 

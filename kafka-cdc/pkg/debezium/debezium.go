@@ -69,6 +69,10 @@ func RegisterConnector(connectURL, connectorName, dbName, tables string) error {
 	return nil
 }
 
+func GetDebPaymentDBConnectorName(DBName string) string {
+	return fmt.Sprintf("%s_conn", DBName)
+}
+
 func waitForKafkaConnect(connectURL string) error {
 	maxRetries := 30
 	for i := 0; i < maxRetries; i++ {

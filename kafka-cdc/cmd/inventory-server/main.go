@@ -2,47 +2,54 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"path/filepath"
+	"runtime"
 
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/debezium"
-	dbpostgres "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/db/postgres"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain"
+	"github.com/joho/godotenv"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/application/inventory"
+	invetorydomain "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/inventory"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/payment"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure"
+	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory/constants"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer/handlers"
-	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/repos"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/service"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
 	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
 	consumer *consumer.KafkaConsumer
-	service  *service.InventoryService
+	service  *inventory.InventoryService
 }
 
 func NewServer(inboxRepo *repo.InboxEventRepo, invRepo *repo.InventoryRepo) *Server {
-	err := debezium.RegisterConnector("http://localhost:8083", pkgconstants.DebInventoryDBConnectorName, pkgconstants.DBNameInventory, fmt.Sprintf("public.%s", pkgconstants.DBTableName_Inventory))
+	DBNameInventory := ""
+	err := debezium.RegisterConnector("http://localhost:8083", debezium.GetDebPaymentDBConnectorName(DBNameInventory), DBNameInventory, fmt.Sprintf("public.%s", constants.DBTableName_Inventory))
 	if err != nil {
 		fmt.Printf("err on deb-m conn %v\n", err)
 		panic(err)
 	}
 
-	s := service.NewInventoryService(inboxRepo, invRepo)
+	s := inventory.NewInventoryService(inboxRepo, invRepo)
 	return &Server{
 		service: s,
 	}
 }
 
 func (s *Server) addConsumer(handlerResigry *handlers.Registry) *Server {
-	c := consumer.NewKafkaConsumer([]string{pkgconstants.DebPaymentTopic}, handlerResigry)
+	c := consumer.NewKafkaConsumer([]string{infrastructure.DebPaymentTopic}, handlerResigry)
 	s.consumer = c
 	s.service.AddConsumer(c)
 	return s
 }
 
-func (s *Server) handleMsg(paymentEvent *debezium.DebeziumMessage[domain.Payment]) {
+func (s *Server) handleMsg(paymentEvent *infrastructure.DebeziumMessage[payment.Payment]) {
 	<-s.consumer.ReadyCH
 
-	inv, inbox, err := service.PaymentToInventory(paymentEvent)
+	inv, inbox, err := inventory.PaymentToInventory(paymentEvent)
 	if err != nil {
 		fmt.Printf("ERR on DB SAVE = %v\n", err)
 		return
@@ -70,10 +77,23 @@ func (s *Server) handleMsg(paymentEvent *debezium.DebeziumMessage[domain.Payment
 	).Info("INSERT:SUCCESS")
 }
 
+func init() {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		log.Fatal("Unable to get current file path")
+	}
+
+	dir := filepath.Dir(filename)
+	envPath := filepath.Join(dir, ".env")
+
+	if err := godotenv.Load(envPath); err != nil {
+		log.Printf("No .env file found at %s", envPath)
+	}
+}
+
 func main() {
-	dbOpts := &dbpostgres.DBPostgresOptions{}
-	dbOpts.DBname = pkgconstants.DBNameInventory
-	db, err := dbpostgres.NewDBConn(dbOpts)
+	dbOpts := postgres.NewPostgresConfig("kafka_inventory")
+	db, err := postgres.NewDBConn(dbOpts)
 	if err != nil {
 		panic(fmt.Sprintf("unable to conn to db, err = %v\n", err))
 	}
@@ -85,7 +105,7 @@ func main() {
 	registry := handlers.NewRegistry()
 	paymentCreatedHandler := handlers.NewPaymentCreatedHandler()
 
-	registry.AddHandler(paymentCreatedHandler.Handler, pkgconstants.EventType_PaymentCreated)
+	registry.AddHandler(paymentCreatedHandler.Handler, invetorydomain.EventType_PaymentCreated)
 
 	s.addConsumer(registry)
 

@@ -1,4 +1,4 @@
-package reposhared
+package postgres
 
 import (
 	"context"

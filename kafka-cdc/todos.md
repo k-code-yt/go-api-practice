@@ -7,7 +7,7 @@
 [x] udpate inbox logic
 [x] add one context for handler and repo
 [x] respond back to producer(basic saga??)
-[] add inventory service
-[] add sep-te db for each -> pg && deb configs -> read from .env???
+[x] add inventory service
+[x] add sep-te db for each -> pg && deb configs -> read from .env???
 [] adjust folder structure
 [] deb migration -> add like in DB. Store entire JSON with version -> read file -> compare -> update DB

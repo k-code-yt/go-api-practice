@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/outbox/constants"
+	libtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/lib/types"
 	pkgutils "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/utils"
 	_ "github.com/lib/pq"
 )
@@ -38,7 +39,7 @@ type Event struct {
 	ParentMetadata json.RawMessage `db:"parent_metadata" json:"ParentMetadata"`
 }
 
-func NewEvent(eventName pkgconstants.EventType, parentId string, parentType EventParentType, parentMetadata json.RawMessage) *Event {
+func NewEvent(eventName libtypes.EventType, parentId string, parentType EventParentType, parentMetadata json.RawMessage) *Event {
 	id := pkgutils.GenerateRandomString(15)
 	return &Event{
 		EventId:        id,
@@ -59,7 +60,7 @@ type EventRepo struct {
 func NewEventRepo(db *sqlx.DB) *EventRepo {
 	return &EventRepo{
 		repo:      db,
-		tableName: pkgconstants.DBTableName_OutboxEvents,
+		tableName: constants.DBTableName_OutboxEvents,
 	}
 }
 
