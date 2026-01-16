@@ -1,4 +1,4 @@
-package consumer
+package kafkainternal
 
 import (
 	"context"
@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/config"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer/handlers"
 	pkgutils "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
@@ -33,13 +31,11 @@ type KafkaConsumer struct {
 	msgsStateMap map[int32]*PartitionState
 	Mu           *sync.RWMutex
 	commitDur    time.Duration
-	cfg          *config.KafkaConfig
-
-	HandlerRegistry *handlers.Registry
+	cfg          *KafkaConfig
 }
 
-func NewKafkaConsumer(topics []string, handlerRegistry *handlers.Registry) *KafkaConsumer {
-	cfg := config.NewKafkaConfig()
+func NewKafkaConsumer(topics []string) *KafkaConsumer {
+	cfg := NewKafkaConfig()
 	ID := pkgutils.GenerateRandomString(15)
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":               cfg.Host,
@@ -59,17 +55,16 @@ func NewKafkaConsumer(topics []string, handlerRegistry *handlers.Registry) *Kafk
 	}
 
 	consumer := &KafkaConsumer{
-		ID:              ID,
-		consumer:        c,
-		ReadyCH:         make(chan struct{}),
-		exitCH:          make(chan struct{}),
-		IsReady:         false,
-		topics:          topics,
-		Mu:              new(sync.RWMutex),
-		commitDur:       15 * time.Second,
-		msgsStateMap:    map[int32]*PartitionState{},
-		cfg:             cfg,
-		HandlerRegistry: handlerRegistry,
+		ID:           ID,
+		consumer:     c,
+		ReadyCH:      make(chan struct{}),
+		exitCH:       make(chan struct{}),
+		IsReady:      false,
+		topics:       topics,
+		Mu:           new(sync.RWMutex),
+		commitDur:    15 * time.Second,
+		msgsStateMap: map[int32]*PartitionState{},
+		cfg:          cfg,
 	}
 
 	for _, t := range consumer.topics {
@@ -82,12 +77,6 @@ func NewKafkaConsumer(topics []string, handlerRegistry *handlers.Registry) *Kafk
 	}
 
 	return consumer
-}
-
-func (c *KafkaConsumer) RunConsumer() struct{} {
-	go c.checkReadyToAccept()
-	go c.consumeLoop()
-	return <-c.exitCH
 }
 
 func (c *KafkaConsumer) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
@@ -253,50 +242,6 @@ func (c *KafkaConsumer) rebalanceCB(_ *kafka.Consumer, event kafka.Event) error 
 		logrus.Warnf("Unexpected event type: %T", ev)
 	}
 	return nil
-}
-
-func (c *KafkaConsumer) consumeLoop() {
-	defer func() {
-		c.consumer.Close()
-		close(c.exitCH)
-	}()
-	firstMsg := true
-
-	for {
-		msg, err := c.consumer.ReadMessage(time.Second)
-		if err != nil && err.(kafka.Error).IsTimeout() {
-			continue
-		}
-		if err != nil && !err.(kafka.Error).IsTimeout() {
-			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
-			continue
-		}
-		if msg == nil {
-			continue
-		}
-
-		if firstMsg {
-			close(c.ReadyCH)
-		}
-
-		firstMsg = false
-
-		c.appendMsgState(&msg.TopicPartition)
-
-		handler, err := c.HandlerRegistry.GetHandlerFromMsg(msg)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		err = handler(context.Background(), msg.Value, &msg.TopicPartition)
-		if err != nil {
-			fmt.Println(err)
-			c.UpdateState(&msg.TopicPartition, MsgState_Error)
-			continue
-		}
-	}
-
 }
 
 func (c *KafkaConsumer) appendMsgState(tp *kafka.TopicPartition) {

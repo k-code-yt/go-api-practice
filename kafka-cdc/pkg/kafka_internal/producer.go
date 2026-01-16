@@ -1,8 +1,7 @@
-package producer
+package kafkainternal
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/config"
 	"github.com/sirupsen/logrus"
 )
 
@@ -40,7 +39,7 @@ func NewKafkaProducer() *KafkaProducer {
 }
 
 func (p *KafkaProducer) Produce(msg []byte) error {
-	cfg := config.NewKafkaConfig()
+	cfg := NewKafkaConfig()
 	topics := cfg.DefaultTopics
 	var err error
 
