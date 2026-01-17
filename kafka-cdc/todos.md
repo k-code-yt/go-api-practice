@@ -9,5 +9,8 @@
 [x] respond back to producer(basic saga??)
 [x] add inventory service
 [x] add sep-te db for each -> pg && deb configs -> read from .env???
-[] adjust folder structure
-[] deb migration -> add like in DB. Store entire JSON with version -> read file -> compare -> update DB
+[x] adjust folder structure
+[] kafka commit loop
+[] add DB migrations
+[] saga -> one compensating aciton???
+[] debezium migration -> add like in DB. Store entire JSON with version -> read file -> compare -> update DB
