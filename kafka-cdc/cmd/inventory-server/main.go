@@ -1,80 +1,49 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"path/filepath"
 	"runtime"
 
 	"github.com/joho/godotenv"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/application/inventory"
-	invetorydomain "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/inventory"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/domain/payment"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure"
-	repo "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/infrastructure/inventory/constants"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/kafka/consumer/handlers"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/application"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/handlers"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/msg"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/repo"
+	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
-	"github.com/sirupsen/logrus"
+	pkgkafka "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/kafka"
 )
 
 type Server struct {
-	consumer *consumer.KafkaConsumer
-	service  *inventory.InventoryService
+	service *application.InventoryService
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
-func NewServer(inboxRepo *repo.InboxEventRepo, invRepo *repo.InventoryRepo) *Server {
-	DBNameInventory := ""
-	err := debezium.RegisterConnector("http://localhost:8083", debezium.GetDebPaymentDBConnectorName(DBNameInventory), DBNameInventory, fmt.Sprintf("public.%s", constants.DBTableName_Inventory))
+func NewServer(inboxRepo *repo.InboxEventRepo, invRepo *repo.InventoryRepo, DBName string) *Server {
+	err := debezium.RegisterConnector("http://localhost:8083", debezium.GetDebPaymentDBConnectorName(DBName), DBName, fmt.Sprintf("public.%s", repo.DBTableName_Inventory))
 	if err != nil {
 		fmt.Printf("err on deb-m conn %v\n", err)
 		panic(err)
 	}
 
-	s := inventory.NewInventoryService(inboxRepo, invRepo)
+	s := application.NewInventoryService(inboxRepo, invRepo)
+	kafkaConsumer := pkgkafka.NewKafkaConsumer([]string{msg.DebPaymentTopic})
+
+	msgRouter := handlers.NewMsgRouter(kafkaConsumer)
+	paymCreateHandler := handlers.NewPaymentCreatedHandler(s)
+	msgRouter.AddHandler(paymCreateHandler.Handler, pkgconstants.EventType_PaymentCreated)
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Server{
 		service: s,
+		ctx:     ctx,
+		cancel:  cancel,
 	}
-}
-
-func (s *Server) addConsumer(handlerResigry *handlers.Registry) *Server {
-	c := consumer.NewKafkaConsumer([]string{infrastructure.DebPaymentTopic}, handlerResigry)
-	s.consumer = c
-	s.service.AddConsumer(c)
-	return s
-}
-
-func (s *Server) handleMsg(paymentEvent *infrastructure.DebeziumMessage[payment.Payment]) {
-	<-s.consumer.ReadyCH
-
-	inv, inbox, err := inventory.PaymentToInventory(paymentEvent)
-	if err != nil {
-		fmt.Printf("ERR on DB SAVE = %v\n", err)
-		return
-	}
-
-	inboxID, err := s.service.Save(paymentEvent.Ctx, inbox, inv, paymentEvent.Metadata)
-	if err != nil {
-		logrus.WithFields(
-			logrus.Fields{
-				"eventID":     inboxID,
-				"aggregateID": inbox.AggregateId,
-				"OFFSET":      paymentEvent.Metadata.Offset,
-				"PRTN":        paymentEvent.Metadata.Partition,
-			},
-		).Error("INSERT:ERROR")
-		return
-	}
-	logrus.WithFields(
-		logrus.Fields{
-			"inboxID":     inboxID,
-			"aggregateID": inbox.AggregateId,
-			"OFFSET":      paymentEvent.Metadata.Offset,
-			"PRTN":        paymentEvent.Metadata.Partition,
-		},
-	).Info("INSERT:SUCCESS")
 }
 
 func init() {
@@ -101,19 +70,6 @@ func main() {
 
 	inboxRepo := repo.NewInboxEventRepo(db)
 	invRepo := repo.NewInventoryRepo(db)
-	s := NewServer(inboxRepo, invRepo)
-	registry := handlers.NewRegistry()
-	paymentCreatedHandler := handlers.NewPaymentCreatedHandler()
-
-	registry.AddHandler(paymentCreatedHandler.Handler, invetorydomain.EventType_PaymentCreated)
-
-	s.addConsumer(registry)
-
-	go func() {
-		for msg := range paymentCreatedHandler.MsgCH {
-			go s.handleMsg(msg)
-		}
-	}()
-
-	s.consumer.RunConsumer()
+	s := NewServer(inboxRepo, invRepo, dbOpts.DBName)
+	<-s.ctx.Done()
 }
