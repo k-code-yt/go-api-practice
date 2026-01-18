@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
+	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
 )
 
@@ -55,8 +55,7 @@ func (r *InboxEventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *InboxEvent)
 	query := fmt.Sprintf(`INSERT INTO %s (type, "aggregate_id", "aggregate_created_at", "created_at", aggregate_metadata, status, aggregate_type) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`, r.tableName)
 	rows, err := tx.QueryxContext(ctx, query, e.InboxEventType, e.AggregateId, e.AggregateCreatedAt, e.CreatedAt, e.AggregateMetadata, e.Status, e.AggregateType)
 	if err != nil {
-		// fmt.Printf("err on insert = %v\n", err)
-		return postgres.NonExistingIntKey, err
+		return 0, pkgerrors.NewNonExistingKeyError(err)
 	}
 	defer rows.Close()
 	var id int
@@ -64,7 +63,7 @@ func (r *InboxEventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *InboxEvent)
 		ids, err := rows.SliceScan()
 		if err != nil {
 			fmt.Printf("unable to get last insetID = %v\n", err)
-			return postgres.NonExistingIntKey, err
+			return 0, pkgerrors.NewNonExistingKeyError(err)
 		}
 		id = int(ids[0].(int64))
 	}

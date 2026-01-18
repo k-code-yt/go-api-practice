@@ -103,12 +103,12 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/payment", s.handleCreatePayment)
 
-	// go func() {
-	// 	ticker := time.NewTicker(time.Second * 15)
-	// 	for range ticker.C {
-	// 		s.createPayment()
-	// 	}
-	// }()
+	go func() {
+		ticker := time.NewTicker(time.Second * 5)
+		for range ticker.C {
+			s.createPayment()
+		}
+	}()
 
 	log.Fatal(http.ListenAndServe(s.addr, nil))
 }

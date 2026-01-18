@@ -6,7 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/domain"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
+	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 )
 
 type InventoryRepo struct {
@@ -29,7 +29,7 @@ func (r *InventoryRepo) Insert(ctx context.Context, tx *sqlx.Tx, inv *domain.Inv
 	query := fmt.Sprintf(`INSERT INTO %s ("product_name", "status", "quantity", "last_updated", "order_number", "payment_id") VALUES($1, $2, $3, $4, $5, $6) RETURNING id`, r.tableName)
 	rows, err := tx.QueryxContext(ctx, query, inv.ProductName, inv.Status, inv.Quantity, inv.LastUpdated, inv.OrderNumber, inv.PaymentId)
 	if err != nil {
-		return postgres.NonExistingIntKey, err
+		return 0, pkgerrors.NewNonExistingKeyError(err)
 	}
 	defer rows.Close()
 	var id int
@@ -37,10 +37,9 @@ func (r *InventoryRepo) Insert(ctx context.Context, tx *sqlx.Tx, inv *domain.Inv
 		ids, err := rows.SliceScan()
 		if err != nil {
 			fmt.Printf("unable to get last insetID = %v\n", err)
-			return postgres.NonExistingIntKey, err
+			return 0, pkgerrors.NewNonExistingKeyError(err)
 		}
 		id = int(ids[0].(int64))
 	}
-	fmt.Printf("Inserted inventoryID = %d\n", inv.ID)
 	return id, nil
 }

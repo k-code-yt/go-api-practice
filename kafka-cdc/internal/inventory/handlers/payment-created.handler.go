@@ -105,9 +105,6 @@ func (h *PaymentHandler) handlePaymentCreated(paymentEvent *debezium.DebeziumMes
 
 	inboxID, err := h.svc.Save(paymentEvent.Ctx, inbox, inv, paymentEvent.Metadata)
 	if err != nil {
-		// TODO -> how to update kafka state for commit off loop
-		// add chan?
-		// h..UpdateState(metadata, consumer.MsgState_Error)
 		logrus.WithFields(
 			logrus.Fields{
 				"eventID":     inboxID,

@@ -7,7 +7,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	payment "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/payment/domain"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
+	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 )
 
 type PaymentRepo struct {
@@ -45,7 +45,7 @@ func (r *PaymentRepo) Insert(ctx context.Context, tx *sqlx.Tx, p *payment.Paymen
 	rows, err := tx.QueryxContext(ctx, query, p.OrderNumber, p.Amount, p.Status, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		fmt.Printf("err on insert = %v\n", err)
-		return postgres.NonExistingIntKey, err
+		return pkgerrors.CodeNonExistingKey, pkgerrors.NewNonExistingKeyError(err)
 	}
 	defer rows.Close()
 	var id int
@@ -53,7 +53,7 @@ func (r *PaymentRepo) Insert(ctx context.Context, tx *sqlx.Tx, p *payment.Paymen
 		ids, err := rows.SliceScan()
 		if err != nil {
 			fmt.Printf("unable to get last insetID = %v\n", err)
-			return postgres.NonExistingIntKey, err
+			return pkgerrors.CodeNonExistingKey, pkgerrors.NewNonExistingKeyError(err)
 		}
 		id = int(ids[0].(int64))
 	}
@@ -86,7 +86,7 @@ func (r *PaymentRepo) UpdateStatus(ctx context.Context, tx *sqlx.Tx, ID int, sta
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("ID does not exist, errCode = %d", postgres.NonExistingIntKey)
+		return pkgerrors.NewNonExistingKeyError(fmt.Errorf("ID does not exist, errCode = %d", pkgerrors.CodeNonExistingKey))
 	}
 	fmt.Printf("Updated status for paymentID = %d\n", ID)
 	return nil

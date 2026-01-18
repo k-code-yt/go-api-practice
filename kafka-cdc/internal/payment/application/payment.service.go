@@ -2,12 +2,14 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/payment/domain"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/payment/infra/repo"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
+	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,7 +32,8 @@ func (pr *PaymentService) Save(ctx context.Context, p *domain.Payment) (int, err
 
 		paymentID, err := pr.paymentRepo.Insert(ctx, tx, p)
 		if err != nil {
-			return postgres.NonExistingIntKey, err
+			return pkgerrors.CodeNonExistingKey, pkgerrors.NewNonExistingKeyError(err)
+
 		}
 		p.ID = paymentID
 		logrus.WithFields(
@@ -42,7 +45,7 @@ func (pr *PaymentService) Save(ctx context.Context, p *domain.Payment) (int, err
 		return paymentID, nil
 	})
 
-	if err != nil || id == postgres.NonExistingIntKey {
+	if err != nil || errors.As(err, &pkgerrors.ErrNonExistingKey) {
 		fmt.Printf("ERR on DB SAVE = %v\n", err)
 	}
 	return id, err

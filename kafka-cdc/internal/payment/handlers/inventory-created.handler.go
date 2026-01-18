@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	application "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/payment/application"
@@ -13,14 +14,14 @@ import (
 )
 
 type CDCInventoryMsg struct {
-	ID          int    `db:"id"`
-	ProductName string `db:"product_name"`
-	Status      string `db:"status"`
-	Quantity    int    `db:"quantity"`
-	LastUpdated int64  `db:"last_updated"`
+	ID          int    `json:"id"`
+	ProductName string `json:"product_name"`
+	Status      string `json:"status"`
+	Quantity    int    `json:"quantity"`
+	LastUpdated int64  `json:"last_updated"`
 
-	OrderNumber string `db:"order_number"`
-	PaymentId   string `db:"payment_id"`
+	OrderNumber string `json:"order_number"`
+	PaymentId   string `json:"payment_id"`
 }
 
 func (cdc *CDCInventoryMsg) toEvent() (*domain.InventoryCreatedEvent, error) {
@@ -88,14 +89,19 @@ func (h *InventoryHandler) CreateHandlerFunc() Handler {
 }
 
 func (h *InventoryHandler) handleInventoryCreateMsg(msg *debezium.DebeziumMessage[domain.InventoryCreatedEvent]) error {
-	err := h.svc.Confirm(msg.Ctx, msg.Payload.After.ID)
+	pID, err := strconv.Atoi(msg.Payload.After.PaymentId)
+	if err != nil {
+		return err
+	}
+	err = h.svc.Confirm(msg.Ctx, pID)
 	if err != nil {
 		return err
 	}
 
 	logrus.WithFields(
 		logrus.Fields{
-			"PAY_ID": msg.Payload.After.PaymentId,
+			"STATUS": "confirmed",
+			"ID":     pID,
 			"ORDER#": msg.Payload.After.OrderNumber,
 		},
 	).Info("PAYMENT:UPDATED")

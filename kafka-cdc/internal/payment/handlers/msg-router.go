@@ -9,6 +9,7 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
+	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 	pkgkafka "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/kafka"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
 )
@@ -35,7 +36,13 @@ func NewMsgRouter(consumer *pkgkafka.KafkaConsumer) *MsgRouter {
 
 func (r *MsgRouter) consumeLoop() {
 	for msg := range r.consumer.MsgCH {
-		go r.handlerMsg(msg)
+		err := r.handlerMsg(msg)
+		if err != nil && !pkgerrors.IsDuplicateKeyError(err) {
+			r.consumer.UpdateState(&msg.TopicPartition, pkgkafka.MsgState_Error)
+			return
+		}
+		r.consumer.UpdateState(&msg.TopicPartition, pkgkafka.MsgState_Success)
+
 	}
 }
 

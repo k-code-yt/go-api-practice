@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/repo"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
+	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,10 +44,10 @@ func (s *InventoryService) Save(ctx context.Context, inboxEvent *repo.InboxEvent
 		if err != nil {
 			exists := postgres.IsDuplicateKeyErr(err)
 			if exists {
-				eMsg := fmt.Sprintf("already exists ID = %d, PRTN = %d, AggregateID = %s\n", metadata.Offset, metadata.Partition, inboxEvent.AggregateId)
-				return postgres.DuplicateKeyViolation, errors.New(eMsg)
+				fmt.Printf("already exists ID = %d, PRTN = %d, AggregateID = %s\n", metadata.Offset, metadata.Partition, inboxEvent.AggregateId)
+				return pkgerrors.CodeDuplicateKey, pkgerrors.NewDuplicateKeyError(err)
 			}
-			return postgres.NonExistingIntKey, err
+			return pkgerrors.CodeNonExistingKey, pkgerrors.NewNonExistingKeyError(err)
 		}
 		s.inventoryRepo.Insert(ctx, tx, inv)
 
