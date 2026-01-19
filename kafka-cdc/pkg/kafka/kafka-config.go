@@ -21,7 +21,6 @@ func NewKafkaConfig() *KafkaConfig {
 	}
 
 	return &KafkaConfig{
-		// ParititionAssignStrategy: "cooperative-sticky",
 		ParititionAssignStrategy: strategy,
 		DefaultTopics:            topics,
 		Host:                     "localhost",

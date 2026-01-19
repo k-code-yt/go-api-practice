@@ -50,14 +50,13 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration) {
 	defer func() {
 		close(ps.ExitCH)
 		ticker.Stop()
-		// logrus.WithFields(
-		// 	logrus.Fields{
-		// 		"PRTN": ps.ID,
-		// 	},
-		// ).Info("EXIT commitOffsetLoop✅")
+		logrus.WithFields(
+			logrus.Fields{
+				"PRTN": ps.ID,
+			},
+		).Info("EXIT commitOffsetLoop✅")
 	}()
 	for {
-		// fmt.Println("------RUNNING-COMMIT-LOOP------")
 		select {
 		case <-ticker.C:
 			select {

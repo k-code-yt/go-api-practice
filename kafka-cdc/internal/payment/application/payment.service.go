@@ -32,7 +32,7 @@ func (pr *PaymentService) Save(ctx context.Context, p *domain.Payment) (int, err
 
 		paymentID, err := pr.paymentRepo.Insert(ctx, tx, p)
 		if err != nil {
-			return pkgerrors.CodeNonExistingKey, pkgerrors.NewNonExistingKeyError(err)
+			return 0, pkgerrors.NewNonExistingKeyError(err)
 
 		}
 		p.ID = paymentID

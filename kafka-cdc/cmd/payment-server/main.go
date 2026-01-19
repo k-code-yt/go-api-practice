@@ -58,8 +58,6 @@ func NewServer(addr string, db *sqlx.DB, DBName string) *Server {
 	}
 }
 
-// TODO -> remove from main
-// FOR TESTING
 func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 	_, err := s.createPayment()
 	if err != nil {
@@ -67,6 +65,8 @@ func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// TODO -> remove from main
+// FOR TESTING
 func (s *Server) createPayment() (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -91,7 +91,6 @@ func init() {
 }
 
 func main() {
-
 	dbOpts := postgres.NewPostgresConfig("kafka_primary")
 	db, err := postgres.NewDBConn(dbOpts)
 	if err != nil {
@@ -103,12 +102,13 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/payment", s.handleCreatePayment)
 
-	go func() {
-		ticker := time.NewTicker(time.Second * 5)
-		for range ticker.C {
-			s.createPayment()
-		}
-	}()
+	go s.createPayment()
+	// go func() {
+	// 	ticker := time.NewTicker(time.Second * 5)
+	// 	for range ticker.C {
+	// 		s.createPayment()
+	// 	}
+	// }()
 
 	log.Fatal(http.ListenAndServe(s.addr, nil))
 }

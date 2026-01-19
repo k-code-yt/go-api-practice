@@ -10,7 +10,7 @@
 [x] add inventory service
 [x] add sep-te db for each -> pg && deb configs -> read from .env???
 [x] adjust folder structure
-[] kafka commit loop
-[] add DB migrations
+[x] kafka commit loop
+[x] add DB migrations
 [] saga -> one compensating aciton???
 [] debezium migration -> add like in DB. Store entire JSON with version -> read file -> compare -> update DB
