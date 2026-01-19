@@ -75,7 +75,7 @@ func (r *EventRepo) GetRepo() *sqlx.DB {
 func (r *EventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *Event) (string, error) {
 	_, err := tx.NamedExecContext(ctx, fmt.Sprintf("INSERT INTO %s (event_type, event_id, timestamp, parent_id, parent_metadata, status, parent_type) VALUES(:event_type, :event_id, :timestamp, :parent_id, :parent_metadata, :status, :parent_type)", r.tableName), e)
 	if err != nil {
-		fmt.Printf("err on insert = %v\n", err)
+		// fmt.Printf("err on insert = %v\n", err)
 		return "", err
 	}
 	return e.EventId, nil
@@ -84,12 +84,12 @@ func (r *EventRepo) Insert(ctx context.Context, tx *sqlx.Tx, e *Event) (string, 
 func (r *EventRepo) UpdateStatusById(ctx context.Context, tx *sqlx.Tx, eventId string, status EventStatus) (string, error) {
 	res, err := tx.ExecContext(ctx, fmt.Sprintf("UPDATE %s SET status = $1 WHERE event_id = $2", r.tableName), status, eventId)
 	if err != nil {
-		fmt.Printf("err on insert = %v\n", err)
+		// fmt.Printf("err on insert = %v\n", err)
 		return "", err
 	}
 	rows, err := res.RowsAffected()
 	if err != nil {
-		fmt.Printf("err on insert = %v\n", err)
+		// fmt.Printf("err on insert = %v\n", err)
 		return "", err
 
 	}
@@ -110,13 +110,13 @@ func (r *EventRepo) UpdateStatusByIds(ctx context.Context, tx *sqlx.Tx, eventIds
 	query = tx.Rebind(query)
 	res, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		fmt.Printf("err on insert = %v\n", err)
+		// fmt.Printf("err on insert = %v\n", err)
 		return 0, err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		fmt.Printf("err on insert = %v\n", err)
+		// fmt.Printf("err on insert = %v\n", err)
 		return 0, err
 
 	}
@@ -140,14 +140,7 @@ func (r *EventRepo) Get(ctx context.Context, tx *sqlx.Tx, eventID string) *Event
 func (r *EventRepo) GetAllPending(ctx context.Context, tx *sqlx.Tx) ([]*Event, error) {
 	events := []*Event{}
 	q := fmt.Sprintf("SELECT * FROM %s WHERE status = $1", r.tableName)
-	// eventsDirect := []*Event{}
-	// err := tx.SelectContext(ctx, &eventsDirect, q, EventStatus_Pending)
-	// if err != nil {
-	// 	if err == sql.ErrNoRows {
-	// 		return events, nil
-	// 	}
-	// 	return nil, err
-	// }
+
 	rows, err := tx.QueryxContext(ctx, q, EventStatus_Pending)
 	if err != nil {
 		if err == sql.ErrNoRows {

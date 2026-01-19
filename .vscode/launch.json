@@ -9,7 +9,7 @@
       "program": "${workspaceFolder}/kafka/cmd/benchmark",
       "env": {
         "CG_ID": "producer-group",
-        "SHOULD_PRODUCE": "false",
+        "SHOULD_PRODUCE": "true",
         "APP_ENV": "debug"
       }
     },

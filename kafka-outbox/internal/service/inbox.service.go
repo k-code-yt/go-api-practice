@@ -32,7 +32,7 @@ func (s *InboxService) AddConsumer(consumer *consumer.KafkaConsumer[repo.Event])
 func (s *InboxService) Save(ctx context.Context, msg *pkgtypes.Message[repo.Event]) (int, error) {
 	txRepo := s.inboxRepo.GetRepo()
 	id, err := reposhared.TxClosure(ctx, txRepo, func(ctx context.Context, tx *sqlx.Tx) (int, error) {
-		fmt.Printf("starting DB operation for offset = %s\n", msg.Metadata.Offset)
+		// fmt.Printf("starting DB operation for offset = %s\n", msg.Metadata.Offset)
 		inboxEvent := repo.NewInboxEvent(&msg.Data)
 
 		inboxID, err := s.inboxRepo.Insert(ctx, tx, inboxEvent)
@@ -64,7 +64,7 @@ func (s *InboxService) Save(ctx context.Context, msg *pkgtypes.Message[repo.Even
 	})
 
 	if err != nil || id == dbpostgres.NonExistingIntKey {
-		fmt.Printf("ERR on DB SAVE = %v\n", err)
+		// fmt.Printf("ERR on DB SAVE = %v\n", err)
 	}
 	return id, err
 }

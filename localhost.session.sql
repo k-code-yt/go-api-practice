@@ -28,6 +28,5 @@ select "event_id", status from events
 LEFT JOIN payment_orders po
 ON events.parent_id = po.id
 
-
 SELECT current_database();
 

@@ -1,0 +1,274 @@
+{
+  "schema": {
+    "type": "struct",
+    "fields": [
+      {
+        "type": "struct",
+        "fields": [
+          {
+            "type": "int32",
+            "optional": false,
+            "default": 0,
+            "field": "id"
+          },
+          {
+            "type": "string",
+            "optional": false,
+            "field": "order_number"
+          },
+          {
+            "type": "bytes",
+            "optional": false,
+            "name": "org.apache.kafka.connect.data.Decimal",
+            "version": 1,
+            "parameters": {
+              "scale": "2",
+              "connect.decimal.precision": "10"
+            },
+            "field": "amount"
+          },
+          {
+            "type": "string",
+            "optional": true,
+            "default": "pending",
+            "field": "status"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "name": "io.debezium.time.MicroTimestamp",
+            "version": 1,
+            "default": 0,
+            "field": "created_at"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "name": "io.debezium.time.MicroTimestamp",
+            "version": 1,
+            "default": 0,
+            "field": "updated_at"
+          }
+        ],
+        "optional": true,
+        "name": "cdc.public.payment.Value",
+        "field": "before"
+      },
+      {
+        "type": "struct",
+        "fields": [
+          {
+            "type": "int32",
+            "optional": false,
+            "default": 0,
+            "field": "id"
+          },
+          {
+            "type": "string",
+            "optional": false,
+            "field": "order_number"
+          },
+          {
+            "type": "bytes",
+            "optional": false,
+            "name": "org.apache.kafka.connect.data.Decimal",
+            "version": 1,
+            "parameters": {
+              "scale": "2",
+              "connect.decimal.precision": "10"
+            },
+            "field": "amount"
+          },
+          {
+            "type": "string",
+            "optional": true,
+            "default": "pending",
+            "field": "status"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "name": "io.debezium.time.MicroTimestamp",
+            "version": 1,
+            "default": 0,
+            "field": "created_at"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "name": "io.debezium.time.MicroTimestamp",
+            "version": 1,
+            "default": 0,
+            "field": "updated_at"
+          }
+        ],
+        "optional": true,
+        "name": "cdc.public.payment.Value",
+        "field": "after"
+      },
+      {
+        "type": "struct",
+        "fields": [
+          {
+            "type": "string",
+            "optional": false,
+            "field": "version"
+          },
+          {
+            "type": "string",
+            "optional": false,
+            "field": "connector"
+          },
+          {
+            "type": "string",
+            "optional": false,
+            "field": "name"
+          },
+          {
+            "type": "int64",
+            "optional": false,
+            "field": "ts_ms"
+          },
+          {
+            "type": "string",
+            "optional": true,
+            "name": "io.debezium.data.Enum",
+            "version": 1,
+            "parameters": {
+              "allowed": "true,last,false,incremental"
+            },
+            "default": "false",
+            "field": "snapshot"
+          },
+          {
+            "type": "string",
+            "optional": false,
+            "field": "db"
+          },
+          {
+            "type": "string",
+            "optional": true,
+            "field": "sequence"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "field": "ts_us"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "field": "ts_ns"
+          },
+          {
+            "type": "string",
+            "optional": false,
+            "field": "schema"
+          },
+          {
+            "type": "string",
+            "optional": false,
+            "field": "table"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "field": "txId"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "field": "lsn"
+          },
+          {
+            "type": "int64",
+            "optional": true,
+            "field": "xmin"
+          }
+        ],
+        "optional": false,
+        "name": "io.debezium.connector.postgresql.Source",
+        "field": "source"
+      },
+      {
+        "type": "struct",
+        "fields": [
+          {
+            "type": "string",
+            "optional": false,
+            "field": "id"
+          },
+          {
+            "type": "int64",
+            "optional": false,
+            "field": "total_order"
+          },
+          {
+            "type": "int64",
+            "optional": false,
+            "field": "data_collection_order"
+          }
+        ],
+        "optional": true,
+        "name": "event.block",
+        "version": 1,
+        "field": "transaction"
+      },
+      {
+        "type": "string",
+        "optional": false,
+        "field": "op"
+      },
+      {
+        "type": "int64",
+        "optional": true,
+        "field": "ts_ms"
+      },
+      {
+        "type": "int64",
+        "optional": true,
+        "field": "ts_us"
+      },
+      {
+        "type": "int64",
+        "optional": true,
+        "field": "ts_ns"
+      }
+    ],
+    "optional": false,
+    "name": "cdc.public.payment.Envelope",
+    "version": 2
+  },
+  "payload": {
+    "before": null,
+    "after": {
+      "id": 9,
+      "order_number": "56086",
+      "amount": "VZSY",
+      "status": "created",
+      "created_at": 1767872364667084,
+      "updated_at": 1767872364667084
+    },
+    "source": {
+      "version": "2.7.3.Final",
+      "connector": "postgresql",
+      "name": "cdc",
+      "ts_ms": 1767865164668,
+      "snapshot": "false",
+      "db": "kafka_cdc",
+      "sequence": "[\"69217136\",\"69217136\"]",
+      "ts_us": 1767865164668247,
+      "ts_ns": 1767865164668247000,
+      "schema": "public",
+      "table": "payment",
+      "txId": 792,
+      "lsn": 69217136,
+      "xmin": null
+    },
+    "transaction": null,
+    "op": "c",
+    "ts_ms": 1767865164787,
+    "ts_us": 1767865164787243,
+    "ts_ns": 1767865164787243800
+  }
+}

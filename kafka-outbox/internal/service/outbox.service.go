@@ -29,8 +29,7 @@ func NewOutbox(er *repo.EventRepo) *OutboxService {
 }
 
 func (s *OutboxService) outboxLoop() {
-	// TODO -> adjust dur > 30sec
-	ticker := time.NewTicker(time.Second * 5)
+	ticker := time.NewTicker(time.Second * 30)
 	defer ticker.Stop()
 	for range ticker.C {
 		s.handlePending()

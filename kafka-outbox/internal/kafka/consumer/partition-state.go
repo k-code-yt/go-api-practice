@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/sirupsen/logrus"
 )
 
 type CommitFunc func([]kafka.TopicPartition) ([]kafka.TopicPartition, error)
@@ -50,14 +49,14 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration) {
 	defer func() {
 		close(ps.ExitCH)
 		ticker.Stop()
-		logrus.WithFields(
-			logrus.Fields{
-				"PRTN": ps.ID,
-			},
-		).Info("EXIT commitOffsetLoop✅")
+		// logrus.WithFields(
+		// 	logrus.Fields{
+		// 		"PRTN": ps.ID,
+		// 	},
+		// ).Info("EXIT commitOffsetLoop✅")
 	}()
 	for {
-		fmt.Println("------RUNNING-COMMIT-LOOP------")
+		// fmt.Println("------RUNNING-COMMIT-LOOP------")
 		select {
 		case <-ticker.C:
 			select {
@@ -84,14 +83,14 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration) {
 			if ps.LastCommited > ps.MaxReceived.Offset {
 				ps.MaxReceived.Offset = latestToCommit.Offset
 			}
-			logrus.WithFields(
-				logrus.Fields{
-					"COMMITED_OFFSET": latestToCommit.Offset,
-					"MAX_OFFSET":      ps.MaxReceived.Offset,
-					"PRTN":            ps.MaxReceived.Partition,
-					"STATE":           ps.State,
-				},
-			).Warn("Commited on CRON")
+			// logrus.WithFields(
+			// 	logrus.Fields{
+			// 		"COMMITED_OFFSET": latestToCommit.Offset,
+			// 		"MAX_OFFSET":      ps.MaxReceived.Offset,
+			// 		"PRTN":            ps.MaxReceived.Partition,
+			// 		"STATE":           ps.State,
+			// 	},
+			// ).Warn("Commited on CRON")
 			ps.Mu.Unlock()
 
 		case <-ps.ctx.Done():
@@ -103,7 +102,7 @@ func (ps *PartitionState) commitOffsetLoop(commitDur time.Duration) {
 func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
 	ps.Mu.Lock()
 	defer ps.Mu.Unlock()
-	fmt.Printf("PRTN = %d, STATE = %+v\n", ps.ID, ps.State)
+	// fmt.Printf("PRTN = %d, STATE = %+v\n", ps.ID, ps.State)
 
 	if ps.MaxReceived == nil {
 		return nil, fmt.Errorf("maxRec is nil")
@@ -116,15 +115,15 @@ func (ps *PartitionState) FindLatestToCommit() (*kafka.TopicPartition, error) {
 	for offset := ps.LastCommited; offset <= ps.MaxReceived.Offset; offset++ {
 		msgState, exists := ps.State[offset]
 		if !exists {
-			fmt.Printf("does not exit, off = %d, State = %v\n", offset, ps.State)
+			// fmt.Printf("does not exit, off = %d, State = %v\n", offset, ps.State)
 			continue
 		}
 		if msgState != MsgState_Pending {
 			delete(ps.State, offset)
-			logrus.WithFields(logrus.Fields{
-				"OFFSET": offset,
-				"PRTN":   ps.ID,
-			}).Info("Removed offset")
+			// logrus.WithFields(logrus.Fields{
+			// 	"OFFSET": offset,
+			// 	"PRTN":   ps.ID,
+			// }).Info("Removed offset")
 			if len(ps.State) == 0 {
 				latestToCommit.Offset = offset + 1
 				break

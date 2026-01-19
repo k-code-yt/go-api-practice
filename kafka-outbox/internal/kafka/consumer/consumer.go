@@ -30,7 +30,7 @@ type KafkaConsumer[T any] struct {
 	ReadyCH      chan struct{}
 	exitCH       chan struct{}
 	consumer     *kafka.Consumer
-	topic        string
+	topics       []string
 	msgsStateMap map[int32]*PartitionState
 	Mu           *sync.RWMutex
 	commitDur    time.Duration
@@ -60,16 +60,18 @@ func NewKafkaConsumer[T any](msgCH chan *pkgtypes.Message[T]) *KafkaConsumer[T] 
 		ReadyCH:      make(chan struct{}),
 		exitCH:       make(chan struct{}),
 		IsReady:      false,
-		topic:        cfg.DefaultTopic,
+		topics:       cfg.DefaultTopics,
 		Mu:           new(sync.RWMutex),
 		commitDur:    15 * time.Second,
 		msgsStateMap: map[int32]*PartitionState{},
 		cfg:          cfg,
 	}
 
-	consumer.initializeKafkaTopic(cfg.Host, consumer.topic)
+	for _, t := range consumer.topics {
+		consumer.initializeKafkaTopic(cfg.Host, t)
+	}
 
-	err = c.SubscribeTopics([]string{consumer.topic}, consumer.rebalanceCB)
+	err = c.SubscribeTopics(consumer.topics, consumer.rebalanceCB)
 	if err != nil {
 		panic(err)
 	}
@@ -84,7 +86,7 @@ func (c *KafkaConsumer[T]) RunConsumer() struct{} {
 }
 
 func (c *KafkaConsumer[T]) UpdateState(tp *kafka.TopicPartition, newState MsgState) {
-	logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
+	// logrus.WithField("OFFSET", tp.Offset).Info("UpdateState")
 	c.Mu.RLock()
 	prtnState, ok := c.msgsStateMap[tp.Partition]
 	if !ok {
@@ -118,6 +120,7 @@ func (c *KafkaConsumer[T]) assignPrntCB(ev *kafka.AssignedPartitions) error {
 
 		logrus.WithFields(logrus.Fields{
 			"PRTN":         tp.Partition,
+			"TOPIC":        *tp.Topic,
 			"START_OFFSET": startOffset,
 		}).Info("✅ Assigned partition")
 
@@ -162,7 +165,12 @@ func (c *KafkaConsumer[T]) assignPrntCB(ev *kafka.AssignedPartitions) error {
 func (c *KafkaConsumer[T]) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 	var toCommit []kafka.TopicPartition
 	for _, tp := range ev.Partitions {
-		logrus.WithField("PRTN", tp.Partition).Info("❌ Revoking partition")
+		logrus.WithFields(
+			logrus.Fields{
+				"PRTN":  tp.Partition,
+				"TOPIC": *tp.Topic,
+			},
+		).Info("❌ Revoking PRTN")
 
 		c.Mu.RLock()
 		partitionState, exists := c.msgsStateMap[tp.Partition]
@@ -175,7 +183,7 @@ func (c *KafkaConsumer[T]) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 
 		latestToCommit, err := partitionState.FindLatestToCommit()
 		if err != nil {
-			fmt.Println(err)
+			// fmt.Println(err)
 			continue
 		}
 
@@ -336,7 +344,7 @@ func (c *KafkaConsumer[T]) initializeKafkaTopic(brokers, topicName string) error
 			continue
 		}
 		if result.Error.Code() != kafka.ErrNoError {
-			return fmt.Errorf("failed to create topic: %v", result.Error)
+			// return fmt.Errorf("failed to create topic: %v", result.Error)
 		}
 		log.Printf("Topic '%s' created successfully", result.Topic)
 	}
