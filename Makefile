@@ -80,7 +80,7 @@ test-chat-race:
 	@echo "Running TestRoomsWithKafka with race detector..."
 	@go test -race -v -timeout 300s -run TestRoomsWithKafka ./chat/with-loop-per-client
 
-# ---PROTO---s
+# ---PROTO---
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative shared/ptypes.proto
 
