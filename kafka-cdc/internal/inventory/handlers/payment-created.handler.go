@@ -58,8 +58,9 @@ func NewPaymentCreatedHandler(svc *application.InventoryService) *PaymentHandler
 }
 
 func (h *PaymentHandler) CreateHandlerFunc() Handler {
-	return func(ctx context.Context, msg []byte, metadata *kafka.TopicPartition, eventType pkgtypes.EventType) error {
-		parsed, err := pkgkafka.NewMessage[debezium.DebeziumMessage[CDCPayment]](metadata, msg)
+	return func(ctx context.Context, msg []byte, metadata *kafka.TopicPartition, eventType pkgtypes.EventType, cfg *pkgkafka.KafkaConfig) error {
+		decoder := pkgkafka.GetDecoder[debezium.DebeziumMessage[CDCPayment]](cfg)
+		parsed, err := pkgkafka.NewMessage(decoder, metadata, msg)
 		if err != nil {
 			return err
 		}

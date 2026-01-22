@@ -32,7 +32,7 @@ type KafkaConsumer struct {
 	msgsStateMap map[int32]*PartitionState
 	Mu           *sync.RWMutex
 	commitDur    time.Duration
-	cfg          *KafkaConfig
+	Cfg          *KafkaConfig
 }
 
 func NewKafkaConsumer(topics []string) *KafkaConsumer {
@@ -66,7 +66,7 @@ func NewKafkaConsumer(topics []string) *KafkaConsumer {
 		Mu:           new(sync.RWMutex),
 		commitDur:    15 * time.Second,
 		msgsStateMap: map[int32]*PartitionState{},
-		cfg:          cfg,
+		Cfg:          cfg,
 	}
 
 	for _, t := range consumer.topics {
@@ -147,7 +147,7 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 
 	c.Mu.Unlock()
 
-	if c.cfg.ParititionAssignStrategy == "cooperative-sticky" {
+	if c.Cfg.ParititionAssignStrategy == "cooperative-sticky" {
 		err = c.consumer.IncrementalAssign(ev.Partitions)
 	} else {
 		err = c.consumer.Assign(ev.Partitions)
@@ -220,7 +220,7 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 	}
 
 	var err error
-	if c.cfg.ParititionAssignStrategy == "cooperative-sticky" {
+	if c.Cfg.ParititionAssignStrategy == "cooperative-sticky" {
 		err = c.consumer.IncrementalUnassign(ev.Partitions)
 	} else {
 		err = c.consumer.Unassign()
@@ -318,7 +318,7 @@ func (c *KafkaConsumer) initializeKafkaTopic(brokers, topicName string) error {
 	log.Printf("Creating topic '%s'...", topicName)
 	topicSpec := kafka.TopicSpecification{
 		Topic:         topicName,
-		NumPartitions: c.cfg.NumPartitions,
+		NumPartitions: c.Cfg.NumPartitions,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

@@ -14,7 +14,6 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/repo"
 	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
 	pkgkafka "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/kafka"
 )
 
@@ -25,11 +24,12 @@ type Server struct {
 }
 
 func NewServer(inboxRepo *repo.InboxEventRepo, invRepo *repo.InventoryRepo, DBName string) *Server {
-	err := debezium.RegisterConnector("http://localhost:8083", debezium.GetDebPaymentDBConnectorName(DBName), DBName, fmt.Sprintf("public.%s", repo.DBTableName_Inventory))
-	if err != nil {
-		fmt.Printf("err on deb-m conn %v\n", err)
-		panic(err)
-	}
+	// TODO -> revert inventory deb register
+	// err := debezium.RegisterConnector("http://localhost:8083", debezium.GetDebPaymentDBConnectorName(DBName), DBName, fmt.Sprintf("public.%s", repo.DBTableName_Inventory))
+	// if err != nil {
+	// 	fmt.Printf("err on deb-m conn %v\n", err)
+	// 	panic(err)
+	// }
 
 	s := application.NewInventoryService(inboxRepo, invRepo)
 	kafkaConsumer := pkgkafka.NewKafkaConsumer([]string{msg.DebPaymentTopic})

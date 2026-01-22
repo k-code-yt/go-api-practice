@@ -27,3 +27,7 @@ inventory: build-inventory-server-race
 
 migrate-inventory:
 	go run migrations/main.go -service inventory -action up
+
+#### GLOBAL ####
+mgr: migrate-payment migrate-inventory
+	
