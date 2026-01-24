@@ -1,0 +1,35 @@
+FROM debezium/connect:2.7.3.Final
+
+USER root
+
+WORKDIR /kafka/connect/debezium-connector-postgres
+
+RUN curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-connect-protobuf-converter/7.5.0/kafka-connect-protobuf-converter-7.5.0.jar && \
+    curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-protobuf-serializer/7.5.0/kafka-protobuf-serializer-7.5.0.jar && \
+    curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-protobuf-provider/7.5.0/kafka-protobuf-provider-7.5.0.jar && \
+    curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-protobuf-types/7.5.0/kafka-protobuf-types-7.5.0.jar && \
+    curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-schema-serializer/7.5.0/kafka-schema-serializer-7.5.0.jar && \
+    curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-schema-registry-client/7.5.0/kafka-schema-registry-client-7.5.0.jar && \
+    curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-schema-converter/7.5.0/kafka-schema-converter-7.5.0.jar && \
+    curl -sLO https://packages.confluent.io/maven/io/confluent/common-config/7.5.0/common-config-7.5.0.jar && \
+    curl -sLO https://packages.confluent.io/maven/io/confluent/common-utils/7.5.0/common-utils-7.5.0.jar
+
+RUN curl -sLO https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.25.1/protobuf-java-3.25.1.jar && \
+    curl -sLO https://repo1.maven.org/maven2/com/google/api/grpc/proto-google-common-protos/2.29.0/proto-google-common-protos-2.29.0.jar
+
+RUN curl -sLO https://repo1.maven.org/maven2/com/squareup/wire/wire-schema-jvm/4.9.3/wire-schema-jvm-4.9.3.jar && \
+    curl -sLO https://repo1.maven.org/maven2/com/squareup/wire/wire-runtime-jvm/4.9.3/wire-runtime-jvm-4.9.3.jar
+
+RUN curl -sLO https://repo1.maven.org/maven2/com/squareup/okio/okio-jvm/3.6.0/okio-jvm-3.6.0.jar
+
+RUN curl -sLO https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.20/kotlin-stdlib-1.9.20.jar && \
+    curl -sLO https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.9.20/kotlin-stdlib-common-1.9.20.jar && \
+    curl -sLO https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.20/kotlin-stdlib-jdk8-1.9.20.jar && \
+    curl -sLO https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.9.20/kotlin-stdlib-jdk7-1.9.20.jar
+
+RUN curl -sLO https://repo1.maven.org/maven2/com/google/guava/guava/31.1-jre/guava-31.1-jre.jar && \
+    curl -sLO https://repo1.maven.org/maven2/com/google/guava/failureaccess/1.0.1/failureaccess-1.0.1.jar && \
+    curl -sLO https://repo1.maven.org/maven2/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar && \
+    curl -sLO https://repo1.maven.org/maven2/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar
+
+USER kafka

@@ -75,7 +75,7 @@ services:
   postgres-go-api:
     image: postgis/postgis:16-3.4
     ports:
-      - "5432:5432"
+      - "5452:5432"
     environment:
       POSTGRES_USER: "user"
       POSTGRES_PASSWORD: "pass"
@@ -92,7 +92,7 @@ services:
   debezium:
     build:
       context: .
-      dockerfile: Dockerfile.debezium
+      dockerfile: Dockerfile.proto.debezium
     container_name: debezium
     ports:
       - "8083:8083"

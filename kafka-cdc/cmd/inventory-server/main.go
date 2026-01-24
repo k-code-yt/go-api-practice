@@ -12,7 +12,6 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/handlers"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/msg"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/repo"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
 	pkgkafka "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/kafka"
 )
@@ -33,10 +32,11 @@ func NewServer(inboxRepo *repo.InboxEventRepo, invRepo *repo.InventoryRepo, DBNa
 
 	s := application.NewInventoryService(inboxRepo, invRepo)
 	kafkaConsumer := pkgkafka.NewKafkaConsumer([]string{msg.DebPaymentTopic})
+	_ = handlers.NewMsgRouter(kafkaConsumer)
 
-	msgRouter := handlers.NewMsgRouter(kafkaConsumer)
-	paymCreateHandler := handlers.NewPaymentCreatedHandler(s)
-	msgRouter.AddHandler(paymCreateHandler.Handler, pkgconstants.EventType_PaymentCreated)
+	// msgRouter := handlers.NewMsgRouter(kafkaConsumer)
+	// paymCreateHandler := handlers.NewPaymentCreatedHandler(s)
+	// msgRouter.AddHandler(paymCreateHandler.Handler, pkgconstants.EventType_PaymentCreated)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Server{

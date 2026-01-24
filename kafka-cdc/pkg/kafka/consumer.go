@@ -22,21 +22,32 @@ const (
 )
 
 type KafkaConsumer struct {
-	ID           string
-	IsReady      bool
-	ReadyCH      chan struct{}
-	ExitCH       chan struct{}
-	MsgCH        chan *kafka.Message
-	consumer     *kafka.Consumer
+	ID       string
+	consumer *kafka.Consumer
+
+	IsReady bool
+	ReadyCH chan struct{}
+	ExitCH  chan struct{}
+	MsgCH   chan *kafka.Message
+
 	topics       []string
-	msgsStateMap map[int32]*PartitionState
 	Mu           *sync.RWMutex
+	msgsStateMap map[int32]*PartitionState
 	commitDur    time.Duration
-	Cfg          *KafkaConfig
+
+	Cfg *KafkaConfig
+
+	MsgEncoder MsgEncoder
 }
 
+// TODO -> return err from here
 func NewKafkaConsumer(topics []string) *KafkaConsumer {
 	cfg := NewKafkaConfig()
+	msgEncoder, err := NewMsgEncoder(nil)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
 	ID := pkgutils.GenerateRandomString(15)
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":               cfg.Host,
@@ -67,6 +78,7 @@ func NewKafkaConsumer(topics []string) *KafkaConsumer {
 		commitDur:    15 * time.Second,
 		msgsStateMap: map[int32]*PartitionState{},
 		Cfg:          cfg,
+		MsgEncoder:   msgEncoder,
 	}
 
 	for _, t := range consumer.topics {

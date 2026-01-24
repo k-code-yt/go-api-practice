@@ -2,12 +2,7 @@ FROM debezium/connect:2.7.3.Final
 
 USER root
 
-# Create directory for Avro converter
-RUN mkdir -p /kafka/connect/kafka-connect-avro-converter
-
-WORKDIR /kafka/connect/kafka-connect-avro-converter
-
-# Download ALL required dependencies for Avro converter
+WORKDIR /kafka/connect/debezium-connector-postgres
 RUN curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-connect-avro-converter/7.5.0/kafka-connect-avro-converter-7.5.0.jar && \
     curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-connect-avro-data/7.5.0/kafka-connect-avro-data-7.5.0.jar && \
     curl -sLO https://packages.confluent.io/maven/io/confluent/kafka-avro-serializer/7.5.0/kafka-avro-serializer-7.5.0.jar && \

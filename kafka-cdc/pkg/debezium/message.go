@@ -16,28 +16,37 @@ type DebeziumMessage[T any] struct {
 	Metadata *kafka.TopicPartition
 }
 
-func (msg *DebeziumMessage[T]) AddMetadata(m *kafka.TopicPartition) {
-	msg.Metadata = m
-}
-
 type Payload[T any] struct {
-	Before    T
-	After     T
-	Source    Source
-	Op        string `json:"op"`
-	Timestamp int    `json:"ts_ms"`
-	EventType pkgtypes.EventType
+	Before      *T                   `avro:"before"`
+	After       *T                   `avro:"after"`
+	Source      DebeziumSource       `avro:"source"`
+	Transaction *DebeziumTransaction `avro:"transaction"`
+	Op          string               `avro:"op"`
+	Timestamp   *int64               `avro:"ts_ms"`
+	EventType   pkgtypes.EventType
 }
 
-type Source struct {
-	Version   string `json:"version"`
-	Name      string `json:"name"`
-	Timestamp int    `json:"ts_ms"`
-	Snapshot  string `json:"snapshot"`
-	Sequence  string `json:"sequence"`
-	Table     string `json:"table"`
-	TxId      int    `json:"txId"`
-	Lsn       int    `json:"lsn"`
+type DebeziumSource struct {
+	Version   string  `avro:"version"`
+	Connector string  `avro:"connector"`
+	Name      string  `avro:"name"`
+	TsMs      int64   `avro:"ts_ms"`
+	Snapshot  *string `avro:"snapshot"`
+	Db        string  `avro:"db"`
+	Sequence  *string `avro:"sequence"`
+	TsUs      *int64  `avro:"ts_us"`
+	TsNs      *int64  `avro:"ts_ns"`
+	Schema    string  `avro:"schema"`
+	Table     string  `avro:"table"`
+	TxId      *int64  `avro:"txId"`
+	Lsn       *int64  `avro:"lsn"`
+	Xmin      *int64  `avro:"xmin"`
+}
+
+type DebeziumTransaction struct {
+	Id                  string `json:"id" avro:"id"`
+	TotalOrder          int64  `json:"total_order" avro:"total_order"`
+	DataCollectionOrder int64  `json:"data_collection_order" avro:"data_collection_order"`
 }
 
 type PartialPayload struct {

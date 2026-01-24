@@ -12,5 +12,11 @@
 [x] adjust folder structure
 [x] kafka commit loop
 [x] add DB migrations
+[] refactor handler for PROTO && json
+[] how to manager schema migration with PROTO
+[] add AVRO handlers
+[] how to manager schema migration with AVRO
+
+[] add GRPC handler && kafka consumer together in the same service -> both will consume PROTO
 [] saga -> one compensating aciton???
 [] debezium migration -> add like in DB. Store entire JSON with version -> read file -> compare -> update DB

@@ -2,30 +2,24 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
+	inframsg "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/msg"
 	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 	pkgkafka "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/kafka"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
 )
 
-type Handler func(ctx context.Context, msg []byte, metadata *kafka.TopicPartition, eventType pkgtypes.EventType, cfg *pkgkafka.KafkaConfig) error
+type Handler[T any] func(ctx context.Context, payload T, metadata *kafka.TopicPartition, eventType pkgtypes.EventType, cfg *pkgkafka.KafkaConfig) error
 
 type MsgRouter struct {
-	handlers map[pkgtypes.EventType]Handler
-	mu       *sync.RWMutex
 	consumer *pkgkafka.KafkaConsumer
 }
 
 func NewMsgRouter(consumer *pkgkafka.KafkaConsumer) *MsgRouter {
 	r := &MsgRouter{
-		handlers: make(map[pkgtypes.EventType]Handler),
-		mu:       new(sync.RWMutex),
 		consumer: consumer,
 	}
 
@@ -47,33 +41,54 @@ func (r *MsgRouter) consumeLoop() {
 	}
 }
 
-func (r *MsgRouter) AddHandler(h Handler, event pkgtypes.EventType) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.handlers[event] = h
+func (r *MsgRouter) decodeMsg(msg *kafka.Message) (any, string, error) {
+	topic := *msg.TopicPartition.Topic
+
+	switch topic {
+	case inframsg.DebPaymentTopic:
+		return r.decodePayment(msg)
+	}
+	return nil, "", fmt.Errorf("Unknown topic, missing handler for it %s\n", topic)
+}
+
+func (r *MsgRouter) decodePayment(msg *kafka.Message) (any, string, error) {
+	msgEncoderType := r.consumer.MsgEncoder.GetType()
+
+	if msgEncoderType == pkgkafka.KafkaEncoder_PROTO {
+		target := &pkgtypes.CDCPaymentEnvelope{}
+		err := r.consumer.MsgEncoder.Decoder(&msg.TopicPartition, msg.Value, target)
+		if err != nil {
+			return nil, "", err
+		}
+		return target, target.Op, nil
+	}
+	return nil, "", fmt.Errorf("Unknown topic, missing handler for it %s\n", *msg.TopicPartition.Topic)
+
 }
 
 func (r *MsgRouter) handlerMsg(msg *kafka.Message) error {
 	topic := *msg.TopicPartition.Topic
 
-	// TODO -> how to parse partially binary msg?
-	parsed := &debezium.PartialDebeziumMessage{}
-	err := json.Unmarshal(msg.Value, parsed)
-	if err != nil {
-		return fmt.Errorf("Cannot parse CDC msg %v", err)
-	}
-
-	event, err := r.getEventType(topic, parsed.Payload.Op)
+	envelope, op, err := r.decodeMsg(msg)
 	if err != nil {
 		return err
 	}
 
-	parsed = nil
-	handler, err := r.getHandler(pkgtypes.EventType(event))
+	eventType, err := r.getEventType(topic, op)
 	if err != nil {
 		return err
 	}
-	return handler(context.Background(), msg.Value, &msg.TopicPartition, event, r.consumer.Cfg)
+
+	fmt.Println(eventType)
+	fmt.Println(envelope)
+
+	// msgEncoderType := r.consumer.MsgEncoder.GetType()
+
+	// switch msgEncoderType {
+	// case pkgkafka.KafkaEncoder_PROTO:
+
+	// }
+	return nil
 }
 
 func (r *MsgRouter) getEventType(topic string, op string) (pkgtypes.EventType, error) {
@@ -95,14 +110,4 @@ func (r *MsgRouter) getEventType(topic string, op string) (pkgtypes.EventType, e
 	}
 
 	return pkgtypes.EventType(event), nil
-}
-
-func (r *MsgRouter) getHandler(event pkgtypes.EventType) (Handler, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	h, ok := r.handlers[event]
-	if !ok {
-		return nil, fmt.Errorf("handler is missing for %s event type", event)
-	}
-	return h, nil
 }
