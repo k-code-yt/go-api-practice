@@ -9,7 +9,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/application"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/handlers"
+	handlersmsg "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/handlers/msg"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/msg"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/repo"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
@@ -32,11 +32,10 @@ func NewServer(inboxRepo *repo.InboxEventRepo, invRepo *repo.InventoryRepo, DBNa
 
 	s := application.NewInventoryService(inboxRepo, invRepo)
 	kafkaConsumer := pkgkafka.NewKafkaConsumer([]string{msg.DebPaymentTopic})
-	_ = handlers.NewMsgRouter(kafkaConsumer)
 
-	// msgRouter := handlers.NewMsgRouter(kafkaConsumer)
-	// paymCreateHandler := handlers.NewPaymentCreatedHandler(s)
-	// msgRouter.AddHandler(paymCreateHandler.Handler, pkgconstants.EventType_PaymentCreated)
+	ph := handlersmsg.NewPaymentHandler(s)
+	_ = handlersmsg.NewMsgRouter(kafkaConsumer, ph)
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Server{

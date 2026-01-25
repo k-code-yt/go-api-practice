@@ -66,9 +66,15 @@ services:
       - "9000:9000"
     environment:
       KAFKA_BROKERCONNECT: "kafka:29092"
+      SCHEMAREGISTRY_CONNECT: "http://schema-registry:8081"
+      MESSAGE_FORMAT: "PROTOBUF"
+      PROTOBUFDESC_DIRECTORY: "/var/protobuf_desc"
     depends_on:
       - kafka
       - zookeeper
+      - schema-registry
+    volumes:
+      - ./proto:/var/protobuf_desc:ro
     networks:
       - kafka-network
 

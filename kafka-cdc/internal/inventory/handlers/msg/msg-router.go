@@ -1,31 +1,66 @@
-package handlers
+package handlersmsg
 
 import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/domain"
 	inframsg "github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/infra/msg"
+	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 	pkgkafka "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/kafka"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
 )
 
-type Handler[T any] func(ctx context.Context, payload T, metadata *kafka.TopicPartition, eventType pkgtypes.EventType, cfg *pkgkafka.KafkaConfig) error
-
 type MsgRouter struct {
-	consumer *pkgkafka.KafkaConsumer
+	consumer       *pkgkafka.KafkaConsumer
+	mu             *sync.RWMutex
+	paymentHandler *PaymentHandler
 }
 
-func NewMsgRouter(consumer *pkgkafka.KafkaConsumer) *MsgRouter {
+func NewMsgRouter(consumer *pkgkafka.KafkaConsumer, ph *PaymentHandler) *MsgRouter {
 	r := &MsgRouter{
-		consumer: consumer,
+		consumer:       consumer,
+		mu:             new(sync.RWMutex),
+		paymentHandler: ph,
 	}
 
 	go r.consumer.RunConsumer()
 	go r.consumeLoop()
 	return r
+}
+
+func (r *MsgRouter) HandlePaymentCreated(ctx context.Context, paymentEvent *domain.PaymentCreatedEvent, eventType pkgtypes.EventType) error {
+	return r.paymentHandler.handlePaymentCreated(ctx, paymentEvent, eventType)
+}
+
+func (r *MsgRouter) handlerMsg(msg *kafka.Message) error {
+	topic := *msg.TopicPartition.Topic
+
+	envelope, op, err := r.decodeMsg(msg)
+	if err != nil {
+		return err
+	}
+
+	eventType, err := r.getEventType(topic, op)
+	if err != nil {
+		return err
+	}
+
+	msgEncoderType := r.consumer.MsgEncoder.GetType()
+	switch eventType {
+	case pkgconstants.EventType_PaymentCreated:
+		msgReq, err := r.paymentHandler.getPaymentCreatedEvent(context.Background(), envelope, eventType, msgEncoderType, &msg.TopicPartition)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		return r.HandlePaymentCreated(msgReq.Ctx, msgReq.Payload.After, eventType)
+	}
+	return nil
 }
 
 func (r *MsgRouter) consumeLoop() {
@@ -64,31 +99,6 @@ func (r *MsgRouter) decodePayment(msg *kafka.Message) (any, string, error) {
 	}
 	return nil, "", fmt.Errorf("Unknown topic, missing handler for it %s\n", *msg.TopicPartition.Topic)
 
-}
-
-func (r *MsgRouter) handlerMsg(msg *kafka.Message) error {
-	topic := *msg.TopicPartition.Topic
-
-	envelope, op, err := r.decodeMsg(msg)
-	if err != nil {
-		return err
-	}
-
-	eventType, err := r.getEventType(topic, op)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(eventType)
-	fmt.Println(envelope)
-
-	// msgEncoderType := r.consumer.MsgEncoder.GetType()
-
-	// switch msgEncoderType {
-	// case pkgkafka.KafkaEncoder_PROTO:
-
-	// }
-	return nil
 }
 
 func (r *MsgRouter) getEventType(topic string, op string) (pkgtypes.EventType, error) {

@@ -1,4 +1,83 @@
-package handlers
+package handlersmsg
+
+import (
+	"strconv"
+
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/domain"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
+	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types/avro"
+)
+
+type AvroMapper struct {
+}
+
+func NewAvroMapper() *AvroMapper {
+	return &AvroMapper{}
+}
+
+func (m *AvroMapper) PaymenmtToEvent(cdc *avro.CDCPayment) (*domain.PaymentCreatedEvent, error) {
+	amount, err := strconv.ParseFloat(cdc.Amount, 2)
+	if err != nil {
+		amount, err = debezium.DecodeDebeziumDecimal(cdc.Amount, 2)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &domain.PaymentCreatedEvent{
+		ID:          cdc.ID,
+		OrderNumber: cdc.OrderNumber,
+		Amount:      amount,
+		Status:      *cdc.Status,
+		CreatedAt:   debezium.ConvertIntTimeToUnix(*cdc.CreatedAt),
+		UpdatedAt:   debezium.ConvertIntTimeToUnix(*cdc.UpdatedAt),
+	}, nil
+}
+
+// func AvroParseDebeziumPayload(deserializer *avro.SpecificDeserializer, topic string, data []byte) (*debezium.Payload[CDCPayment], error) {
+// 	var payload debezium.Payload[CDCPayment]
+
+// 	err := deserializer.DeserializeInto(topic, data, &payload)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return &payload, nil
+// }
+
+// func AvroGnericParseDebeziumPayload(deserializer *avro.GenericDeserializer, topic string, data []byte) (*debezium.Payload[CDCPayment], error) {
+// 	var payload debezium.Payload[CDCPayment]
+// 	// schema, err := deserializer.GetSchema(topic, data)
+// 	// if err != nil {
+// 	// 	return nil, err
+// 	// }
+
+// 	// var jSchema map[string]any
+// 	// err = json.Unmarshal([]byte(schema.Schema), &jSchema)
+// 	// if err != nil {
+// 	// 	return nil, err
+// 	// }
+// 	DebugSchema("http://localhost:8081", topic)
+// 	err := deserializer.DeserializeInto(topic, data, &payload)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return &payload, nil
+// }
+
+// func DebugSchema(schemaRegistryURL, topic string) {
+// 	client, _ := schemaregistry.NewClient(schemaregistry.NewConfig(schemaRegistryURL))
+
+// 	// Get the latest schema for the topic
+// 	subject := topic + "-value"
+// 	schemaMetadata, err := client.GetLatestSchemaMetadata(subject)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	fmt.Println("Schema from registry:")
+// 	fmt.Println(schemaMetadata.Schema)
+// }
 
 // import (
 // 	"encoding/binary"

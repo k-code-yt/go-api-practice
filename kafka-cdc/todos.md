@@ -12,7 +12,7 @@
 [x] adjust folder structure
 [x] kafka commit loop
 [x] add DB migrations
-[] refactor handler for PROTO && json
+[x] refactor handler for PROTO
 [] how to manager schema migration with PROTO
 [] add AVRO handlers
 [] how to manager schema migration with AVRO
