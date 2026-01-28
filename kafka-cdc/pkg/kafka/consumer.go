@@ -22,21 +22,32 @@ const (
 )
 
 type KafkaConsumer struct {
-	ID           string
-	IsReady      bool
-	ReadyCH      chan struct{}
-	ExitCH       chan struct{}
-	MsgCH        chan *kafka.Message
-	consumer     *kafka.Consumer
+	ID       string
+	consumer *kafka.Consumer
+
+	IsReady bool
+	ReadyCH chan struct{}
+	ExitCH  chan struct{}
+	MsgCH   chan *kafka.Message
+
 	topics       []string
-	msgsStateMap map[int32]*PartitionState
 	Mu           *sync.RWMutex
+	msgsStateMap map[int32]*PartitionState
 	commitDur    time.Duration
-	cfg          *KafkaConfig
+
+	Cfg *KafkaConfig
+
+	MsgEncoder MsgEncoder
 }
 
+// TODO -> return err from here
 func NewKafkaConsumer(topics []string) *KafkaConsumer {
 	cfg := NewKafkaConfig()
+	msgEncoder, err := NewMsgEncoder(nil)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
 	ID := pkgutils.GenerateRandomString(15)
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":               cfg.Host,
@@ -66,7 +77,8 @@ func NewKafkaConsumer(topics []string) *KafkaConsumer {
 		Mu:           new(sync.RWMutex),
 		commitDur:    15 * time.Second,
 		msgsStateMap: map[int32]*PartitionState{},
-		cfg:          cfg,
+		Cfg:          cfg,
+		MsgEncoder:   msgEncoder,
 	}
 
 	for _, t := range consumer.topics {
@@ -147,7 +159,7 @@ func (c *KafkaConsumer) assignPrntCB(ev *kafka.AssignedPartitions) error {
 
 	c.Mu.Unlock()
 
-	if c.cfg.ParititionAssignStrategy == "cooperative-sticky" {
+	if c.Cfg.ParititionAssignStrategy == "cooperative-sticky" {
 		err = c.consumer.IncrementalAssign(ev.Partitions)
 	} else {
 		err = c.consumer.Assign(ev.Partitions)
@@ -220,7 +232,7 @@ func (c *KafkaConsumer) revokePrtnCB(ev *kafka.RevokedPartitions) error {
 	}
 
 	var err error
-	if c.cfg.ParititionAssignStrategy == "cooperative-sticky" {
+	if c.Cfg.ParititionAssignStrategy == "cooperative-sticky" {
 		err = c.consumer.IncrementalUnassign(ev.Partitions)
 	} else {
 		err = c.consumer.Unassign()
@@ -318,7 +330,7 @@ func (c *KafkaConsumer) initializeKafkaTopic(brokers, topicName string) error {
 	log.Printf("Creating topic '%s'...", topicName)
 	topicSpec := kafka.TopicSpecification{
 		Topic:         topicName,
-		NumPartitions: c.cfg.NumPartitions,
+		NumPartitions: c.Cfg.NumPartitions,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

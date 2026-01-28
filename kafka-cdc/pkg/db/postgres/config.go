@@ -17,7 +17,7 @@ func NewPostgresConfig(fallbackDBName string) *PostgresConfig {
 	var postgres PostgresConfig
 
 	postgres.Host = getEnv("POSTGRES_HOSTS", "localhost")
-	postgres.Port = getEnv("POSTGRES_PORT", "5432")
+	postgres.Port = getEnv("POSTGRES_PORT", "5452")
 	postgres.User = getEnv("POSTGRES_USER", "user")
 	postgres.Password = getEnv("POSTGRES_PASSWORD", "pass")
 	postgres.DBName = getEnv("POSTGRES_DATABASE", fallbackDBName)
@@ -36,7 +36,7 @@ func getEnv(key, fallback string) string {
 }
 
 func GetDefaultConnString() string {
-	return "host=localhost port=5432 user=user password=pass dbname=events sslmode=disable"
+	return "host=localhost port=5452 user=user password=pass dbname=events sslmode=disable"
 }
 
 func GetConnString(options *PostgresConfig) string {

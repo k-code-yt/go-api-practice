@@ -1,3 +1,5 @@
+.PHONY: proto mgr
+
 #### PAYMENT ####
 build-payment-server:
 	@go build -o ./bin/payment-server ./cmd/payment-server/.
@@ -27,3 +29,11 @@ inventory: build-inventory-server-race
 
 migrate-inventory:
 	go run migrations/main.go -service inventory -action up
+
+#### GLOBAL ####
+mgr: migrate-payment migrate-inventory
+	
+proto:
+	protoc --go_out=pkg/types/proto --go_opt=paths=source_relative \
+		--proto_path=pkg/types/proto \
+		pkg/types/proto/*.proto

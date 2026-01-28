@@ -1,6 +1,8 @@
 package pkgkafka
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type KafkaConfig struct {
 	DefaultTopics            []string
@@ -9,6 +11,7 @@ type KafkaConfig struct {
 	ConsumerGroup            string
 	ParititionAssignStrategy string
 	NumPartitions            int
+	MsgEncoder               MsgEncoder
 }
 
 func NewKafkaConfig() *KafkaConfig {
@@ -20,11 +23,12 @@ func NewKafkaConfig() *KafkaConfig {
 		topics = append(topics, t)
 	}
 
-	return &KafkaConfig{
+	cfg := &KafkaConfig{
 		ParititionAssignStrategy: strategy,
 		DefaultTopics:            topics,
 		Host:                     "localhost",
 		ConsumerGroup:            "local_cg",
 		NumPartitions:            4,
 	}
+	return cfg
 }

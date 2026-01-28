@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+option go_package = "github.com/k-code-yt/go-api-practice/kafka-cdc/pkgtypes/pkgproto";
+
+package debezium;
+
+message DebeziumSource {
+  string version = 1;
+  string connector = 2;
+  string name = 3;
+  int64 ts_ms = 4;
+  string snapshot = 5;
+  string db = 6;
+  string sequence = 7;
+  int64 ts_us = 8;
+  int64 ts_ns = 9;
+  string schema = 10;
+  string table = 11;
+  int64 tx_id = 12;
+  int64 lsn = 13;
+  int64 xmin = 14;
+}
+
+message DebeziumTransaction {
+  string id = 1;
+  int64 total_order = 2;
+  int64 data_collection_order = 3;
+}
+

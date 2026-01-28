@@ -1,6 +1,6 @@
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -26,6 +26,36 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_NUM_PARTITIONS: 4
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "kafka-broker-api-versions",
+          "--bootstrap-server",
+          "localhost:9092",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - kafka-network
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: curl --fail http://schema-registry:8081/subjects || exit 1
+      interval: 20s
+      timeout: 20s
+      retries: 20
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    ports:
+      - "8081:8081"
     networks:
       - kafka-network
 
@@ -36,24 +66,28 @@ services:
       - "9000:9000"
     environment:
       KAFKA_BROKERCONNECT: "kafka:29092"
+      SCHEMAREGISTRY_CONNECT: "http://schema-registry:8081"
+      MESSAGE_FORMAT: "PROTOBUF"
+      PROTOBUFDESC_DIRECTORY: "/var/protobuf_desc"
     depends_on:
       - kafka
       - zookeeper
+      - schema-registry
+    volumes:
+      - ./proto:/var/protobuf_desc:ro
     networks:
       - kafka-network
 
-  # Database
   postgres-go-api:
     image: postgis/postgis:16-3.4
     ports:
-      - "5432:5432"
+      - "5452:5432"
     environment:
       POSTGRES_USER: "user"
       POSTGRES_PASSWORD: "pass"
       POSTGRES_DB: "db"
     volumes:
       - saga-api-db:/var/lib/postgresql/sagadata
-    # Enable logical replication for Debezium
     command: >
       postgres -c wal_level=logical
       -c max_wal_senders=4
@@ -61,23 +95,32 @@ services:
     networks:
       - kafka-network
 
-  # Debezium Connect
   debezium:
-    image: debezium/connect:2.7.3.Final
+    build:
+      context: .
+      dockerfile: Dockerfile.proto.debezium
+    container_name: debezium
     ports:
       - "8083:8083"
     depends_on:
-      - kafka
-      - postgres-go-api
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     environment:
       BOOTSTRAP_SERVERS: kafka:29092
       GROUP_ID: 1
       CONFIG_STORAGE_TOPIC: debezium_connect_configs
       OFFSET_STORAGE_TOPIC: debezium_connect_offsets
       STATUS_STORAGE_TOPIC: debezium_connect_statuses
-      CONFIG_STORAGE_REPLICATION_FACTOR: 4
-      OFFSET_STORAGE_REPLICATION_FACTOR: 4
-      STATUS_STORAGE_REPLICATION_FACTOR: 4
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
     networks:
       - kafka-network
 
