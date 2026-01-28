@@ -14,7 +14,7 @@ import (
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
 )
 
-type Handler func(ctx context.Context, msg []byte, metadata *kafka.TopicPartition, eventType pkgtypes.EventType) error
+type Handler func(ctx context.Context, msg []byte, metadata *kafka.TopicPartition, eventType pkgtypes.EventType, cfg *pkgkafka.KafkaConfig) error
 
 type MsgRouter struct {
 	handlers map[pkgtypes.EventType]Handler
@@ -72,7 +72,7 @@ func (r *MsgRouter) handlerMsg(msg *kafka.Message) error {
 	if err != nil {
 		return err
 	}
-	return handler(context.Background(), msg.Value, &msg.TopicPartition, event)
+	return handler(context.Background(), msg.Value, &msg.TopicPartition, event, r.consumer.Cfg)
 }
 
 func (r *MsgRouter) getEventType(topic string, op string) (pkgtypes.EventType, error) {

@@ -15,6 +15,7 @@ type ConnectorConfig struct {
 }
 
 // TODO -> how to run deb migrations?
+// TODO -> take in db config && make re-usable for avro and proto?
 func RegisterConnector(connectURL, connectorName, dbName, tables string) error {
 	config := ConnectorConfig{
 		Name: connectorName,
@@ -33,6 +34,16 @@ func RegisterConnector(connectURL, connectorName, dbName, tables string) error {
 			"slot.name":             connectorName,
 			"heartbeat.interval.ms": "10000",
 			"decimal.handling.mode": "string",
+
+			"key.converter":                       "io.confluent.connect.protobuf.ProtobufConverter",
+			"key.converter.schema.registry.url":   "http://schema-registry:8081",
+			"value.converter":                     "io.confluent.connect.protobuf.ProtobufConverter",
+			"value.converter.schema.registry.url": "http://schema-registry:8081",
+
+			// "key.converter":                       "io.confluent.connect.avro.AvroConverter",
+			// "key.converter.schema.registry.url":   "http://schema-registry:8081",
+			// "value.converter":                     "io.confluent.connect.avro.AvroConverter",
+			// "value.converter.schema.registry.url": "http://schema-registry:8081",
 		},
 	}
 
@@ -88,17 +99,3 @@ func waitForKafkaConnect(connectURL string) error {
 	}
 	return fmt.Errorf("kafka connect not ready after %d retries", maxRetries)
 }
-
-// "transforms":                                    "outbox",
-// "transforms.outbox.type":                        "io.debezium.transforms.outbox.EventRouter",
-// "transforms.outbox.table.field.event.id":        "event_id",
-// "transforms.outbox.table.field.event.type":      "event_type",
-// "transforms.outbox.table.field.event.key":       "parent_id",
-// "transforms.outbox.table.field.event.payload":   "parent_metadata",
-// "transforms.outbox.table.field.event.timestamp": "timestamp",
-// "transforms.outbox.route.topic.replacement":     "events.${routedByValue}",
-// "transforms.outbox.route.by.field":              "event_type",
-// "predicates":                                    "isEventsTable",
-// "predicates.isEventsTable.type":                 "org.apache.kafka.connect.transforms.predicates.TopicNameMatches",
-// "predicates.isEventsTable.pattern":              "cdc.public.events",
-// "transforms.outbox.predicate":                   "isEventsTable",

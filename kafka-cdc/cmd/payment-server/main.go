@@ -18,7 +18,6 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/payment/handlers"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/payment/infra/msg"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/payment/infra/repo"
-	pkgconstants "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/constants"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/db/postgres"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
 	pkgkafka "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/kafka"
@@ -43,16 +42,18 @@ func NewServer(addr string, db *sqlx.DB, DBName string) *Server {
 	eventRepo := repo.NewEventRepo(db)
 	pr := repo.NewPaymentRepo(db)
 	ps := payment.NewPaymentService(pr, eventRepo)
-	kafkaConsumer := pkgkafka.NewKafkaConsumer([]string{msg.DebInventoryTopic})
 
-	msgRouter := handlers.NewMsgRouter(kafkaConsumer)
-	invCreateHandler := handlers.NewInventoryCreatedHandler(ps)
-	msgRouter.AddHandler(invCreateHandler.Handler, pkgconstants.EventType_InvetoryCreated)
+	_ = pkgkafka.NewKafkaConsumer([]string{msg.DebInventoryTopic})
+
+	// kafkaConsumer := pkgkafka.NewKafkaConsumer([]string{msg.DebInventoryTopic})
+	// msgRouter := handlers.NewMsgRouter(kafkaConsumer)
+	// invCreateHandler := handlers.NewInventoryCreatedHandler(ps)
+	// msgRouter.AddHandler(invCreateHandler.Handler, pkgconstants.EventType_InvetoryCreated)
 
 	return &Server{
-		exitCH:    make(chan struct{}),
-		addr:      addr,
-		msgRouter: msgRouter,
+		exitCH: make(chan struct{}),
+		addr:   addr,
+		// msgRouter: msgRouter,
 
 		paymentService: ps,
 	}
@@ -102,13 +103,12 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/payment", s.handleCreatePayment)
 
-	go s.createPayment()
-	// go func() {
-	// 	ticker := time.NewTicker(time.Second * 5)
-	// 	for range ticker.C {
-	// 		s.createPayment()
-	// 	}
-	// }()
+	go func() {
+		ticker := time.NewTicker(time.Second * 3)
+		for range ticker.C {
+			s.createPayment()
+		}
+	}()
 
 	log.Fatal(http.ListenAndServe(s.addr, nil))
 }

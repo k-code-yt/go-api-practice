@@ -107,9 +107,9 @@ func main() {
 		log.Fatalf("Database setup failed: %v", err)
 	}
 
-	log.Println("\n========================================")
+	log.Println("======================================")
 	log.Println("Step 2: Schema Migrations")
-	log.Println("========================================")
+	log.Println("======================================")
 
 	envPath := filepath.Join("cmd", *service+"-server", ".env")
 	if err := godotenv.Load(envPath); err != nil {
@@ -168,7 +168,7 @@ func main() {
 		log.Fatalf("Unknown action: %s (use up, down, or version)", *action)
 	}
 
-	log.Println("\n========================================")
-	log.Println("Migration Complete!")
-	log.Println("========================================")
+	log.Println("=================================")
+	log.Printf("%s Migration Complete!\n", *service)
+	log.Println("=================================")
 }

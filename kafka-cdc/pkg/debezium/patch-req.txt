@@ -2,7 +2,7 @@ curl -X PUT http://localhost:8083/connectors/audit_cdc/config   -H "Content-Type
 			"connector.class":             "io.debezium.connector.postgresql.PostgresConnector",
 			"tasks.max":                   "1",
 			"database.hostname":           "postgres-go-api",
-			"database.port":               "5432",
+			"database.port":               "5452",
 			"database.user":               "user",
 			"database.password":           "pass",
 			"database.dbname":             "kafka_cdc",
