@@ -76,6 +76,13 @@ func NewPartitionState(cfg *TestConfig) *PartitionState {
 	return state
 }
 
+func (ps *PartitionState) init() {
+	go ps.appendLoop()
+	go ps.commitLoop()
+	go ps.updateLoop()
+
+}
+
 func (ps *PartitionState) appendLoop() {
 	t := time.NewTicker(ps.cfg.appendDur)
 
