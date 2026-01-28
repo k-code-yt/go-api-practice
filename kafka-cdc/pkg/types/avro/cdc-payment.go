@@ -1,4 +1,4 @@
-package avro
+package pkgavro
 
 type CDCPayment struct {
 	ID          int     `avro:"id"`

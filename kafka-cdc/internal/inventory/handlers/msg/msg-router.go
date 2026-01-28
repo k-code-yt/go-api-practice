@@ -13,6 +13,7 @@ import (
 	pkgerrors "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/errors"
 	pkgkafka "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/kafka"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
+	pkgproto "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types/proto"
 )
 
 type MsgRouter struct {
@@ -90,7 +91,7 @@ func (r *MsgRouter) decodePayment(msg *kafka.Message) (any, string, error) {
 	msgEncoderType := r.consumer.MsgEncoder.GetType()
 
 	if msgEncoderType == pkgkafka.KafkaEncoder_PROTO {
-		target := &pkgtypes.CDCPaymentEnvelope{}
+		target := &pkgproto.CDCPaymentEnvelope{}
 		err := r.consumer.MsgEncoder.Decoder(&msg.TopicPartition, msg.Value, target)
 		if err != nil {
 			return nil, "", err

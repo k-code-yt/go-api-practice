@@ -8,6 +8,7 @@ import (
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/domain"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
 	pkgtypes "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types"
+	pkgproto "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types/proto"
 )
 
 type ProtoMapper struct {
@@ -17,7 +18,7 @@ func NewProtoMapper() *ProtoMapper {
 	return &ProtoMapper{}
 }
 
-func (m *ProtoMapper) paymentToEvent(cdc *pkgtypes.CDCPayment) (*domain.PaymentCreatedEvent, error) {
+func (m *ProtoMapper) paymentToEvent(cdc *pkgproto.CDCPayment) (*domain.PaymentCreatedEvent, error) {
 	amount, err := strconv.ParseFloat(cdc.Amount, 2)
 	if err != nil {
 		amount, err = debezium.DecodeDebeziumDecimal(cdc.Amount, 2)
@@ -37,7 +38,7 @@ func (m *ProtoMapper) paymentToEvent(cdc *pkgtypes.CDCPayment) (*domain.PaymentC
 }
 
 func (m *ProtoMapper) getPaymentCreatedEvent(ctx context.Context, envelope any, eventType pkgtypes.EventType, metadata *kafka.TopicPartition) (*debezium.DebeziumMessage[domain.PaymentCreatedEvent], error) {
-	parsed := envelope.(*pkgtypes.CDCPaymentEnvelope)
+	parsed := envelope.(*pkgproto.CDCPaymentEnvelope)
 
 	msgRequest := debezium.DebeziumMessage[domain.PaymentCreatedEvent]{
 		Payload: debezium.Payload[domain.PaymentCreatedEvent]{

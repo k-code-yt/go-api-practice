@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/k-code-yt/go-api-practice/kafka-cdc/pkgtypes";
+option go_package = "github.com/k-code-yt/go-api-practice/kafka-cdc/pkgtypes/pkgproto";
 
 package debezium;
 

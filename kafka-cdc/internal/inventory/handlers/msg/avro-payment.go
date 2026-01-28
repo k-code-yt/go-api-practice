@@ -5,7 +5,7 @@ import (
 
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/internal/inventory/domain"
 	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/debezium"
-	"github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types/avro"
+	pkgavro "github.com/k-code-yt/go-api-practice/kafka-cdc/pkg/types/avro"
 )
 
 type AvroMapper struct {
@@ -15,7 +15,7 @@ func NewAvroMapper() *AvroMapper {
 	return &AvroMapper{}
 }
 
-func (m *AvroMapper) PaymenmtToEvent(cdc *avro.CDCPayment) (*domain.PaymentCreatedEvent, error) {
+func (m *AvroMapper) PaymenmtToEvent(cdc *pkgavro.CDCPayment) (*domain.PaymentCreatedEvent, error) {
 	amount, err := strconv.ParseFloat(cdc.Amount, 2)
 	if err != nil {
 		amount, err = debezium.DecodeDebeziumDecimal(cdc.Amount, 2)

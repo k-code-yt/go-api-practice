@@ -34,6 +34,6 @@ migrate-inventory:
 mgr: migrate-payment migrate-inventory
 	
 proto:
-	protoc --go_out=pkg/types --go_opt=paths=source_relative \
+	protoc --go_out=pkg/types/proto --go_opt=paths=source_relative \
 		--proto_path=pkg/types/proto \
 		pkg/types/proto/*.proto
