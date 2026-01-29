@@ -11,3 +11,6 @@ test-uh: build
 # 	@go test -bench=Benchmark_UpdateHeavy 
 # 	@go test -bench=Benchmark_UpdateHeavy -benchtime=1000000x -memprofile=mem.prof -benchmem .
 	@go test -bench=Benchmark_UpdateHeavy -memprofile=mem.prof -benchmem .
+
+test-ps: build
+	@go test -bench=Benchmark_PartitionStateMemory -benchtime=1000000x -memprofile=mem.prof -benchmem .

@@ -1,15 +1,8 @@
 global:
   scrape_interval: 5s
+  evaluation_interval: 5s
 
 scrape_configs:
-  - job_name: "kafka-chans"
+  - job_name: "go-app"
     static_configs:
-      - targets: ["kafka-chans:8080"]
-        labels:
-          implementation: "channels"
-
-  # - job_name: "kafka-mutex"
-  #   static_configs:
-  #     - targets: ["kafka-mutex:8080"]
-  #       labels:
-  #         implementation: "mutex"
+      - targets: ["localhost:2112"]

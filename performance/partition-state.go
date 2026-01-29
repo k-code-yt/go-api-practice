@@ -146,11 +146,13 @@ func (ps *PartitionState) commitLoop() {
 	defer func() {
 		close(ps.ExitCH)
 		t.Stop()
-		logrus.WithFields(
-			logrus.Fields{
-				"MaxReceived": ps.MaxReceived,
-			},
-		).Info("EXIT commitOffsetLoop✅")
+		if ps.cfg.isDebugMode {
+			logrus.WithFields(
+				logrus.Fields{
+					"MaxReceived": ps.MaxReceived,
+				},
+			).Info("EXIT commitOffsetLoop✅")
+		}
 	}()
 
 	for {
