@@ -1,8 +1,13 @@
 global:
-  scrape_interval: 5s
-  evaluation_interval: 5s
+  scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
   - job_name: "go-app"
     static_configs:
-      - targets: ["localhost:2112"]
+      - targets: ["go-app:2112"]
+    scrape_interval: 5s

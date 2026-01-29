@@ -42,7 +42,6 @@ func (ps *PartitionStateSyncMap) init() {
 	go ps.appendLoop()
 	go ps.commitLoop()
 	go ps.updateLoop()
-
 }
 
 func (ps *PartitionStateSyncMap) appendLoop() {

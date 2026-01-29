@@ -4,67 +4,53 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// var (
-// 	goroutinesGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-// 		Name: "app_goroutines_count",
-// 		Help: "Number of goroutines currently running",
-// 	})
-
-// 	heapAllocGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-// 		Name: "app_heap_alloc_mb",
-// 		Help: "Bytes of allocated heap objects in MB",
-// 	})
-
-// 	sysMemoryGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-// 		Name: "app_sys_memory_mb",
-// 		Help: "Total memory obtained from OS in MB",
-// 	})
-
-// 	cpuUsageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-// 		Name: "app_cpu_usage_percent",
-// 		Help: "CPU usage percentage",
-// 	})
-
-// 	rssMemoryGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-// 		Name: "app_rss_memory_bytes",
-// 		Help: "Resident set size memory",
-// 	})
-// )
-
-// func init() {
-// 	prometheus.MustRegister(collectors.NewGoCollector())
-// 	prometheus.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-// }
+var (
+	metricsOnce sync.Once
+	registry    *prometheus.Registry
+)
 
 func collectMetrics() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-
-	// goroutinesGauge.Set(float64(runtime.NumGoroutine()))
-	// heapAllocGauge.Set(float64(m.HeapAlloc))
-	// heapInuseGauge.Set(float64(m.HeapInuse))
-
-	// CPU usage (simple approximation)
-	// cpuUsageGauge.Set(float64(m.GCCPUFraction) * 100)
 }
 
 func startMetricsServer() {
-	metricsPort := ":2112"
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		fmt.Printf("Metrics server is listening on %s\n", metricsPort)
-		http.ListenAndServe(metricsPort, nil)
-	}()
+	metricsOnce.Do(func() {
+		// Create a new registry
+		registry = prometheus.NewRegistry()
 
-	go func() {
-		for {
-			collectMetrics()
-			time.Sleep(1 * time.Second)
-		}
-	}()
+		// Register collectors with the custom registry
+		registry.MustRegister(collectors.NewGoCollector())
+		registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
+		metricsPort := ":2112"
+
+		// Start metrics HTTP server in a goroutine
+		go func() {
+			// Use the custom registry
+			http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+			fmt.Printf("Metrics server is listening on %s\n", metricsPort)
+			if err := http.ListenAndServe(metricsPort, nil); err != nil {
+				fmt.Printf("Metrics server error: %v\n", err)
+			}
+		}()
+
+		// Start metrics collection in a goroutine
+		go func() {
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
+
+			for range ticker.C {
+				collectMetrics()
+			}
+		}()
+	})
 }
