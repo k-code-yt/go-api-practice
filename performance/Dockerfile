@@ -9,13 +9,11 @@ RUN go mod download && go mod verify
 COPY . .
 
 # Build argument to choose which app to build
-ARG APP_PATH=kafka-chans
+ARG APP_PATH=bin/app
 RUN CGO_ENABLED=0 GOOS=linux go build -a -o app ./${APP_PATH}
 
 # Final stage
 FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root/
 

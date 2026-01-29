@@ -1,11 +1,11 @@
 services:
-  kafka-chans:
+  go-app:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_PATH: kafka-chans/cmd/benchmark/
-    container_name: kafka-chans
+        APP_PATH: bin/
+    container_name: go-app
     ports:
       - "8080:8080"
     environment:
@@ -39,7 +39,7 @@ services:
     networks:
       - monitoring
     depends_on:
-      - kafka-chans
+      - go-app
 
   grafana:
     image: grafana/grafana:latest

@@ -1,12 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"runtime"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -37,10 +36,10 @@ import (
 // 	})
 // )
 
-func init() {
-	prometheus.MustRegister(collectors.NewGoCollector())
-	prometheus.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-}
+// func init() {
+// 	prometheus.MustRegister(collectors.NewGoCollector())
+// 	prometheus.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+// }
 
 func collectMetrics() {
 	var m runtime.MemStats
@@ -55,9 +54,11 @@ func collectMetrics() {
 }
 
 func startMetricsServer() {
+	metricsPort := ":2112"
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		http.ListenAndServe(":2112", nil)
+		fmt.Printf("Metrics server is listening on %s\n", metricsPort)
+		http.ListenAndServe(metricsPort, nil)
 	}()
 
 	go func() {

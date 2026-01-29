@@ -1,11 +1,11 @@
-.PHONY: build
+.PHONY: build run
 
 build:
-	@go build -o ./bin/main ./...
-	@chmod +X ./bin/main
+	@go build -o ./bin/app ./...
+	@chmod +X ./bin/app
 
 run: build
-	@./bin/main
+	@./bin/app
 
 test-uh: build
 # 	@go test -bench=Benchmark_UpdateHeavy 
