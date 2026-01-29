@@ -6,9 +6,12 @@ import (
 	"time"
 )
 
+var (
+	cfg = NewTestConfig(1000, 100, 250, 100, false)
+)
+
 func Benchmark_UpdateHeavy(t *testing.B) {
-	cfg := NewTestConfig(200, 10, 10, 100, false)
-	ps := NewPartitionState(cfg)
+	ps := NewPartitionStateLock(cfg)
 	ps.init()
 
 	testDur := time.Second * 10
@@ -21,19 +24,48 @@ func Benchmark_UpdateHeavy(t *testing.B) {
 }
 
 func Benchmark_WriteWithLock(b *testing.B) {
-	cfg := NewTestConfig(100, 50, 10, 100, false)
-
+	exitCH := make(chan struct{})
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		ps := NewPartitionState(cfg)
-		ps.init()
+		go func() {
+			ps := NewPartitionStateLock(cfg)
+			ps.init()
+			<-exitCH
+			ps.Cancel()
+		}()
 
-		// Run for a fixed duration to accumulate state
-		time.Sleep(5 * time.Second)
-
-		ps.Cancel()
-		<-ps.ExitCH
+		go func(i int) {
+			time.Sleep(5 * time.Second)
+			if i == 0 {
+				close(exitCH)
+			}
+		}(i)
 	}
+	<-exitCH
+}
+
+func Benchmark_WriteWithSyncMap(b *testing.B) {
+	exitCH := make(chan struct{})
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		go func() {
+			ps := NewPartitionStateSyncMap(cfg)
+			ps.init()
+			<-exitCH
+			ps.Cancel()
+		}()
+
+		go func(i int) {
+			time.Sleep(5 * time.Second)
+			if i == 0 {
+				close(exitCH)
+			}
+		}(i)
+	}
+	<-exitCH
+
 }

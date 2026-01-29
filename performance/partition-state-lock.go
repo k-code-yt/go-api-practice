@@ -48,7 +48,7 @@ func NewTestConfig(c, u, a int64, updateRange int64, isDebugMode bool) *TestConf
 	}
 }
 
-type PartitionState struct {
+type PartitionStateLock struct {
 	Mu    *sync.RWMutex
 	State map[int64]MsgState
 
@@ -61,10 +61,10 @@ type PartitionState struct {
 	cfg *TestConfig
 }
 
-func NewPartitionState(cfg *TestConfig) *PartitionState {
+func NewPartitionStateLock(cfg *TestConfig) *PartitionStateLock {
 	ctx, Cancel := context.WithCancel(context.Background())
 
-	state := &PartitionState{
+	state := &PartitionStateLock{
 		Mu:          &sync.RWMutex{},
 		State:       map[int64]MsgState{},
 		MaxReceived: new(atomic.Int64),
@@ -76,14 +76,14 @@ func NewPartitionState(cfg *TestConfig) *PartitionState {
 	return state
 }
 
-func (ps *PartitionState) init() {
+func (ps *PartitionStateLock) init() {
 	go ps.appendLoop()
 	go ps.commitLoop()
 	go ps.updateLoop()
 
 }
 
-func (ps *PartitionState) appendLoop() {
+func (ps *PartitionStateLock) appendLoop() {
 	t := time.NewTicker(ps.cfg.appendDur)
 
 	for {
@@ -109,7 +109,7 @@ func (ps *PartitionState) appendLoop() {
 	}
 }
 
-func (ps *PartitionState) updateLoop() {
+func (ps *PartitionStateLock) updateLoop() {
 	t := time.NewTicker(ps.cfg.updateDur)
 
 	for {
@@ -141,7 +141,7 @@ func (ps *PartitionState) updateLoop() {
 	}
 }
 
-func (ps *PartitionState) commitLoop() {
+func (ps *PartitionStateLock) commitLoop() {
 	t := time.NewTicker(ps.cfg.commitDur)
 	defer func() {
 		close(ps.ExitCH)
@@ -188,17 +188,17 @@ func (ps *PartitionState) commitLoop() {
 	}
 }
 
-func (ps *PartitionState) FindLatestToCommit() (int64, error) {
+func (ps *PartitionStateLock) FindLatestToCommit() (int64, error) {
 	if ps.cfg.isDebugMode {
 		fmt.Printf("STATE = %+v\n", ps.State)
 	}
 
 	latestToCommit := ps.MaxReceived.Load()
 	initOffset := ps.cfg.InitOffset.Load()
-	if initOffset == latestToCommit {
-		msg := fmt.Sprintf("lastCommit %d == MaxReceived -> skipping\n", initOffset)
-		return 0, fmt.Errorf("%v", msg)
-	}
+	// if initOffset == latestToCommit {
+	// 	msg := fmt.Sprintf("lastCommit %d == MaxReceived -> skipping\n", initOffset)
+	// 	return 0, fmt.Errorf("%v", msg)
+	// }
 
 	ps.Mu.Lock()
 	defer ps.Mu.Unlock()
@@ -238,7 +238,7 @@ func (ps *PartitionState) FindLatestToCommit() (int64, error) {
 }
 
 // TODO -> add interface
-func (ps *PartitionState) ReadOffset(offset int64) (MsgState, bool) {
+func (ps *PartitionStateLock) ReadOffset(offset int64) (MsgState, bool) {
 	ps.Mu.RLock()
 	defer ps.Mu.RUnlock()
 

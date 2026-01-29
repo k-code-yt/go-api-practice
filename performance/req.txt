@@ -1,8 +1,8 @@
-curl -X POST http://localhost:8080/test/lock \
+curl -X POST http://localhost:8080/test/syncmap \
   -H "Content-Type: application/json" \
   -d '{
     "update_range": 1000,
-    "commit_ms": 1000,
-    "update_ms": 250,
-    "append_ms": 500
+    "commit_ms": 2000,
+    "append_ms": 1000,
+    "update_ms": 500
   }'

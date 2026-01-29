@@ -54,11 +54,17 @@ func testCaseHandler(w http.ResponseWriter, r *http.Request) {
 		body.UpdateDur,
 		body.AppendDur,
 		body.UpdateRange,
-		false,
+		true,
 	)
 
-	ps := NewPartitionState(cfg)
-	ps.init()
+	switch scenario {
+	case TestScenario_Lock:
+		ps := NewPartitionStateLock(cfg)
+		ps.init()
+	case TestScenario_SyncMap:
+		ps := NewPartitionStateSyncMap(cfg)
+		ps.init()
+	}
 
 	resp := map[string]bool{"received": true}
 	b, err := json.Marshal(resp)
