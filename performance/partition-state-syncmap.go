@@ -32,8 +32,8 @@ func NewPartitionStateSyncMap(cfg *TestConfig) *PartitionStateSyncMap {
 		MaxReceived: new(atomic.Int64),
 		ctx:         ctx,
 		Cancel:      Cancel,
-		ExitCH:      make(chan struct{}),
-		cfg:         cfg,
+		// ExitCH:      exitCH,
+		cfg: cfg,
 	}
 	return state
 }
@@ -44,8 +44,28 @@ func (ps *PartitionStateSyncMap) init() {
 	go ps.updateLoop()
 }
 
+func (ps *PartitionStateSyncMap) cancel() {
+	ps.Cancel()
+}
+
+func (ps *PartitionStateSyncMap) exit() <-chan struct{} {
+	return ps.ctx.Done()
+}
+
 func (ps *PartitionStateSyncMap) appendLoop() {
 	t := time.NewTicker(ps.cfg.appendDur)
+
+	defer func() {
+		t.Stop()
+		if ps.cfg.isDebugMode {
+			logrus.WithFields(
+				logrus.Fields{
+					"IDX":      ps.cfg.IDX,
+					"Scenario": ps.cfg.scenario,
+				},
+			).Info("EXIT appendLoop✅")
+		}
+	}()
 
 	for {
 		select {
@@ -70,6 +90,16 @@ func (ps *PartitionStateSyncMap) appendLoop() {
 
 func (ps *PartitionStateSyncMap) updateLoop() {
 	t := time.NewTicker(ps.cfg.updateDur)
+	defer func() {
+		t.Stop()
+		if ps.cfg.isDebugMode {
+			logrus.WithFields(
+				logrus.Fields{
+					"MaxReceived": ps.MaxReceived,
+				},
+			).Info("EXIT updateLoop✅")
+		}
+	}()
 
 	for {
 		select {
@@ -101,7 +131,6 @@ func (ps *PartitionStateSyncMap) updateLoop() {
 func (ps *PartitionStateSyncMap) commitLoop() {
 	t := time.NewTicker(ps.cfg.commitDur)
 	defer func() {
-		close(ps.ExitCH)
 		t.Stop()
 		if ps.cfg.isDebugMode {
 			logrus.WithFields(

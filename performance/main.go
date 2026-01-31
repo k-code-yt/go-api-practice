@@ -1,18 +1,27 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 )
 
 const (
 	HttpPort = ":8080"
 )
+
+type StateRunner interface {
+	init()
+	cancel()
+	exit() <-chan struct{}
+}
 
 type TestReq struct {
 	UpdateRange int64 `json:"update_range"`
@@ -20,6 +29,9 @@ type TestReq struct {
 	CommitDur int64 `json:"commit_ms"`
 	UpdateDur int64 `json:"update_ms"`
 	AppendDur int64 `json:"append_ms"`
+
+	TestDur  int64  `json:"test_ms"`
+	Scenario string `json:"scenario"`
 }
 
 type TestScenario string
@@ -30,8 +42,35 @@ const (
 	TestScenario_Chan    = "chan"
 )
 
-func testCaseHandler(w http.ResponseWriter, r *http.Request) {
-	var body TestReq
+type CurrentTest struct {
+	cfgs   []*TestConfig
+	ctx    context.Context
+	cancel context.CancelFunc
+	exitCH chan struct{}
+}
+
+func NewCurrentTest() *CurrentTest {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &CurrentTest{
+		ctx:    ctx,
+		cancel: cancel,
+		exitCH: make(chan struct{}),
+	}
+}
+
+type Server struct {
+	currentTest *CurrentTest
+}
+
+func (s *Server) testCaseHandler(w http.ResponseWriter, r *http.Request) {
+	if s.currentTest != nil {
+		s.currentTest.cancel()
+		<-s.currentTest.exitCH
+		s.currentTest = nil
+	}
+	s.currentTest = NewCurrentTest()
+
+	var body []TestReq
 
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -40,37 +79,63 @@ func testCaseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vars := mux.Vars(r)
-	scenario, ok := vars["scenario"]
-	if !ok {
-		errMsg := fmt.Sprintln("scenario was not provided")
-		sendError(w, errMsg)
-		return
-	}
-	fmt.Println(scenario)
+	cfgs := make([]*TestConfig, len(body))
+	for idx, item := range body {
+		cfg := NewTestConfig(
+			idx,
+			item.CommitDur,
+			item.UpdateDur,
+			item.AppendDur,
+			item.TestDur,
+			item.UpdateRange,
+			TestScenario(item.Scenario),
+			true,
+		)
 
-	cfg := NewTestConfig(
-		body.CommitDur,
-		body.UpdateDur,
-		body.AppendDur,
-		body.UpdateRange,
-		true,
-	)
-
-	switch scenario {
-	case TestScenario_Lock:
-		ps := NewPartitionStateLock(cfg)
-		ps.init()
-	case TestScenario_SyncMap:
-		ps := NewPartitionStateSyncMap(cfg)
-		ps.init()
+		cfgs[idx] = cfg
 	}
+
+	go s.runTests(cfgs)
 
 	resp := map[string]bool{"received": true}
 	b, err := json.Marshal(resp)
 
 	w.Header().Set("status", strconv.Itoa(http.StatusOK))
 	w.Write(b)
+}
+
+func (s *Server) runTests(cfgs []*TestConfig) {
+	defer func() {
+		close(s.currentTest.exitCH)
+		logrus.Debug("CANCEL_PREV_TEST")
+	}()
+	for _, cfg := range cfgs {
+		select {
+		case <-s.currentTest.ctx.Done():
+			return
+		default:
+			var ps StateRunner
+			switch cfg.scenario {
+			case TestScenario_Lock:
+				ps = NewPartitionStateLock(cfg)
+			case TestScenario_SyncMap:
+				ps = NewPartitionStateSyncMap(cfg)
+			}
+
+			go func(ps StateRunner) {
+				<-time.After(cfg.testDur)
+				ps.cancel()
+			}(ps)
+
+			ps.init()
+			<-ps.exit()
+
+			// trigger my clean up here
+			ps = nil
+			// sleep for gc to cleanup
+			time.Sleep(time.Second * 30)
+		}
+	}
 }
 
 func sendError(w http.ResponseWriter, errMsg string) {
@@ -81,7 +146,8 @@ func sendError(w http.ResponseWriter, errMsg string) {
 
 func httpServer() {
 	mux := mux.NewRouter()
-	mux.HandleFunc("/test/{scenario}", testCaseHandler).Methods("POST")
+	s := Server{}
+	mux.HandleFunc("/test", s.testCaseHandler).Methods("POST")
 
 	fmt.Printf("HTTP server is listening on %s\n", HttpPort)
 

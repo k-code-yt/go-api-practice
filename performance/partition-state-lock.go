@@ -21,6 +21,7 @@ const (
 )
 
 type TestConfig struct {
+	IDX         int
 	InitOffset  *atomic.Int64
 	UpdateRange int64
 
@@ -28,22 +29,28 @@ type TestConfig struct {
 	updateDur time.Duration
 	appendDur time.Duration
 
+	scenario    TestScenario
+	testDur     time.Duration
 	isDebugMode bool
 }
 
-// commit, update, append durations
+// commit, update, append, test durations
 // will be used with milliseconds
-func NewTestConfig(c, u, a int64, updateRange int64, isDebugMode bool) *TestConfig {
+// updateRange => how many items will be read for commitLoop
+func NewTestConfig(idx int, commitdur, updatedur, appenddur int64, testdur int64, updateRange int64, scenario TestScenario, isDebugMode bool) *TestConfig {
 	init := new(atomic.Int64)
 	init.Store(0)
 	return &TestConfig{
+		IDX:         idx,
 		InitOffset:  init,
 		UpdateRange: updateRange,
 
-		commitDur: time.Millisecond * time.Duration(c),
-		updateDur: time.Millisecond * time.Duration(u),
-		appendDur: time.Millisecond * time.Duration(a),
+		commitDur: time.Millisecond * time.Duration(commitdur),
+		updateDur: time.Millisecond * time.Duration(updatedur),
+		appendDur: time.Millisecond * time.Duration(appenddur),
 
+		scenario:    scenario,
+		testDur:     time.Millisecond * time.Duration(testdur),
 		isDebugMode: isDebugMode,
 	}
 }
@@ -70,8 +77,8 @@ func NewPartitionStateLock(cfg *TestConfig) *PartitionStateLock {
 		MaxReceived: new(atomic.Int64),
 		ctx:         ctx,
 		Cancel:      Cancel,
-		ExitCH:      make(chan struct{}),
-		cfg:         cfg,
+		// ExitCH:      exitCH,
+		cfg: cfg,
 	}
 	return state
 }
@@ -83,8 +90,27 @@ func (ps *PartitionStateLock) init() {
 
 }
 
+func (ps *PartitionStateLock) cancel() {
+	ps.Cancel()
+}
+
+func (ps *PartitionStateLock) exit() <-chan struct{} {
+	return ps.ctx.Done()
+}
+
 func (ps *PartitionStateLock) appendLoop() {
 	t := time.NewTicker(ps.cfg.appendDur)
+	defer func() {
+		t.Stop()
+		if ps.cfg.isDebugMode {
+			logrus.WithFields(
+				logrus.Fields{
+					"IDX":      ps.cfg.IDX,
+					"Scenario": ps.cfg.scenario,
+				},
+			).Info("EXIT updateLoop✅")
+		}
+	}()
 
 	for {
 		select {
@@ -111,6 +137,17 @@ func (ps *PartitionStateLock) appendLoop() {
 
 func (ps *PartitionStateLock) updateLoop() {
 	t := time.NewTicker(ps.cfg.updateDur)
+
+	defer func() {
+		t.Stop()
+		if ps.cfg.isDebugMode {
+			logrus.WithFields(
+				logrus.Fields{
+					"MaxReceived": ps.MaxReceived,
+				},
+			).Info("EXIT updateLoop✅")
+		}
+	}()
 
 	for {
 		select {
@@ -144,7 +181,6 @@ func (ps *PartitionStateLock) updateLoop() {
 func (ps *PartitionStateLock) commitLoop() {
 	t := time.NewTicker(ps.cfg.commitDur)
 	defer func() {
-		close(ps.ExitCH)
 		t.Stop()
 		if ps.cfg.isDebugMode {
 			logrus.WithFields(
@@ -177,7 +213,6 @@ func (ps *PartitionStateLock) commitLoop() {
 					logrus.Fields{
 						"COMMITED_OFFSET": latestToCommit,
 						"MAX_RECEIVED":    ps.MaxReceived.Load(),
-						"STATE":           ps.State,
 					},
 				).Warn("Commited on CRON")
 			}
@@ -189,10 +224,6 @@ func (ps *PartitionStateLock) commitLoop() {
 }
 
 func (ps *PartitionStateLock) FindLatestToCommit() (int64, error) {
-	if ps.cfg.isDebugMode {
-		fmt.Printf("STATE = %+v\n", ps.State)
-	}
-
 	latestToCommit := ps.MaxReceived.Load()
 	initOffset := ps.cfg.InitOffset.Load()
 	// if initOffset == latestToCommit {
