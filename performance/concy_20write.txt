@@ -1,0 +1,40 @@
+---RUNNING NUMKEYS = 10000----
+goos: linux
+goarch: amd64
+pkg: github.com/k-code-yt/go-api-practice/performance
+cpu: AMD Ryzen 7 7700X 8-Core Processor             
+Benchmark_MixedOnlyConcurrency/LOCK_G=2-16         	25463305	        43.88 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=2-16      	23075846	        52.29 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=4-16         	26917502	        45.60 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=4-16      	31121936	        39.01 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=8-16         	26075493	        45.94 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=8-16      	40170120	        49.40 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=16-16        	26326032	        45.97 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=16-16     	46673504	        33.07 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=32-16        	25727510	        46.29 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=32-16     	44763840	        27.96 ns/op
+
+---RUNNING NUMKEYS = 100000----
+Benchmark_MixedOnlyConcurrency/LOCK_G=2#01-16      	21706404	        56.74 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=2#01-16   	10531904	       127.4 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=4#01-16      	20812830	        60.40 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=4#01-16   	23674142	        61.12 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=8#01-16      	20831312	        60.73 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=8#01-16   	34760689	        89.48 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=16#01-16     	19788013	        60.39 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=16#01-16  	52227452	        83.91 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=32#01-16     	17405104	        63.64 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=32#01-16  	49364174	        97.35 ns/op
+
+---RUNNING NUMKEYS = 1000000----
+Benchmark_MixedOnlyConcurrency/LOCK_G=2#02-16      	 6902887	       176.7 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=2#02-16   	 4377682	       273.8 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=4#02-16      	 6697999	       185.5 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=4#02-16   	 7232185	       152.4 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=8#02-16      	 6198039	       203.3 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=8#02-16   	16519980	        96.43 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=16#02-16     	 5396790	       250.6 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=16#02-16  	21774886	       133.3 ns/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=32#02-16     	 6238137	       197.6 ns/op
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=32#02-16  	14556717	       153.1 ns/op
+PASS
