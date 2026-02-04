@@ -20,6 +20,7 @@ type PartitionStateSyncMap struct {
 	ctx    context.Context
 	Cancel context.CancelFunc
 	ExitCH chan struct{}
+	wg     *sync.WaitGroup
 
 	cfg *TestConfig
 }
@@ -30,15 +31,22 @@ func NewPartitionStateSyncMap(cfg *TestConfig) *PartitionStateSyncMap {
 	state := &PartitionStateSyncMap{
 		State:       new(sync.Map),
 		MaxReceived: new(atomic.Int64),
-		ctx:         ctx,
-		Cancel:      Cancel,
-		// ExitCH:      exitCH,
-		cfg: cfg,
+
+		ctx:    ctx,
+		Cancel: Cancel,
+		wg:     new(sync.WaitGroup),
+		ExitCH: make(chan struct{}),
+		cfg:    cfg,
 	}
 	return state
 }
 
 func (ps *PartitionStateSyncMap) init() {
+	ps.wg.Add(3)
+	go func() {
+		ps.wg.Wait()
+		close(ps.ExitCH)
+	}()
 	go ps.appendLoop()
 	go ps.commitLoop()
 	go ps.updateLoop()
@@ -49,7 +57,7 @@ func (ps *PartitionStateSyncMap) cancel() {
 }
 
 func (ps *PartitionStateSyncMap) exit() <-chan struct{} {
-	return ps.ctx.Done()
+	return ps.ExitCH
 }
 
 func (ps *PartitionStateSyncMap) appendLoop() {
@@ -57,6 +65,7 @@ func (ps *PartitionStateSyncMap) appendLoop() {
 
 	defer func() {
 		t.Stop()
+		ps.wg.Done()
 		if ps.cfg.isDebugMode {
 			logrus.WithFields(
 				logrus.Fields{
@@ -72,7 +81,6 @@ func (ps *PartitionStateSyncMap) appendLoop() {
 		case <-ps.ctx.Done():
 			return
 		case <-t.C:
-			// TODO -> add appender interface for different use-cases
 			latest := ps.MaxReceived.Load()
 			next := int64(0)
 
@@ -92,6 +100,7 @@ func (ps *PartitionStateSyncMap) updateLoop() {
 	t := time.NewTicker(ps.cfg.updateDur)
 	defer func() {
 		t.Stop()
+		ps.wg.Done()
 		if ps.cfg.isDebugMode {
 			logrus.WithFields(
 				logrus.Fields{
@@ -106,7 +115,6 @@ func (ps *PartitionStateSyncMap) updateLoop() {
 		case <-ps.ctx.Done():
 			return
 		case <-t.C:
-			// TODO -> add updater interface for different use-cases
 			init := ps.cfg.InitOffset.Load()
 			maxReceived := ps.MaxReceived.Load()
 			if maxReceived == 0 {
@@ -132,6 +140,7 @@ func (ps *PartitionStateSyncMap) commitLoop() {
 	t := time.NewTicker(ps.cfg.commitDur)
 	defer func() {
 		t.Stop()
+		ps.wg.Done()
 		if ps.cfg.isDebugMode {
 			logrus.WithFields(
 				logrus.Fields{

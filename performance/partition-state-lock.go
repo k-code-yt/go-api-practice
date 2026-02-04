@@ -64,30 +64,36 @@ type PartitionStateLock struct {
 	ctx    context.Context
 	Cancel context.CancelFunc
 	ExitCH chan struct{}
+	wg     *sync.WaitGroup
 
 	cfg *TestConfig
 }
 
 func NewPartitionStateLock(cfg *TestConfig) *PartitionStateLock {
 	ctx, Cancel := context.WithCancel(context.Background())
-
 	state := &PartitionStateLock{
 		Mu:          &sync.RWMutex{},
 		State:       map[int64]MsgState{},
 		MaxReceived: new(atomic.Int64),
 		ctx:         ctx,
 		Cancel:      Cancel,
-		// ExitCH:      exitCH,
-		cfg: cfg,
+		ExitCH:      make(chan struct{}),
+		wg:          new(sync.WaitGroup),
+		cfg:         cfg,
 	}
 	return state
 }
 
 func (ps *PartitionStateLock) init() {
+	ps.wg.Add(3)
+	go func() {
+		ps.wg.Wait()
+		close(ps.ExitCH)
+	}()
+
 	go ps.appendLoop()
 	go ps.commitLoop()
 	go ps.updateLoop()
-
 }
 
 func (ps *PartitionStateLock) cancel() {
@@ -95,13 +101,14 @@ func (ps *PartitionStateLock) cancel() {
 }
 
 func (ps *PartitionStateLock) exit() <-chan struct{} {
-	return ps.ctx.Done()
+	return ps.ExitCH
 }
 
 func (ps *PartitionStateLock) appendLoop() {
 	t := time.NewTicker(ps.cfg.appendDur)
 	defer func() {
 		t.Stop()
+		ps.wg.Done()
 		if ps.cfg.isDebugMode {
 			logrus.WithFields(
 				logrus.Fields{
@@ -140,6 +147,7 @@ func (ps *PartitionStateLock) updateLoop() {
 
 	defer func() {
 		t.Stop()
+		ps.wg.Done()
 		if ps.cfg.isDebugMode {
 			logrus.WithFields(
 				logrus.Fields{
@@ -182,6 +190,7 @@ func (ps *PartitionStateLock) commitLoop() {
 	t := time.NewTicker(ps.cfg.commitDur)
 	defer func() {
 		t.Stop()
+		ps.wg.Done()
 		if ps.cfg.isDebugMode {
 			logrus.WithFields(
 				logrus.Fields{

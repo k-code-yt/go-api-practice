@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -153,5 +154,148 @@ func Benchmark_SyncMap_PS(b *testing.B) {
 			}()
 		}
 		wg.Wait()
+	})
+}
+
+func Benchmark_TrackingLock(b *testing.B) {
+	wg := &sync.WaitGroup{}
+	numG := 8
+	PrintMemStats("START")
+
+	wg.Add(numG)
+	for range numG {
+		go func() {
+			defer wg.Done()
+			testCfg := NewTestConfig(1, 2, 1, 2, 250, 10000, "lock", false)
+			ps := NewPartitionStateLock(testCfg)
+			ps.init()
+
+			<-time.After(5 * time.Second)
+			ps.Cancel()
+			<-ps.exit()
+
+			// TODO -> investigate how to remove reference for GC collection
+			// clean-up
+			ps.MaxReceived = nil
+			ps.cfg = nil
+			ps.Mu.Lock()
+			for k := range ps.State {
+				delete(ps.State, k)
+			}
+			ps.Mu.Unlock()
+			ps.Mu = nil
+			ps.State = nil
+		}()
+	}
+	wg.Wait()
+	PrintMemStats("AFTER RUN")
+	runtime.GC()
+	PrintMemStats("AFTER GC")
+}
+
+func Benchmark_TrackingSM(b *testing.B) {
+	wg := &sync.WaitGroup{}
+	numG := 8
+	PrintMemStats("START")
+
+	wg.Add(numG)
+	for range numG {
+		go func() {
+			defer wg.Done()
+			testCfg := NewTestConfig(1, 2, 1, 2, 250, 10000, "lock", false)
+			ps := NewPartitionStateSyncMap(testCfg)
+			ps.init()
+
+			<-time.After(5 * time.Second)
+			ps.Cancel()
+			<-ps.exit()
+
+			// clean-up
+			ps.MaxReceived = nil
+			ps.cfg = nil
+			ps.State.Range(func(key, value any) bool {
+				ps.State.Delete(key)
+				return true
+			})
+			ps.State = nil
+		}()
+	}
+	wg.Wait()
+	PrintMemStats("AFTER RUN")
+	runtime.GC()
+	PrintMemStats("AFTER GC")
+}
+
+func Benchmark_TrackingAll(b *testing.B) {
+	numG := 16
+	testDur := time.Duration(30)
+	testCfg := NewTestConfig(1, 2, 2, 1, 250, 10000, "lock", false)
+
+	b.Run(fmt.Sprintf("LOCK_%d\n", numG), func(b *testing.B) {
+
+		wg := &sync.WaitGroup{}
+		// PrintMemStats("START")
+
+		wg.Add(numG)
+		for range numG {
+			go func() {
+				defer wg.Done()
+
+				ps := NewPartitionStateLock(testCfg)
+				ps.init()
+
+				<-time.After(testDur * time.Second)
+				ps.Cancel()
+				<-ps.exit()
+
+				// clean-up
+				ps.MaxReceived = nil
+				ps.cfg = nil
+				ps.Mu.Lock()
+				for k := range ps.State {
+					delete(ps.State, k)
+				}
+				ps.Mu.Unlock()
+				ps.Mu = nil
+				ps.State = nil
+			}()
+		}
+		wg.Wait()
+		PrintMemStats("AFTER RUN")
+		runtime.GC()
+		// PrintMemStats("AFTER GC")
+	})
+
+	b.Run(fmt.Sprintf("SM_%d\n", numG), func(b *testing.B) {
+		wg := &sync.WaitGroup{}
+		numG := 8
+		// PrintMemStats("START")
+
+		wg.Add(numG)
+		for range numG {
+			go func() {
+				defer wg.Done()
+				// testCfg := NewTestConfig(1, 2, 1, 2, 250, 10000, "syncmap", false)
+				ps := NewPartitionStateSyncMap(testCfg)
+				ps.init()
+
+				<-time.After(testDur * time.Second)
+				ps.Cancel()
+				<-ps.exit()
+
+				// clean-up
+				ps.MaxReceived = nil
+				ps.cfg = nil
+				ps.State.Range(func(key, value any) bool {
+					ps.State.Delete(key)
+					return true
+				})
+				ps.State = nil
+			}()
+		}
+		wg.Wait()
+		PrintMemStats("AFTER RUN")
+		runtime.GC()
+		// PrintMemStats("AFTER GC")
 	})
 }
