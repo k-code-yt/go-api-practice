@@ -29,3 +29,7 @@ test-lockro: build
 
 test-smro: build
 	@go test -bench=Benchmark_SyncMapReadOnly -benchtime=1000000x -memprofile=mem-smro.prof -benchmem .
+
+test-complete: build
+	@go test -race -bench=Benchmark_ComprehensiveSeparate
+# 	@go test -bench=Benchmark_ComprehensiveComparison -race -benchtime=1000000x -memprofile=mem-smro.prof -benchmem .

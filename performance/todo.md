@@ -6,8 +6,9 @@
 [x] grafana/prom middleware?
 [x] test cases config - read interval, update interval, append count and stop time
 [x] fix clean-up logic && make sure no mem leaks
-
-[] compare map vs sync.map with using just logs
-[] compare with pprof
+[x] compare map vs sync.map with using just logs
+[] add state pre-fill for all versions -> test read-heavy
 [] compare the same with chans implementation
+
+[] compare with pprof
 [] compare all in grafana/prom

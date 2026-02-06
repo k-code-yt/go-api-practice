@@ -108,11 +108,13 @@ func formatBytes(bytes int64) string {
 }
 
 type BenchConfig struct {
-	CommitDur   int64
-	UpdateDur   int64
-	AppendDur   int64
-	UpdateRange int64
-	TestDur     time.Duration
+	CommitDur     int64
+	UpdateDur     int64
+	AppendDur     int64
+	UpdateRange   int64
+	TestDur       time.Duration
+	NumGoroutines int
+	PrefillState  int64
 }
 
 type Implementation struct {
@@ -159,7 +161,7 @@ func generateTextReport(report ComparisonReport) {
 	defer f.Close()
 
 	separator := strings.Repeat("=", 100)
-	lineSep := strings.Repeat("-", 100)
+	lineSep := strings.Repeat("-", 150)
 
 	fmt.Fprintf(f, "MEMORY BENCHMARK REPORT\n")
 	fmt.Fprintf(f, "Generated: %s\n", report.Timestamp.Format(time.RFC3339))

@@ -89,6 +89,8 @@ func (s *Server) testCaseHandler(w http.ResponseWriter, r *http.Request) {
 			item.TestDur,
 			item.UpdateRange,
 			TestScenario(item.Scenario),
+			1,
+			-1,
 			true,
 		)
 

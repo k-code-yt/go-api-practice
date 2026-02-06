@@ -12,8 +12,33 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type PartitionStateSyncMap struct {
-	State *sync.Map
+type ActionType string
+
+const (
+	ActionType_Add                 = "actiontype_add"
+	ActionType_Update              = "actiontype_update"
+	ActionType_Delete              = "actiontype_delete"
+	ActionType_FindLastestToCommit = "actiontype_findlatesttocommit"
+)
+
+type UpdateStateMsg struct {
+	toMsgState MsgState
+	idx        int64
+	actionType ActionType
+}
+
+func NewUpdateStateMsg(idx int64, actionType ActionType, toMsgState MsgState) *UpdateStateMsg {
+	return &UpdateStateMsg{
+		idx:        idx,
+		toMsgState: toMsgState,
+		actionType: actionType,
+	}
+}
+
+type PartitionStateChans struct {
+	State         map[int64]MsgState
+	updateStateCH chan *UpdateStateMsg
+	findResultCH  chan int64
 
 	MaxReceived *atomic.Int64
 
@@ -25,35 +50,40 @@ type PartitionStateSyncMap struct {
 	cfg *TestConfig
 }
 
-func NewPartitionStateSyncMap(cfg *TestConfig) *PartitionStateSyncMap {
+func NewPartitionStateChans(cfg *TestConfig) *PartitionStateChans {
 	ctx, Cancel := context.WithCancel(context.Background())
 
-	ps := &PartitionStateSyncMap{
-		State:       new(sync.Map),
-		MaxReceived: new(atomic.Int64),
+	ps := &PartitionStateChans{
+		State:         map[int64]MsgState{},
+		updateStateCH: make(chan *UpdateStateMsg, 128),
+		findResultCH:  make(chan int64, 64),
 
-		ctx:    ctx,
-		Cancel: Cancel,
-		wg:     new(sync.WaitGroup),
-		ExitCH: make(chan struct{}),
-		cfg:    cfg,
+		MaxReceived: new(atomic.Int64),
+		ctx:         ctx,
+		Cancel:      Cancel,
+		ExitCH:      make(chan struct{}),
+		wg:          new(sync.WaitGroup),
+		cfg:         cfg,
 	}
 
 	if cfg.prefillState > 0 {
 		for idx := range ps.cfg.prefillState {
-			ps.State.Store(idx, MsgState_Pending)
+			ps.State[idx] = MsgState_Pending
 		}
 	}
 
 	return ps
 }
 
-func (ps *PartitionStateSyncMap) init() {
-	ps.wg.Add(3 * ps.cfg.numG)
+func (ps *PartitionStateChans) init() {
+	ps.wg.Add(1 + 3*ps.cfg.numG)
 	go func() {
 		ps.wg.Wait()
+		close(ps.updateStateCH)
 		close(ps.ExitCH)
 	}()
+
+	go ps.updateStateLoop()
 
 	for range ps.cfg.numG {
 		go ps.appendLoop()
@@ -62,17 +92,46 @@ func (ps *PartitionStateSyncMap) init() {
 	}
 }
 
-func (ps *PartitionStateSyncMap) cancel() {
+func (ps *PartitionStateChans) cancel() {
 	ps.Cancel()
 }
 
-func (ps *PartitionStateSyncMap) exit() <-chan struct{} {
+func (ps *PartitionStateChans) exit() <-chan struct{} {
 	return ps.ExitCH
 }
 
-func (ps *PartitionStateSyncMap) appendLoop() {
-	t := time.NewTicker(ps.cfg.appendDur)
+func (ps *PartitionStateChans) updateStateLoop() {
+	defer func() {
+		ps.wg.Done()
+		if ps.cfg.isDebugMode {
+			logrus.WithFields(
+				logrus.Fields{
+					"IDX":      ps.cfg.IDX,
+					"Scenario": ps.cfg.scenario,
+				},
+			).Info("EXIT updateStateLoop✅")
+		}
+	}()
+	for {
+		select {
+		case <-ps.ctx.Done():
+			return
+		case msg := <-ps.updateStateCH:
+			switch msg.actionType {
+			case ActionType_Add, ActionType_Update:
+				ps.State[msg.idx] = msg.toMsgState
+			case ActionType_Delete:
+				delete(ps.State, msg.idx)
+			case ActionType_FindLastestToCommit:
+				idx := ps.latestToCommitFinder()
+				ps.findResultCH <- idx
+			}
+		}
+	}
+}
 
+func (ps *PartitionStateChans) appendLoop() {
+	t := time.NewTicker(ps.cfg.appendDur)
 	defer func() {
 		t.Stop()
 		ps.wg.Done()
@@ -82,7 +141,7 @@ func (ps *PartitionStateSyncMap) appendLoop() {
 					"IDX":      ps.cfg.IDX,
 					"Scenario": ps.cfg.scenario,
 				},
-			).Info("EXIT appendLoop✅")
+			).Info("EXIT updateLoop✅")
 		}
 	}()
 
@@ -91,6 +150,7 @@ func (ps *PartitionStateSyncMap) appendLoop() {
 		case <-ps.ctx.Done():
 			return
 		case <-t.C:
+			// TODO -> add appender interface for different use-cases
 			latest := ps.MaxReceived.Load()
 			next := int64(0)
 
@@ -101,13 +161,15 @@ func (ps *PartitionStateSyncMap) appendLoop() {
 				ps.MaxReceived.Store(1)
 			}
 
-			ps.State.Store(next, MsgState_Pending)
+			msg := NewUpdateStateMsg(next, ActionType_Add, MsgState_Pending)
+			ps.updateStateCH <- msg
 		}
 	}
 }
 
-func (ps *PartitionStateSyncMap) updateLoop() {
+func (ps *PartitionStateChans) updateLoop() {
 	t := time.NewTicker(ps.cfg.updateDur)
+
 	defer func() {
 		t.Stop()
 		ps.wg.Done()
@@ -125,6 +187,7 @@ func (ps *PartitionStateSyncMap) updateLoop() {
 		case <-ps.ctx.Done():
 			return
 		case <-t.C:
+			// TODO -> add updater interface for different use-cases
 			init := ps.cfg.InitOffset.Load()
 			maxReceived := ps.MaxReceived.Load()
 			if maxReceived == 0 {
@@ -137,7 +200,8 @@ func (ps *PartitionStateSyncMap) updateLoop() {
 				randInt += init
 			}
 
-			ps.State.Swap(randInt, MsgState_Success)
+			msg := NewUpdateStateMsg(randInt, ActionType_Add, MsgState_Success)
+			ps.updateStateCH <- msg
 
 			if ps.cfg.isDebugMode {
 				fmt.Printf("Updated state for off = %d, init = %d, maxReceived = %d\n", randInt, init, maxReceived)
@@ -146,7 +210,7 @@ func (ps *PartitionStateSyncMap) updateLoop() {
 	}
 }
 
-func (ps *PartitionStateSyncMap) commitLoop() {
+func (ps *PartitionStateChans) commitLoop() {
 	t := time.NewTicker(ps.cfg.commitDur)
 	defer func() {
 		t.Stop()
@@ -169,12 +233,8 @@ func (ps *PartitionStateSyncMap) commitLoop() {
 			default:
 			}
 
-			latestToCommit, err := ps.FindLatestToCommit()
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			// TODO -> check if -1 here?
+			latestToCommit := ps.FindLatestToCommit()
+
 			ps.cfg.InitOffset.Store(latestToCommit)
 
 			if ps.cfg.isDebugMode {
@@ -182,7 +242,6 @@ func (ps *PartitionStateSyncMap) commitLoop() {
 					logrus.Fields{
 						"COMMITED_OFFSET": latestToCommit,
 						"MAX_RECEIVED":    ps.MaxReceived.Load(),
-						"STATE":           ps.State,
 					},
 				).Warn("Commited on CRON")
 			}
@@ -193,20 +252,19 @@ func (ps *PartitionStateSyncMap) commitLoop() {
 	}
 }
 
-func (ps *PartitionStateSyncMap) FindLatestToCommit() (int64, error) {
-	if ps.cfg.isDebugMode {
-		fmt.Printf("STATE = %+v\n", ps.State)
-	}
+func (ps *PartitionStateChans) FindLatestToCommit() int64 {
+	msg := NewUpdateStateMsg(-1, ActionType_FindLastestToCommit, MsgState_Success)
+	ps.updateStateCH <- msg
+	idx := <-ps.findResultCH
+	return idx
+}
 
+func (ps *PartitionStateChans) latestToCommitFinder() int64 {
 	latestToCommit := ps.MaxReceived.Load()
 	initOffset := ps.cfg.InitOffset.Load()
-	// if initOffset == latestToCommit {
-	// 	msg := fmt.Sprintf("lastCommit %d == MaxReceived -> skipping\n", initOffset)
-	// 	return 0, fmt.Errorf("%v", msg)
-	// }
 
 	for offset := initOffset; offset <= latestToCommit; offset++ {
-		msgState, exists := ps.State.Load(offset)
+		msgState, exists := ps.State[offset]
 		if !exists {
 			if ps.cfg.isDebugMode {
 				fmt.Printf("does not exit, off = %d, State = %v\n", offset, ps.State)
@@ -215,14 +273,14 @@ func (ps *PartitionStateSyncMap) FindLatestToCommit() (int64, error) {
 		}
 
 		if msgState != MsgState_Pending {
-			ps.State.Delete(offset)
+			delete(ps.State, offset)
 			if ps.cfg.isDebugMode {
 				logrus.WithFields(logrus.Fields{
 					"OFFSET": offset,
 				}).Info("Removed offset")
 			}
 
-			if getSyncMapLen(ps.State) == 0 {
+			if len(ps.State) == 0 {
 				latestToCommit = offset + 1
 				break
 			}
@@ -237,23 +295,5 @@ func (ps *PartitionStateSyncMap) FindLatestToCommit() (int64, error) {
 			"OFFSET": latestToCommit,
 		}).Info("Offset to commit")
 	}
-	return latestToCommit, nil
-}
-
-func getSyncMapLen(state *sync.Map) int {
-	count := 0
-
-	state.Range(func(_, _ interface{}) bool {
-		count++
-		return true
-	})
-
-	return count
-}
-
-// TODO -> add interface
-func (ps *PartitionStateSyncMap) ReadOffset(offset int64) (MsgState, bool) {
-	val, ok := ps.State.Load(offset)
-	valstate := val.(MsgState)
-	return valstate, ok
+	return latestToCommit
 }

@@ -12,49 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type MsgState = int32
-
-const (
-	MsgState_Pending MsgState = iota
-	MsgState_Success MsgState = iota
-	MsgState_Error   MsgState = iota
-)
-
-type TestConfig struct {
-	IDX         int
-	InitOffset  *atomic.Int64
-	UpdateRange int64
-
-	commitDur time.Duration
-	updateDur time.Duration
-	appendDur time.Duration
-
-	scenario    TestScenario
-	testDur     time.Duration
-	isDebugMode bool
-}
-
-// commit, update, append, test durations
-// will be used with milliseconds
-// updateRange => how many items will be read for commitLoop
-func NewTestConfig(idx int, commitdur, updatedur, appenddur int64, testdur int64, updateRange int64, scenario TestScenario, isDebugMode bool) *TestConfig {
-	init := new(atomic.Int64)
-	init.Store(0)
-	return &TestConfig{
-		IDX:         idx,
-		InitOffset:  init,
-		UpdateRange: updateRange,
-
-		commitDur: time.Millisecond * time.Duration(commitdur),
-		updateDur: time.Millisecond * time.Duration(updatedur),
-		appendDur: time.Millisecond * time.Duration(appenddur),
-
-		scenario:    scenario,
-		testDur:     time.Millisecond * time.Duration(testdur),
-		isDebugMode: isDebugMode,
-	}
-}
-
 type PartitionStateLock struct {
 	Mu    *sync.RWMutex
 	State map[int64]MsgState
@@ -71,7 +28,7 @@ type PartitionStateLock struct {
 
 func NewPartitionStateLock(cfg *TestConfig) *PartitionStateLock {
 	ctx, Cancel := context.WithCancel(context.Background())
-	state := &PartitionStateLock{
+	ps := &PartitionStateLock{
 		Mu:          &sync.RWMutex{},
 		State:       map[int64]MsgState{},
 		MaxReceived: new(atomic.Int64),
@@ -81,19 +38,28 @@ func NewPartitionStateLock(cfg *TestConfig) *PartitionStateLock {
 		wg:          new(sync.WaitGroup),
 		cfg:         cfg,
 	}
-	return state
+
+	if cfg.prefillState > 0 {
+		for idx := range ps.cfg.prefillState {
+			ps.State[idx] = MsgState_Pending
+		}
+	}
+
+	return ps
 }
 
 func (ps *PartitionStateLock) init() {
-	ps.wg.Add(3)
+	ps.wg.Add(3 * ps.cfg.numG)
 	go func() {
 		ps.wg.Wait()
 		close(ps.ExitCH)
 	}()
 
-	go ps.appendLoop()
-	go ps.commitLoop()
-	go ps.updateLoop()
+	for range ps.cfg.numG {
+		go ps.appendLoop()
+		go ps.commitLoop()
+		go ps.updateLoop()
+	}
 }
 
 func (ps *PartitionStateLock) cancel() {
