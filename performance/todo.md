@@ -5,8 +5,8 @@
 [x] http server to trigger
 [x] grafana/prom middleware?
 [x] test cases config - read interval, update interval, append count and stop time
+[x] fix clean-up logic && make sure no mem leaks
 
-[] fix clean-up logic && make sure no mem leaks
 [] compare map vs sync.map with using just logs
 [] compare with pprof
 [] compare the same with chans implementation

@@ -126,7 +126,7 @@ func Benchmark_MixedOnlyConcurrency(b *testing.B) {
 					}()
 				}
 				wg.Wait()
-				PrintMemStats(fmt.Sprintf("AFTER RUN - %s", "SYNCMAP"))
+
 			})
 
 			b.Run(fmt.Sprintf("LOCK_G=%d", numGoroutines), func(b *testing.B) {
@@ -166,10 +166,7 @@ func Benchmark_MixedOnlyConcurrency(b *testing.B) {
 
 				}
 				wg.Wait()
-				PrintMemStats(fmt.Sprintf("AFTER RUN - %s", "LOCK"))
-
 			})
-
 		}
 	}
 }

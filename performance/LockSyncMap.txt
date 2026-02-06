@@ -1,0 +1,65 @@
+MEMORY BENCHMARK REPORT
+Generated: 2026-02-06T09:00:00+02:00
+====================================================================================================
+
+
+>>> SCENARIO: AppendHeavy
+====================================================================================================
+
+Goroutines: 4
+----------------------------------------------------------------------------------------------------
+Metric                                   | Lock                      | SyncMap                  
+----------------------------------------------------------------------------------------------------
+Alloc Delta                              |                  12.39 KB |                  11.50 KB
+HeapObjects Delta                        |                        58 |                        47
+TotalAlloc Delta                         |                  37.61 KB |                  59.42 KB
+Mallocs Delta                            |                       223 |                       734
+Frees Delta                              |                       165 |                       687
+HeapInuse Delta                          |                  24.00 KB |                   8.00 KB
+StackInuse Delta                         |                       0 B |                       0 B
+NumGC Delta                              |                         2 |                         2
+Live Objects After GC                    |                      1371 |                      1421
+
+Winner (Lowest Memory)                   | SyncMap (vs Lock: 912 B more)
+
+Goroutines: 8
+----------------------------------------------------------------------------------------------------
+Metric                                   | Lock                      | SyncMap                  
+----------------------------------------------------------------------------------------------------
+Alloc Delta                              |                  11.30 KB |                  14.69 KB
+HeapObjects Delta                        |                        42 |                        65
+TotalAlloc Delta                         |                  61.70 KB |                 107.95 KB
+Mallocs Delta                            |                       357 |                      1415
+Frees Delta                              |                       315 |                      1350
+HeapInuse Delta                          |                  24.00 KB |                       0 B
+StackInuse Delta                         |                  32.00 KB |                  64.00 KB
+NumGC Delta                              |                         2 |                         2
+Live Objects After GC                    |                      1465 |                      1531
+
+Winner (Lowest Memory)                   | Lock (vs SyncMap: 3.39 KB more)
+
+Goroutines: 16
+----------------------------------------------------------------------------------------------------
+Metric                                   | Lock                      | SyncMap                  
+----------------------------------------------------------------------------------------------------
+Alloc Delta                              |                  24.97 KB |                  35.66 KB
+HeapObjects Delta                        |                       105 |                        94
+TotalAlloc Delta                         |                 124.95 KB |                 232.36 KB
+Mallocs Delta                            |                       720 |                      2877
+Frees Delta                              |                       615 |                      2783
+HeapInuse Delta                          |                  40.00 KB |                  24.00 KB
+StackInuse Delta                         |                 128.00 KB |                  96.00 KB
+NumGC Delta                              |                         2 |                         2
+Live Objects After GC                    |                      1637 |                      1732
+
+Winner (Lowest Memory)                   | Lock (vs SyncMap: 10.69 KB more)
+
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+
+Scenario: AppendHeavy
+  SyncMap: Avg Alloc Delta = 20.61 KB (across 3 tests)
+  Lock: Avg Alloc Delta = 16.22 KB (across 3 tests)
+
