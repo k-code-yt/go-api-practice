@@ -7,8 +7,9 @@
 [x] test cases config - read interval, update interval, append count and stop time
 [x] fix clean-up logic && make sure no mem leaks
 [x] compare map vs sync.map with using just logs
-[] add state pre-fill for all versions -> test read-heavy
-[] compare the same with chans implementation
+[x] add state pre-fill for all versions -> test read-heavy
+[x] compare the same with chans implementation
 
+[x] refactor test to run separately -> make sure tests are not effecting one another
 [] compare with pprof
 [] compare all in grafana/prom

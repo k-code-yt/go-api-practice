@@ -9,8 +9,19 @@ import (
 )
 
 const (
-	PrefillState = 1_000_000
-	TestDur      = 30 * time.Second
+	// PrefillState = -1
+	PrefillState    = 1_000_000
+	TestDur         = 30 * time.Second
+	GoroutineCounts = 4
+)
+
+var (
+	scenarios = map[string]BenchConfig{
+		// "AppendHeavy": AppedHeavyConfig,
+		"ReadHeavy": ReadHeavyConfig,
+		// "WriteHeavy":  WriteHeavyConfig,
+		// "Mixed":       MixedConfig,
+	}
 )
 
 var (
@@ -131,11 +142,6 @@ func runChansBenchmark(numG int, config BenchConfig) {
 }
 
 func Benchmark_ComprehensiveComparison(b *testing.B) {
-	report := ComparisonReport{
-		Timestamp: time.Now(),
-		Results:   make([]BenchmarkResult, 0),
-	}
-
 	implementations := []Implementation{
 		{Name: "Lock", RunFunc: runLockBenchmark},
 		{Name: "Chans", RunFunc: runChansBenchmark},
@@ -153,7 +159,7 @@ func Benchmark_ComprehensiveComparison(b *testing.B) {
 
 	separator := strings.Repeat("=", 80)
 	fmt.Println("\n" + separator)
-	fmt.Println("COMPREHENSIVE MEMORY BENCHMARK")
+	fmt.Println("MEMORY BENCHMARK")
 	fmt.Println(separator + "\n")
 
 	for scenario, config := range scenarios {
@@ -164,136 +170,98 @@ func Benchmark_ComprehensiveComparison(b *testing.B) {
 		for _, numG := range goroutineCounts {
 			for _, impl := range implementations {
 				fmt.Printf("  Running %s with %d goroutines... ", impl.Name, numG)
-				result := runBenchmark(
+				path := runBenchmark(
 					fmt.Sprintf("%s_G%d_%s", scenario, numG, impl.Name),
 					impl.Name,
 					scenario,
 					numG,
 					func() { impl.RunFunc(numG, config) },
 				)
-				report.Results = append(report.Results, result)
-				fmt.Printf("✓ (Alloc Delta: %s, Objects: %+d)\n",
-					formatBytes(result.Delta.AllocDelta),
-					result.Delta.HeapObjectsDelta)
+				fmt.Printf("Save result of scenario: %s, impl: %s, numG: %d to %s\n", scenario, impl.Name, numG, path)
 			}
 		}
 	}
-
-	name := ""
-	for _, imp := range implementations {
-		name += imp.Name
-	}
-	report.Name = name
-
-	generateTextReport(report)
-
-	fmt.Println("\n" + separator)
-	fmt.Printf("Report generated: %s.txt\n", name)
-	fmt.Println(separator + "\n")
 }
-func Benchmark_ComprehensiveSeparate(b *testing.B) {
-	report := ComparisonReport{
-		Timestamp: time.Now(),
-		Results:   make([]BenchmarkResult, 0),
-	}
 
-	implementations := []Implementation{
-		{Name: "SyncMap", RunFunc: runSyncMapBenchmark},
-		{Name: "Chans", RunFunc: runChansBenchmark},
-		{Name: "Lock", RunFunc: runLockBenchmark},
-	}
-
-	goroutineCounts := []int{4}
-	scenarios := map[string]BenchConfig{
-		"ReadHeavy": ReadHeavyConfig,
+func Benchmark_Chans(b *testing.B) {
+	impl := Implementation{
+		Name:    "Chans",
+		RunFunc: runChansBenchmark,
 	}
 
 	separator := strings.Repeat("=", 80)
 	fmt.Println("\n" + separator)
-	fmt.Println("COMPREHENSIVE MEMORY BENCHMARK")
+	fmt.Printf("MEMORY BENCHMARK FOR %s\n", impl.Name)
 	fmt.Println(separator + "\n")
 
-	b.Run(implementations[0].Name, func(b *testing.B) {
-		impl := implementations[0]
-		for scenario, config := range scenarios {
-			fmt.Printf("\n>>> Testing Scenario: %s\n", scenario)
-			fmt.Printf("    Config: Commit=%dms, Update=%dms, Append=%dms\n\n",
-				config.CommitDur, config.UpdateDur, config.AppendDur)
+	for scenario, config := range scenarios {
+		fmt.Printf("\n>>> Testing Scenario: %s\n", scenario)
+		fmt.Printf("    Config: Commit=%dms, Update=%dms, Append=%dms\n\n",
+			config.CommitDur, config.UpdateDur, config.AppendDur)
 
-			for _, numG := range goroutineCounts {
-				fmt.Printf("  Running %s with %d goroutines... ", impl.Name, numG)
-				result := runBenchmark(
-					fmt.Sprintf("%s_G%d_%s", scenario, numG, impl.Name),
-					impl.Name,
-					scenario,
-					numG,
-					func() { impl.RunFunc(numG, config) },
-				)
-				report.Results = append(report.Results, result)
-				fmt.Printf("✓ (Alloc Delta: %s, Objects: %+d)\n",
-					formatBytes(result.Delta.AllocDelta),
-					result.Delta.HeapObjectsDelta)
-			}
-		}
-	})
-
-	b.Run(implementations[1].Name, func(b *testing.B) {
-		impl := implementations[1]
-		for scenario, config := range scenarios {
-			fmt.Printf("\n>>> Testing Scenario: %s\n", scenario)
-			fmt.Printf("    Config: Commit=%dms, Update=%dms, Append=%dms\n\n",
-				config.CommitDur, config.UpdateDur, config.AppendDur)
-
-			for _, numG := range goroutineCounts {
-				fmt.Printf("  Running %s with %d goroutines... ", impl.Name, numG)
-				result := runBenchmark(
-					fmt.Sprintf("%s_G%d_%s", scenario, numG, impl.Name),
-					impl.Name,
-					scenario,
-					numG,
-					func() { impl.RunFunc(numG, config) },
-				)
-				report.Results = append(report.Results, result)
-				fmt.Printf("✓ (Alloc Delta: %s, Objects: %+d)\n",
-					formatBytes(result.Delta.AllocDelta),
-					result.Delta.HeapObjectsDelta)
-			}
-		}
-	})
-
-	b.Run(implementations[2].Name, func(b *testing.B) {
-		impl := implementations[2]
-		for scenario, config := range scenarios {
-			fmt.Printf("\n>>> Testing Scenario: %s\n", scenario)
-			fmt.Printf("    Config: Commit=%dms, Update=%dms, Append=%dms\n\n",
-				config.CommitDur, config.UpdateDur, config.AppendDur)
-
-			for _, numG := range goroutineCounts {
-				fmt.Printf("  Running %s with %d goroutines... ", impl.Name, numG)
-				result := runBenchmark(
-					fmt.Sprintf("%s_G%d_%s", scenario, numG, impl.Name),
-					impl.Name,
-					scenario,
-					numG,
-					func() { impl.RunFunc(numG, config) },
-				)
-				report.Results = append(report.Results, result)
-				fmt.Printf("✓ (Alloc Delta: %s, Objects: %+d)\n",
-					formatBytes(result.Delta.AllocDelta),
-					result.Delta.HeapObjectsDelta)
-			}
-		}
-	})
-
-	name := ""
-	for _, imp := range implementations {
-		name += imp.Name
+		fmt.Printf("  Running %s with %d goroutines... ", impl.Name, GoroutineCounts)
+		path := runBenchmark(
+			fmt.Sprintf("%s_G%d_%s", scenario, GoroutineCounts, impl.Name),
+			impl.Name,
+			scenario,
+			GoroutineCounts,
+			func() { impl.RunFunc(GoroutineCounts, config) },
+		)
+		fmt.Printf("Save result of scenario: %s, impl: %s, numG: %d to %s\n", scenario, impl.Name, GoroutineCounts, path)
 	}
-	report.Name = name
+}
 
-	generateTextReport(report)
+func Benchmark_Lock(b *testing.B) {
+	impl := Implementation{
+		Name:    "Lock",
+		RunFunc: runLockBenchmark,
+	}
 
+	separator := strings.Repeat("=", 80)
 	fmt.Println("\n" + separator)
-	fmt.Printf("Report generated: %s.txt\n", name)
+	fmt.Printf("MEMORY BENCHMARK FOR %s\n", impl.Name)
 	fmt.Println(separator + "\n")
+
+	for scenario, config := range scenarios {
+		fmt.Printf("\n>>> Testing Scenario: %s\n", scenario)
+		fmt.Printf("    Config: Commit=%dms, Update=%dms, Append=%dms\n\n",
+			config.CommitDur, config.UpdateDur, config.AppendDur)
+
+		fmt.Printf("  Running %s with %d goroutines... ", impl.Name, GoroutineCounts)
+		path := runBenchmark(
+			fmt.Sprintf("%s_G%d_%s", scenario, GoroutineCounts, impl.Name),
+			impl.Name,
+			scenario,
+			GoroutineCounts,
+			func() { impl.RunFunc(GoroutineCounts, config) },
+		)
+		fmt.Printf("Save result of scenario: %s, impl: %s, numG: %d to %s\n", scenario, impl.Name, GoroutineCounts, path)
+	}
+}
+
+func Benchmark_SyncMap(b *testing.B) {
+	impl := Implementation{
+		Name:    "SyncMap",
+		RunFunc: runSyncMapBenchmark,
+	}
+	separator := strings.Repeat("=", 80)
+	fmt.Println("\n" + separator)
+	fmt.Printf("MEMORY BENCHMARK FOR %s\n", impl.Name)
+	fmt.Println(separator + "\n")
+
+	for scenario, config := range scenarios {
+		fmt.Printf("\n>>> Testing Scenario: %s\n", scenario)
+		fmt.Printf("    Config: Commit=%dms, Update=%dms, Append=%dms\n\n",
+			config.CommitDur, config.UpdateDur, config.AppendDur)
+
+		fmt.Printf("  Running %s with %d goroutines... ", impl.Name, GoroutineCounts)
+		path := runBenchmark(
+			fmt.Sprintf("%s_G%d_%s", scenario, GoroutineCounts, impl.Name),
+			impl.Name,
+			scenario,
+			GoroutineCounts,
+			func() { impl.RunFunc(GoroutineCounts, config) },
+		)
+		fmt.Printf("Save result of scenario: %s, impl: %s, numG: %d to %s\n", scenario, impl.Name, GoroutineCounts, path)
+	}
 }

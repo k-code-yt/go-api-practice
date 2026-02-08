@@ -7,29 +7,28 @@ build:
 run: build
 	@./bin/app
 
-test-uh: build
-	@go test -bench=Benchmark_All -benchtime=1000000x
-# 	@go test -bench=Benchmark_UpdateHeavy -benchtime=1000000x -memprofile=mem.prof -benchmem .
-# 	@go test -bench=Benchmark_UpdateHeavy -memprofile=mem.prof -benchmem .
-
 test-lock: build
-	@go test -bench=Benchmark_Lock_PS -benchtime=10000000x -memprofile=mem-lock.prof -benchmem .
+	@go test -bench=Benchmark_Lock 
+
+test-chans: build
+	@go test -bench=Benchmark_Chans 
 
 test-sm: build
-	@go test -bench=Benchmark_SyncMap_PS -benchtime=10000000x -memprofile=mem-sm.prof -benchmem .
+	@go test -bench=Benchmark_SyncMap
 
-test-readonly-concy: build
-	@go test -bench=Benchmark_ReadOnlyConcurrency -benchtime=10000000x benchmem > readonly_concy.txt
+combine-results:
+	@go test -bench=Benchmark_ParseResults
 
-test-mixed-concy: build
-	@go test -bench=Benchmark_MixedOnlyConcurrency -benchtime=10000000x benchmem > mixed_concy.txt
-
-test-lockro: build
-	@go test -bench=Benchmark_MapReadOnly -benchtime=1000000x -memprofile=mem-lockro.prof -benchmem .
-
-test-smro: build
-	@go test -bench=Benchmark_SyncMapReadOnly -benchtime=1000000x -memprofile=mem-smro.prof -benchmem .
 
 test-complete: build
 	@go test -race -bench=Benchmark_ComprehensiveSeparate
 # 	@go test -bench=Benchmark_ComprehensiveComparison -race -benchtime=1000000x -memprofile=mem-smro.prof -benchmem .
+
+
+# ------------STRINGS TESTS-----------
+test-str-concat: 
+	@go test -bench=Benchmark_Concat -benchtime=100x
+
+test-str-builder: 
+	@go test -bench=Benchmark_Builder -benchtime=100x
+

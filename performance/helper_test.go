@@ -1,48 +1,55 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
 	"strings"
+	"testing"
 	"time"
 )
 
+const (
+	ResultsFolder     = "temp"
+	ResultsFileSuffix = "json"
+)
+
 type MemSnapshot struct {
-	Alloc         uint64
-	TotalAlloc    uint64
-	Sys           uint64
-	HeapObjects   uint64
-	HeapInuse     uint64
-	HeapIdle      uint64
-	StackInuse    uint64
-	Mallocs       uint64
-	Frees         uint64
-	NumGC         uint32
-	GCCPUFraction float64
-	Timestamp     time.Time
+	Alloc         uint64    `json:"Alloc"`
+	TotalAlloc    uint64    `json:"TotalAlloc"`
+	Sys           uint64    `json:"Sys"`
+	HeapObjects   uint64    `json:"HeapObjects"`
+	HeapInuse     uint64    `json:"HeapInuse"`
+	HeapIdle      uint64    `json:"HeapIdle"`
+	StackInuse    uint64    `json:"StackInuse"`
+	Mallocs       uint64    `json:"Mallocs"`
+	Frees         uint64    `json:"Frees"`
+	NumGC         uint32    `json:"NumGC"`
+	GCCPUFraction float64   `json:"GCCPUFraction"`
+	Timestamp     time.Time `json:"Timestamp"`
 }
 
 type MemDelta struct {
-	AllocDelta         int64
-	TotalAllocDelta    int64
-	SysDelta           int64
-	HeapObjectsDelta   int64
-	HeapInuseDelta     int64
-	HeapIdleDelta      int64
-	StackInuseDelta    int64
-	MallocsDelta       int64
-	FreesDelta         int64
-	NumGCDelta         int32
-	GCCPUFractionDelta float64
-	Duration           time.Duration
+	AllocDelta         int64         `json:"AllocDelta"`
+	TotalAllocDelta    int64         `json:"TotalAllocDelta"`
+	SysDelta           int64         `json:"SysDelta"`
+	HeapObjectsDelta   int64         `json:"HeapObjectsDelta"`
+	HeapInuseDelta     int64         `json:"HeapInuseDelta"`
+	HeapIdleDelta      int64         `json:"HeapIdleDelta"`
+	StackInuseDelta    int64         `json:"StackInuseDelta"`
+	MallocsDelta       int64         `json:"MallocsDelta"`
+	FreesDelta         int64         `json:"FreesDelta"`
+	NumGCDelta         int32         `json:"NumGCDelta"`
+	GCCPUFractionDelta float64       `json:"GCCPUFractionDelta"`
+	Duration           time.Duration `json:"Duration"`
 }
 
 type BenchmarkResult struct {
-	Name           string
-	Implementation string
-	Goroutines     int
-	Scenario       string
+	Name           string `json:"Name"`
+	Implementation string `json:"Implementation"`
+	Goroutines     int    `json:"Goroutines"`
+	Scenario       string `json:"Scenario"`
 	Before         MemSnapshot
 	After          MemSnapshot
 	Delta          MemDelta
@@ -122,26 +129,73 @@ type Implementation struct {
 	RunFunc func(numG int, config BenchConfig)
 }
 
-func runBenchmark(name, implementation, scenario string, numG int, runFunc func()) BenchmarkResult {
-	runtime.GC()
-	runtime.GC()
-	time.Sleep(50 * time.Millisecond)
+func Benchmark_ParseResults(b *testing.B) {
+	files, err := os.ReadDir(ResultsFolder)
+	if err != nil {
+		panic(err)
+	}
 
+	toProcess := []os.DirEntry{}
+	for _, file := range files {
+		if hasSuffix(file.Name(), ResultsFileSuffix) {
+			toProcess = append(toProcess, file)
+		}
+	}
+
+	if len(toProcess) == 0 {
+		return
+	}
+
+	results := make([]BenchmarkResult, len(toProcess))
+	for idx, file := range toProcess {
+		fPath := fmt.Sprintf("%s/%s", ResultsFolder, file.Name())
+		b, err := os.ReadFile(fPath)
+		if err != nil {
+			panic(err)
+		}
+
+		result := BenchmarkResult{}
+		err = json.Unmarshal(b, &result)
+		if err != nil {
+			panic(err)
+		}
+		results[idx] = result
+	}
+
+	time.Sleep(time.Second)
+
+	cr := ComparisonReport{
+		Name:      fmt.Sprintf("%d_%s_bench_result", results[0].Goroutines, results[0].Scenario),
+		Timestamp: time.Now(),
+		Results:   results,
+	}
+
+	generateTextReport(cr)
+
+	for _, file := range toProcess {
+		fPath := fmt.Sprintf("%s/%s", ResultsFolder, file.Name())
+
+		err = os.Remove(fPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+}
+
+func hasSuffix(path string, suffix string) bool {
+	return strings.HasSuffix(path, suffix)
+}
+
+func runBenchmark(name, implementation, scenario string, numG int, runFunc func()) string {
 	before := captureMemSnapshot()
 
 	runFunc()
 
-	time.Sleep(100 * time.Millisecond)
-
-	runtime.GC()
-	runtime.GC()
-	time.Sleep(50 * time.Millisecond)
-
 	after := captureMemSnapshot()
-
 	delta := calculateDelta(before, after)
 
-	return BenchmarkResult{
+	br := BenchmarkResult{
 		Name:           name,
 		Implementation: implementation,
 		Goroutines:     numG,
@@ -150,6 +204,20 @@ func runBenchmark(name, implementation, scenario string, numG int, runFunc func(
 		After:          after,
 		Delta:          delta,
 	}
+
+	path := fmt.Sprintf("%s/%s_%s_bench_result.%s", ResultsFolder, br.Name, br.Implementation, ResultsFileSuffix)
+	file, err := os.Create(path)
+	if err != nil {
+		panic(err)
+	}
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	err = encoder.Encode(br)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	return path
 }
 
 func generateTextReport(report ComparisonReport) {
