@@ -1,0 +1,192 @@
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 108.77 MB (currently in use)
+TotalAlloc  = 468.67 MB (cumulative allocated)
+HeapObjects = 1861209 (live objects)
+NumGC       = 50 (GC cycles)
+GCCPUFrac   = 0.5161% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 111.60 MB
+  HeapIdle    = 3.49 MB
+  StackInuse  = 928.00 KB
+
+Allocation stats:
+  Mallocs     = 2403864 (total allocations)
+  Frees       = 542655 (total frees)
+  Live        = 1861209 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 108.74 MB (currently in use)
+TotalAlloc  = 576.95 MB (cumulative allocated)
+HeapObjects = 1861049 (live objects)
+NumGC       = 57 (GC cycles)
+GCCPUFrac   = 0.7931% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 111.59 MB
+  HeapIdle    = 3.47 MB
+  StackInuse  = 960.00 KB
+
+Allocation stats:
+  Mallocs     = 4763290 (total allocations)
+  Frees       = 2902241 (total frees)
+  Live        = 1861049 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 108.80 MB (currently in use)
+TotalAlloc  = 685.28 MB (cumulative allocated)
+HeapObjects = 1862889 (live objects)
+NumGC       = 64 (GC cycles)
+GCCPUFrac   = 1.0451% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 111.73 MB
+  HeapIdle    = 7.33 MB
+  StackInuse  = 960.00 KB
+
+Allocation stats:
+  Mallocs     = 7125166 (total allocations)
+  Frees       = 5262277 (total frees)
+  Live        = 1862889 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 115.46 MB (currently in use)
+TotalAlloc  = 800.28 MB (cumulative allocated)
+HeapObjects = 2048798 (live objects)
+NumGC       = 71 (GC cycles)
+GCCPUFrac   = 1.5863% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 118.42 MB
+  HeapIdle    = 4.64 MB
+  StackInuse  = 960.00 KB
+
+Allocation stats:
+  Mallocs     = 9734814 (total allocations)
+  Frees       = 7686016 (total frees)
+  Live        = 2048798 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 149.13 MB (currently in use)
+TotalAlloc  = 1013.45 MB (cumulative allocated)
+HeapObjects = 3126881 (live objects)
+NumGC       = 79 (GC cycles)
+GCCPUFrac   = 2.2370% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 196.21 MB
+  HeapIdle    = 6.85 MB
+  StackInuse  = 960.00 KB
+
+Allocation stats:
+  Mallocs     = 16021758 (total allocations)
+  Frees       = 12894877 (total frees)
+  Live        = 3126881 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 155.43 MB (currently in use)
+TotalAlloc  = 1.24 GB (cumulative allocated)
+HeapObjects = 3312049 (live objects)
+NumGC       = 87 (GC cycles)
+GCCPUFrac   = 2.6369% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 235.05 MB
+  HeapIdle    = 4.04 MB
+  StackInuse  = 928.00 KB
+
+Allocation stats:
+  Mallocs     = 24059595 (total allocations)
+  Frees       = 20747546 (total frees)
+  Live        = 3312049 (current objects)
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=16-16      	22715972	        53.28 ns/op	       7 B/op	       0 allocs/op
+Benchmark_MixedOnlyConcurrency/LOCK_G=32
+
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 108.78 MB (currently in use)
+TotalAlloc  = 1.70 GB (cumulative allocated)
+HeapObjects = 1861225 (live objects)
+NumGC       = 135 (GC cycles)
+GCCPUFrac   = 2.0425% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 111.61 MB
+  HeapIdle    = 127.33 MB
+  StackInuse  = 1.06 MB
+
+Allocation stats:
+  Mallocs     = 26460573 (total allocations)
+  Frees       = 24599348 (total frees)
+  Live        = 1861225 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 108.74 MB (currently in use)
+TotalAlloc  = 1.81 GB (cumulative allocated)
+HeapObjects = 1860931 (live objects)
+NumGC       = 142 (GC cycles)
+GCCPUFrac   = 2.0590% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 111.56 MB
+  HeapIdle    = 127.38 MB
+  StackInuse  = 1.06 MB
+
+Allocation stats:
+  Mallocs     = 28819578 (total allocations)
+  Frees       = 26958647 (total frees)
+  Live        = 1860931 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 108.89 MB (currently in use)
+TotalAlloc  = 1.91 GB (cumulative allocated)
+HeapObjects = 1863313 (live objects)
+NumGC       = 149 (GC cycles)
+GCCPUFrac   = 2.0827% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 111.81 MB
+  HeapIdle    = 127.09 MB
+  StackInuse  = 1.09 MB
+
+Allocation stats:
+  Mallocs     = 31181559 (total allocations)
+  Frees       = 29318246 (total frees)
+  Live        = 1863313 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 115.45 MB (currently in use)
+TotalAlloc  = 2.02 GB (cumulative allocated)
+HeapObjects = 2048577 (live objects)
+NumGC       = 156 (GC cycles)
+GCCPUFrac   = 2.1042% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 118.45 MB
+  HeapIdle    = 120.39 MB
+  StackInuse  = 1.16 MB
+
+Allocation stats:
+  Mallocs     = 33790662 (total allocations)
+  Frees       = 31742085 (total frees)
+  Live        = 2048577 (current objects)
+
+========= AFTER RUN - SYNCMAP =========
+Alloc       = 216.29 MB (currently in use)
+TotalAlloc  = 2.31 GB (cumulative allocated)
+HeapObjects = 5013708 (live objects)
+NumGC       = 164 (GC cycles)
+GCCPUFrac   = 2.3481% (CPU time in GC)
+
+Memory breakdown:
+  HeapInuse   = 220.65 MB
+  HeapIdle    = 18.16 MB
+  StackInuse  = 1.19 MB
+
+Allocation stats:
+  Mallocs     = 42987583 (total allocations)
+  Frees       = 37973875 (total frees)
+  Live        = 5013708 (current objects)
+Benchmark_MixedOnlyConcurrency/SYNCMAP_G=32-16      	27352048	        52.20 ns/op	       7 B/op	       0 allocs/op
+PASS
+ok  	github.com/k-code-yt/go-api-practice/performance	11.543s
