@@ -157,6 +157,6 @@ func httpServer() {
 }
 
 func main() {
-	startMetricsServer()
+	// startMetricsServer()
 	httpServer()
 }

@@ -9,17 +9,17 @@ import (
 )
 
 const (
-	// PrefillState = -1
-	PrefillState    = 1_000_000
+	PrefillState = -1
+	// PrefillState    = 1_000_000
 	TestDur         = 30 * time.Second
-	GoroutineCounts = 4
+	GoroutineCounts = 8
 )
 
 var (
 	scenarios = map[string]BenchConfig{
-		// "AppendHeavy": AppedHeavyConfig,
-		"ReadHeavy": ReadHeavyConfig,
-		// "WriteHeavy":  WriteHeavyConfig,
+		"AppendHeavy": AppedHeavyConfig,
+		// "ReadHeavy": ReadHeavyConfig,
+		// "WriteHeavy": WriteHeavyConfig,
 		// "Mixed":       MixedConfig,
 	}
 )
@@ -29,7 +29,7 @@ var (
 		CommitDur:    10,
 		UpdateDur:    1000,
 		AppendDur:    1000,
-		UpdateRange:  100000,
+		UpdateRange:  100_000,
 		TestDur:      TestDur,
 		PrefillState: PrefillState,
 	}
@@ -62,7 +62,7 @@ var (
 	}
 )
 
-func runLockBenchmark(numG int, config BenchConfig) {
+func runLockBenchmark(b *testing.B, numG int, config BenchConfig) {
 	wg := &sync.WaitGroup{}
 	wg.Add(numG)
 
@@ -71,6 +71,7 @@ func runLockBenchmark(numG int, config BenchConfig) {
 			defer wg.Done()
 			testCfg := NewTestConfig(1, config.CommitDur, config.UpdateDur, config.AppendDur, 250, config.UpdateRange, "lock", numG, config.PrefillState, false)
 			ps := NewPartitionStateLock(testCfg)
+			b.ResetTimer()
 			ps.init()
 
 			<-time.After(config.TestDur)
@@ -90,19 +91,32 @@ func runLockBenchmark(numG int, config BenchConfig) {
 	wg.Wait()
 }
 
-func runSyncMapBenchmark(numG int, config BenchConfig) {
+func runSyncMapBenchmark(b *testing.B, numG int, config BenchConfig) {
 	wg := &sync.WaitGroup{}
 	wg.Add(numG)
+
+	wgInit := &sync.WaitGroup{}
+	wgInit.Add(numG)
+	startCH := make(chan struct{})
+
+	go func() {
+		wgInit.Wait()
+		b.ResetTimer()
+		close(startCH)
+	}()
 
 	for range numG {
 		go func() {
 			defer wg.Done()
 			testCfg := NewTestConfig(1, config.CommitDur, config.UpdateDur, config.AppendDur, 250, config.UpdateRange, "syncmap", numG, config.PrefillState, false)
 			ps := NewPartitionStateSyncMap(testCfg)
+			wgInit.Done()
+			<-startCH
+			// ---end of init setup
+
+			// ---tests start
 			ps.init()
-
 			<-time.After(config.TestDur)
-
 			ps.Cancel()
 			ps.wg.Wait()
 
@@ -116,7 +130,7 @@ func runSyncMapBenchmark(numG int, config BenchConfig) {
 	wg.Wait()
 }
 
-func runChansBenchmark(numG int, config BenchConfig) {
+func runChansBenchmark(b *testing.B, numG int, config BenchConfig) {
 	wg := &sync.WaitGroup{}
 	wg.Add(numG)
 
@@ -125,6 +139,7 @@ func runChansBenchmark(numG int, config BenchConfig) {
 			defer wg.Done()
 			testCfg := NewTestConfig(1, config.CommitDur, config.UpdateDur, config.AppendDur, 250, config.UpdateRange, "chans", numG, config.PrefillState, false)
 			ps := NewPartitionStateChans(testCfg)
+			b.ResetTimer()
 			ps.init()
 
 			<-time.After(config.TestDur)
@@ -175,7 +190,7 @@ func Benchmark_ComprehensiveComparison(b *testing.B) {
 					impl.Name,
 					scenario,
 					numG,
-					func() { impl.RunFunc(numG, config) },
+					func() { impl.RunFunc(b, numG, config) },
 				)
 				fmt.Printf("Save result of scenario: %s, impl: %s, numG: %d to %s\n", scenario, impl.Name, numG, path)
 			}
@@ -205,7 +220,7 @@ func Benchmark_Chans(b *testing.B) {
 			impl.Name,
 			scenario,
 			GoroutineCounts,
-			func() { impl.RunFunc(GoroutineCounts, config) },
+			func() { impl.RunFunc(b, GoroutineCounts, config) },
 		)
 		fmt.Printf("Save result of scenario: %s, impl: %s, numG: %d to %s\n", scenario, impl.Name, GoroutineCounts, path)
 	}
@@ -233,7 +248,7 @@ func Benchmark_Lock(b *testing.B) {
 			impl.Name,
 			scenario,
 			GoroutineCounts,
-			func() { impl.RunFunc(GoroutineCounts, config) },
+			func() { impl.RunFunc(b, GoroutineCounts, config) },
 		)
 		fmt.Printf("Save result of scenario: %s, impl: %s, numG: %d to %s\n", scenario, impl.Name, GoroutineCounts, path)
 	}
@@ -260,7 +275,7 @@ func Benchmark_SyncMap(b *testing.B) {
 			impl.Name,
 			scenario,
 			GoroutineCounts,
-			func() { impl.RunFunc(GoroutineCounts, config) },
+			func() { impl.RunFunc(b, GoroutineCounts, config) },
 		)
 		fmt.Printf("Save result of scenario: %s, impl: %s, numG: %d to %s\n", scenario, impl.Name, GoroutineCounts, path)
 	}
