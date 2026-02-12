@@ -15,7 +15,12 @@
 <!-- DONE W/ PARTITION STATE -->
 
 [x] string compare -> concat vs builder
-[] figure out why builder allocates -> and how to avoid
+[x] figure out why builder allocates -> and how to avoid
+[x] custom metrics
+[x] how to measure throuput -> compare JSON vs proto
+[x] gomaxprocs effect on tests
 [] add sync.Pool to improve further && test JSON
+
+<!-- GRAFANA/PROM -->
 
 [] compare all in grafana/prom
