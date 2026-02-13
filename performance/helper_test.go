@@ -126,7 +126,7 @@ type BenchConfig struct {
 
 type Implementation struct {
 	Name    string
-	RunFunc func(numG int, config BenchConfig)
+	RunFunc func(b *testing.B, numG int, config BenchConfig)
 }
 
 func Benchmark_ParseResults(b *testing.B) {

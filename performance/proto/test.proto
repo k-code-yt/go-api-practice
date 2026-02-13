@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option go_package = "github.com/k-code-yt/go-api-practice/performance/testproto";
+
+message TestSt  {
+  string name           = 1;
+  string implementation = 2;
+  int32  goroutines     = 3;
+  string scenario       = 4;
+  bytes  data           = 5;
+}

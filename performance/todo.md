@@ -9,7 +9,18 @@
 [x] compare map vs sync.map with using just logs
 [x] add state pre-fill for all versions -> test read-heavy
 [x] compare the same with chans implementation
+[x] refactor test to run separately -> make sure tests are not affecting one another
+[x] compare with pprof
 
-[x] refactor test to run separately -> make sure tests are not effecting one another
-[] compare with pprof
+<!-- DONE W/ PARTITION STATE -->
+
+[x] string compare -> concat vs builder
+[x] figure out why builder allocates -> and how to avoid
+[x] custom metrics
+[x] how to measure throuput -> compare JSON vs proto
+[x] gomaxprocs effect on tests
+[] add sync.Pool to improve further && test JSON
+
+<!-- GRAFANA/PROM -->
+
 [] compare all in grafana/prom
