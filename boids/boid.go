@@ -1,22 +1,20 @@
 package main
 
 import (
-	"image/color"
 	"math"
 	"math/rand"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	ev "github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 type Boid struct {
 	position Vector2D
 	velocity Vector2D
 	id       int
+	img      *ebiten.Image
 }
 
-func NewBoid(id int) *Boid {
+func NewBoid(id int, img *ebiten.Image) *Boid {
 	position := Vector2D{rand.Float64() * screenWidth, rand.Float64() * screenHeight}
 	velocity := Vector2D{(rand.Float64() * 2) - 1, (rand.Float64() * 2) - 1}
 
@@ -24,88 +22,127 @@ func NewBoid(id int) *Boid {
 		id:       id,
 		velocity: velocity,
 		position: position,
+		img:      img,
 	}
 	return b
 }
 
-func (b *Boid) start(g *Game) {
-	for {
-		b.move(g)
-		time.Sleep(5 * time.Millisecond)
-	}
+func (b *Boid) Update(g *Game) {
+	accel := b.calcAcceleration(g)
+	b.velocity = b.velocity.Add(accel).LimitSpeed()
+	b.position = b.position.Add(b.velocity)
+	b.invertOnWall()
 }
 
 func (b *Boid) calcAcceleration(g *Game) Vector2D {
-	upper, lower := b.position.AddVal(viewRadius), b.position.SubVal(viewRadius)
 	avgVelocity := Vector2D{}
 	avgPosition := Vector2D{}
 	separation := Vector2D{}
-	count := 0.0
+	countCoh := 0.0
+	countSep := 0.0
 
-	for i := math.Max(lower.x, 0); i <= math.Min(upper.x, screenWidth); i++ {
-		for j := math.Max(lower.y, 0); j <= math.Min(upper.y, screenHeight); j++ {
+	for _, other := range g.boids {
+		dist := b.position.Distance(other.position)
+		if dist < cohRadius && dist > sepRadius {
+			avgVelocity = avgVelocity.Add(other.velocity)
+			avgPosition = avgPosition.Add(other.position)
+			countCoh++
+		}
 
-			g.mapMu.RLock()
-			otherBID := g.boidsMap[int(i)][int(j)]
-			g.mapMu.RUnlock()
-
-			if otherBID != -1 && otherBID != b.id {
-				otherB := g.boids[otherBID]
-				dist := otherB.position.Distance(b.position)
-				if dist < viewRadius {
-					count++
-					avgVelocity = avgVelocity.Add(otherB.velocity)
-					avgPosition = avgPosition.Add(otherB.position)
-					separation = separation.Add(b.position.Sub(otherB.position).Div(dist).Mul(2))
-				}
-			}
+		if dist <= sepRadius {
+			push := b.position.Sub(other.position).Div((sepRadius - dist) / dist).Normalize().Mul(sepForce)
+			separation = separation.Add(push)
+			countSep++
 		}
 	}
 
-	accel := Vector2D{b.bounceOnBorder(b.position.x, screenWidth), b.bounceOnBorder(b.position.y, screenHeight)}
-	if count > 0 {
-		avgVelocity = avgVelocity.Div(count)
-		avgPosition = avgPosition.Div(count)
-		accelAlign := avgVelocity.Sub(b.velocity).Mul(adjRate)
-		accelCoh := avgPosition.Sub(b.position).Mul(adjRate)
-		accelSep := Vector2D{}
-		if !math.IsNaN(separation.x) && !math.IsNaN(separation.y) {
-			accelSep = separation.Mul(adjRate)
-		}
-		accel = accel.Add(accelAlign).Add(accelCoh).Add(accelSep)
+	// accel := Vector2D{b.bounceOnBorder(b.position.x, screenWidth), b.bounceOnBorder(b.position.y, screenHeight)}
+	accel := Vector2D{}
+	if countCoh > 0 {
+		avgVelocity = avgVelocity.Div(countCoh).Sub(b.velocity)
+		avgPosition = avgPosition.Div(countCoh).Sub(b.position)
+		accelAlign := (avgVelocity.Normalize()).Mul(alightForce)
+		accelCoh := avgPosition.Normalize().Mul(cohForce)
+
+		accel = accel.Add(accelAlign).Add(accelCoh)
 	}
+
+	if countSep > 0 {
+		accelSep := separation.Div(countSep)
+		accel = accel.Add(accelSep)
+	}
+
+	wallSep := b.wallSeparation()
+	accel = accel.Add(wallSep)
+
 	return accel
 }
 
+func (b *Boid) wallSeparation() Vector2D {
+	wallSep := Vector2D{}
+
+	if b.position.x < wallSepDistance {
+		force := wallSepForce * (wallSepDistance - b.position.x) / wallSepDistance
+		wallSep.x += force
+	}
+
+	widthDiff := screenWidth - wallSepDistance
+	if b.position.x > widthDiff {
+		force := wallSepForce * (b.position.x - widthDiff) / widthDiff
+		wallSep.x -= force
+	}
+
+	if b.position.y < wallSepDistance {
+		force := wallSepForce * (wallSepDistance - b.position.y) / wallSepDistance
+		wallSep.y += force
+	}
+
+	hightDiff := screenHeight - wallSepDistance
+	if b.position.y > hightDiff {
+		force := wallSepForce * (b.position.y - hightDiff) / hightDiff
+		wallSep.y -= force
+	}
+
+	return wallSep
+}
+
 func (b *Boid) bounceOnBorder(min, max float64) float64 {
-	if min < viewRadius {
+	if min < cohRadius {
 		return 2 / min
 	}
-	if min > max-viewRadius {
+	if min > max-cohRadius {
 		return 2 / (min - max)
 	}
 	return 0
 }
 
-func (b *Boid) move(g *Game) {
-	accel := b.calcAcceleration(g)
-	b.velocity = b.velocity.Add(accel).Limit(-1, 1)
-	g.mapMu.Lock()
-	g.boidsMap[int(b.position.x)][int(b.position.y)] = -1
-	b.position = b.position.Add(b.velocity)
-	g.boidsMap[int(b.position.x)][int(b.position.y)] = b.id
-	g.mapMu.Unlock()
-	next := b.position.Add(b.velocity)
+func (b *Boid) Draw(screen *ebiten.Image) {
+	// ev.FillCircle(screen, float32(b.position.x), float32(b.position.y), boidSize, color.RGBA{255, 148, 148, 0xff}, true)
 
+	img := b.img
+	w := float64(img.Bounds().Dx())
+	h := float64(img.Bounds().Dy())
+
+	scaleX := fishTargetSize / w
+	scaleY := fishTargetSize / h
+
+	angle := math.Atan2(b.velocity.y, b.velocity.x)
+	op := &ebiten.DrawImageOptions{}
+
+	op.GeoM.Translate(-w/2, -h/2)
+	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Rotate(angle + math.Pi)
+	op.GeoM.Translate(b.position.x, b.position.y)
+
+	screen.DrawImage(img, op)
+}
+
+func (b *Boid) invertOnWall() {
+	next := b.position.Add(b.velocity)
 	if next.x >= screenWidth || next.x < 0 {
 		b.velocity = Vector2D{-b.velocity.x, b.velocity.y}
 	}
-
 	if next.y >= screenHeight || next.y < 0 {
 		b.velocity = Vector2D{b.velocity.x, -b.velocity.y}
 	}
-}
-
-func (b *Boid) Draw(screen *ebiten.Image) {
-	ev.FillCircle(screen, float32(b.position.x), float32(b.position.y), boidSize, color.RGBA{255, 148, 148, 0xff}, true)
 }

@@ -38,3 +38,44 @@ func (currV Vector2D) Limit(lower, upper float64) Vector2D {
 func (currV Vector2D) Distance(newV Vector2D) float64 {
 	return math.Sqrt(math.Pow(currV.x-newV.x, 2) + math.Pow(currV.y-newV.y, 2))
 }
+
+func (currV Vector2D) Len() float64 {
+	return math.Sqrt(math.Pow(currV.x, 2) + math.Pow(currV.y, 2))
+}
+
+func (currV Vector2D) Normalize() Vector2D {
+	d := currV.Len()
+	if d == 0 {
+		return Vector2D{0, 0}
+	}
+
+	return Vector2D{
+		currV.x / d,
+		currV.y / d,
+	}
+}
+
+func (currV Vector2D) NormalizeByMag(mag float64) Vector2D {
+	return Vector2D{
+		currV.x / mag,
+		currV.y / mag,
+	}
+}
+
+func (currV Vector2D) LimitSpeed() Vector2D {
+	mag := currV.Len()
+
+	if mag == 0 {
+		return Vector2D{minSpeed, 0}
+	}
+
+	if minSpeed > mag {
+		return currV.NormalizeByMag(mag).Mul(minSpeed)
+	}
+
+	if maxSpeed < mag {
+		return currV.NormalizeByMag(mag).Mul(maxSpeed)
+	}
+
+	return currV
+}

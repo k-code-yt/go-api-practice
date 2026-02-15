@@ -1,50 +1,56 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"sync"
+	"math/rand"
+	"os"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 const (
-	screenHeight = 640
-	screenWidth  = 1280
-	boidsCount   = 300
-	boidSize     = 7
+	screenHeight   = 640.00 * 2
+	screenWidth    = 1280.00 * 2
+	boidsCount     = 300
+	boidSize       = 7
+	fishTargetSize = 75
+
+	alignRadius = fishTargetSize * 1.5
+	alightForce = 0.05
+
+	cohRadius = fishTargetSize * 2
+	cohForce  = 0.005
+
+	sepRadius = fishTargetSize / 2
+	sepForce  = 1
+
+	minSpeed = 1
+	maxSpeed = 4
+
+	wallSepDistance = screenWidth / 15
+	wallSepForce    = 0.75
 )
 
 var (
-	adjRate    = 0.015
-	viewRadius = 15.00
+	fishImages []*ebiten.Image
 )
 
 type Game struct {
-	boids    []*Boid
-	boidsMap [screenWidth + 1][screenHeight + 1]int
-	mapMu    *sync.RWMutex
+	boids []*Boid
 }
 
 func NewGame() *Game {
 	g := &Game{}
 
-	g.mapMu = new(sync.RWMutex)
-	for i, row := range g.boidsMap {
-		for j := range row {
-			g.boidsMap[i][j] = -1
-		}
-	}
-
 	boids := make([]*Boid, boidsCount)
 	for id := range boidsCount {
-		b := NewBoid(id)
-		g.boidsMap[int(b.position.x)][int(b.position.y)] = b.id
+		randIdx := rand.Intn(len(fishImages))
+		randFish := fishImages[randIdx]
+		b := NewBoid(id, randFish)
 		boids[id] = b
-		g.boids = boids
-	}
-
-	for _, b := range g.boids {
-		go b.start(g)
 	}
 
 	g.boids = boids
@@ -52,6 +58,9 @@ func NewGame() *Game {
 }
 
 func (g *Game) Update() error {
+	for _, b := range g.boids {
+		b.Update(g)
+	}
 	return nil
 }
 
@@ -61,10 +70,30 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, b := range g.boids {
 		b.Draw(screen)
 	}
+	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
+	ebitenutil.DebugPrint(screen, fps)
 }
 
 func (g *Game) Layout(_, _ int) (sw, sh int) {
 	return screenWidth, screenHeight
+}
+
+func init() {
+	dirPath := "./assets"
+	dir, err := os.ReadDir(dirPath)
+	if err != nil {
+		panic(err)
+	}
+	for _, f := range dir {
+		f.Info()
+		if strings.HasSuffix(f.Name(), ".png") && strings.Contains(f.Name(), "fish") {
+			img, _, err := ebitenutil.NewImageFromFile(fmt.Sprintf("%s/%s", dirPath, f.Name()))
+			if err != nil {
+				panic(err)
+			}
+			fishImages = append(fishImages, img)
+		}
+	}
 }
 
 func main() {
