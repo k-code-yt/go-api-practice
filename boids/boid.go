@@ -11,10 +11,10 @@ type Boid struct {
 	position Vector2D
 	velocity Vector2D
 	id       int
-	img      *ebiten.Image
+	img      *FishImage
 }
 
-func NewBoid(id int, img *ebiten.Image) *Boid {
+func NewBoid(id int, img *FishImage) *Boid {
 	position := Vector2D{rand.Float64() * screenWidth, rand.Float64() * screenHeight}
 	velocity := Vector2D{(rand.Float64() * 2) - 1, (rand.Float64() * 2) - 1}
 
@@ -27,9 +27,8 @@ func NewBoid(id int, img *ebiten.Image) *Boid {
 	return b
 }
 
-func (b *Boid) Update(g *Game) {
-	accel := b.calcAcceleration(g)
-	b.velocity = b.velocity.Add(accel).LimitSpeed()
+func (b *Boid) Update(accel *Vector2D) {
+	b.velocity = b.velocity.Add(*accel).LimitSpeed()
 	b.position = b.position.Add(b.velocity)
 	b.invertOnWall()
 }
@@ -117,24 +116,17 @@ func (b *Boid) bounceOnBorder(min, max float64) float64 {
 }
 
 func (b *Boid) Draw(screen *ebiten.Image) {
-	// ev.FillCircle(screen, float32(b.position.x), float32(b.position.y), boidSize, color.RGBA{255, 148, 148, 0xff}, true)
-
 	img := b.img
-	w := float64(img.Bounds().Dx())
-	h := float64(img.Bounds().Dy())
-
-	scaleX := fishTargetSize / w
-	scaleY := fishTargetSize / h
 
 	angle := math.Atan2(b.velocity.y, b.velocity.x)
 	op := &ebiten.DrawImageOptions{}
 
-	op.GeoM.Translate(-w/2, -h/2)
-	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Translate(-img.w/2, -img.h/2)
+	op.GeoM.Scale(img.scaleX, img.scaleY)
 	op.GeoM.Rotate(angle + math.Pi)
 	op.GeoM.Translate(b.position.x, b.position.y)
 
-	screen.DrawImage(img, op)
+	screen.DrawImage(img.img, op)
 }
 
 func (b *Boid) invertOnWall() {
