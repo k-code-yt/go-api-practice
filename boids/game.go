@@ -19,7 +19,7 @@ import (
 const (
 	screenHeight   = 640 * 2
 	screenWidth    = 1080.00 * 2
-	boidsCount     = 600
+	boidsCount     = 500
 	boidSize       = 7
 	fishTargetSize = 50
 
@@ -149,6 +149,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		b.Draw(screen)
 	}
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
+	r := rand.Int31n(10)
+	if r < 1 {
+		fmt.Printf("FPS = %s\n", fps)
+	}
 	ebitenutil.DebugPrint(screen, fps)
 }
 
