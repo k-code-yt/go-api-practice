@@ -19,14 +19,14 @@ import (
 const (
 	screenHeight   = 640 * 2
 	screenWidth    = 1080.00 * 2
-	boidsCount     = 600
+	boidsCount     = 200
 	boidSize       = 7
 	fishTargetSize = 50
 
 	alignRadius = fishTargetSize * 1.5
 	alightForce = 0.05
 
-	cohRadius = fishTargetSize * 2
+	cohRadius = fishTargetSize * 3
 	cohForce  = 0.0025
 
 	sepRadius = fishTargetSize / 2
@@ -46,14 +46,18 @@ var (
 )
 
 type Game struct {
-	boids    []*Boid
+	sg *SpiralGrid
+	// TODO -> should I remove from here? just keep in sg?
+	boids  []*Boid
+	jobsCH chan (int)
+	accels [boidsCount]*Vector2D
+	wg     *sync.WaitGroup
+
+	// TODO -> fix gif MEM usage
 	bgFrames []*ebiten.Image
 	bgDelays []int // delay per frame in 100ths of a second
 	bgFrame  int   // current frame index
 	bgTick   int   // counts up each Update()
-	jobsCH   chan (int)
-	accels   [boidsCount]*Vector2D
-	wg       *sync.WaitGroup
 }
 
 func NewGame() *Game {
@@ -63,6 +67,7 @@ func NewGame() *Game {
 		jobsCH: make(chan int, boidsCount),
 		accels: accels,
 		wg:     new(sync.WaitGroup),
+		sg:     NewSpiralGrid(cohRadius),
 	}
 	bgs, dels := loadGIF(bgPath)
 
@@ -75,6 +80,7 @@ func NewGame() *Game {
 		randFish := fishImages[randIdx]
 		b := NewBoid(id, randFish)
 		boids[id] = b
+		g.sg.Insert(b)
 	}
 
 	g.boids = boids
@@ -99,7 +105,8 @@ func (g *Game) StartJobs() {
 		go func(i int) {
 			for id := range g.jobsCH {
 				b := g.boids[id]
-				acc := b.calcAcceleration(g)
+				neib := g.sg.GetNeighbours(b)
+				acc := b.calcAcceleration(g, neib)
 				// fmt.Printf("%d worker handling acc for boidID = %d\n", i, id)
 				g.accels[id] = &acc
 				g.wg.Done()
@@ -108,7 +115,7 @@ func (g *Game) StartJobs() {
 	}
 }
 
-func (g *Game) Update() error {
+func (g *Game) UpdateBG() {
 	g.bgTick++
 
 	throshold := g.bgDelays[g.bgFrame] * 60 / 100
@@ -121,17 +128,23 @@ func (g *Game) Update() error {
 		lbg := len(g.bgFrames)
 		g.bgFrame = (g.bgFrame + 1) % lbg
 	}
+}
+
+func (g *Game) Update() error {
+	g.UpdateBG()
+
+	g.sg.Clean()
 
 	g.wg.Add(boidsCount)
-
 	for _, b := range g.boids {
 		g.jobsCH <- b.id
 	}
-
 	g.wg.Wait()
+
 	for _, b := range g.boids {
 		acc := g.accels[b.id]
 		b.Update(acc)
+		g.sg.Insert(b)
 	}
 	return nil
 }
@@ -149,6 +162,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		b.Draw(screen)
 	}
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
+	r := rand.Int31n(10)
+	if r <= 1 {
+		fmt.Printf("FPS = %s\n", fps)
+	}
 	ebitenutil.DebugPrint(screen, fps)
 }
 
