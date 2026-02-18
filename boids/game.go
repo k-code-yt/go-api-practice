@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	screenHeight   = 640 * 2
-	screenWidth    = 1080.00 * 2
-	boidsCount     = 200
+	screenHeight   = 640 * 2.5
+	screenWidth    = 1080.00 * 2.5
+	boidsCount     = 500
 	boidSize       = 7
-	fishTargetSize = 50
+	fishTargetSize = 60
 
 	alignRadius = fishTargetSize * 1.5
 	alightForce = 0.05
@@ -134,6 +134,9 @@ func (g *Game) Update() error {
 	g.UpdateBG()
 
 	g.sg.Clean()
+	for _, b := range g.boids {
+		g.sg.Insert(b)
+	}
 
 	g.wg.Add(boidsCount)
 	for _, b := range g.boids {
@@ -144,26 +147,28 @@ func (g *Game) Update() error {
 	for _, b := range g.boids {
 		acc := g.accels[b.id]
 		b.Update(acc)
-		g.sg.Insert(b)
 	}
 	return nil
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
-	op := &ebiten.DrawImageOptions{}
+func (g *Game) DrawBG(screen *ebiten.Image) {
 	// TODO -> remove it from DRAW -> do it New
+	op := &ebiten.DrawImageOptions{}
 	bg := g.bgFrames[g.bgFrame]
 	scaleX := screenWidth / float64(bg.Bounds().Dx())
 	scaleY := screenHeight / float64(bg.Bounds().Dy())
 	op.GeoM.Scale(scaleX, scaleY)
 	screen.DrawImage(bg, op)
+}
 
+func (g *Game) Draw(screen *ebiten.Image) {
+	g.DrawBG(screen)
 	for _, b := range g.boids {
 		b.Draw(screen)
 	}
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
 	r := rand.Int31n(10)
-	if r <= 1 {
+	if r < 1 {
 		fmt.Printf("FPS = %s\n", fps)
 	}
 	ebitenutil.DebugPrint(screen, fps)
