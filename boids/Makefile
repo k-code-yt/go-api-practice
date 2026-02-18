@@ -13,4 +13,4 @@ test-main:
 	@go test -bench=BenchmarkMain -memprofile=mem.prof -cpuprofile=cpu.prof 
 
 test-main-race: 
-	@go test -race -bench=BenchmarkMain -memprofile=mem.prof -cpuprofile-cpu.prof -betchtime=10s
+	@go test -race -bench=BenchmarkMain -memprofile=mem.prof -cpuprofile=cpu.prof
