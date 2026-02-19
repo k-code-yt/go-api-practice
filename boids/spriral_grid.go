@@ -22,7 +22,6 @@ func NewSpiralGrid(cellSize float64) *SpiralGrid {
 	}
 }
 
-// TODO -> should I keep sg.idx in boid -> reduce update if it is the same sg.idx
 func (sg *SpiralGrid) Insert(b *Boid) {
 	idx := sg.GetCellIndex(b.position.x, b.position.y)
 	sg.cells[idx] = append(sg.cells[idx], b.id)

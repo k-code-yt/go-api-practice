@@ -9,12 +9,15 @@
 
 <!-- PEFORMANCE -->
 
-[] add tests -> testing.B
+[x] add tests -> testing.B
+[x] cpu#1: rework to spiral grid
+[x] add worker pool
+[] cpu#2: math.pow && path.sqrt -> pre-calc sqrt for radiuses -> compare sqrt vs sqrt
+[] move results to worker
+[] how to pre-calc fish rotations
+[] how to skip fish rotation if direction didn't change
+
 [] review mem -> how to fix GIF mem usage(for later)
-[] review cpu
-[] cpu#1: math.pow && path.sqrt
-[] cpu#2:
-[] add worker pool
 
 <!-- curr.mem = 737.85MB -->
 
