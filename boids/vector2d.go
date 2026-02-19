@@ -36,11 +36,19 @@ func (currV Vector2D) Limit(lower, upper float64) Vector2D {
 }
 
 func (currV Vector2D) Distance(newV Vector2D) float64 {
-	return math.Sqrt(math.Pow(currV.x-newV.x, 2) + math.Pow(currV.y-newV.y, 2))
+	return math.Sqrt((currV.x-newV.x)*(currV.x-newV.x) + (currV.y-newV.y)*(currV.y-newV.y))
+}
+
+func (currV Vector2D) DistanceSq(newV Vector2D) float64 {
+	return (currV.x-newV.x)*(currV.x-newV.x) + (currV.y-newV.y)*(currV.y-newV.y)
 }
 
 func (currV Vector2D) Len() float64 {
-	return math.Sqrt(math.Pow(currV.x, 2) + math.Pow(currV.y, 2))
+	return math.Sqrt((currV.x * currV.x) + (currV.y * currV.y))
+}
+
+func (currV Vector2D) LenSq() float64 {
+	return (currV.x * currV.x) + (currV.y * currV.y)
 }
 
 func (currV Vector2D) Normalize() Vector2D {
@@ -49,10 +57,7 @@ func (currV Vector2D) Normalize() Vector2D {
 		return Vector2D{0, 0}
 	}
 
-	return Vector2D{
-		currV.x / d,
-		currV.y / d,
-	}
+	return currV.NormalizeByMag(d)
 }
 
 func (currV Vector2D) NormalizeByMag(mag float64) Vector2D {

@@ -11,26 +11,37 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 const (
-	screenHeight   = 640 * 2.5
-	screenWidth    = 1080.00 * 2.5
-	boidsCount     = 500
+	isDebug   = true
+	debugTick = time.Second
+
+	screenHeight   = 640 * 2
+	screenWidth    = 1080.00 * 2
+	boidsCount     = 1000
 	boidSize       = 7
-	fishTargetSize = 60
+	fishTargetSize = 50
 
-	alignRadius = fishTargetSize * 1.5
-	alightForce = 0.05
+	baseRadius    = fishTargetSize * 1.2
+	alignRadius   = baseRadius * 1.5
+	alignRadiusSq = alignRadius * alignRadius
+	alightForce   = 0.05
+	alightForceSq = alightForce * alightForce
 
-	cohRadius = fishTargetSize * 3
-	cohForce  = 0.0025
+	cohRadius   = baseRadius * 3
+	cohRadiusSq = cohRadius * cohRadius
+	cohForce    = 0.0025
+	cohForceSq  = cohForce * cohForce
 
-	sepRadius = fishTargetSize / 2
-	sepForce  = 1.5
+	sepRadius   = baseRadius / 2
+	sepRadiusSq = sepRadius * sepRadius
+	sepForce    = 1.5
+	sepForceSq  = sepForce * sepForce
 
 	minSpeed = 1
 	maxSpeed = 4
@@ -46,28 +57,37 @@ var (
 )
 
 type Game struct {
-	sg *SpiralGrid
-	// TODO -> should I remove from here? just keep in sg?
-	boids  []*Boid
-	jobsCH chan (int)
-	accels [boidsCount]*Vector2D
-	wg     *sync.WaitGroup
+	sg       *SpiralGrid
+	boids    []*Boid
+	jobsCH   chan (int)
+	accels   [boidsCount]*Vector2D
+	wg       *sync.WaitGroup
+	neibPool *sync.Pool
 
 	// TODO -> fix gif MEM usage
 	bgFrames []*ebiten.Image
 	bgDelays []int // delay per frame in 100ths of a second
 	bgFrame  int   // current frame index
 	bgTick   int   // counts up each Update()
+
+	// for debug
+	ticker time.Ticker
 }
 
 func NewGame() *Game {
 	accels := [boidsCount]*Vector2D{}
+	neibPool := &sync.Pool{
+		New: func() interface{} {
+			return []int{}
+		},
+	}
 
 	g := &Game{
-		jobsCH: make(chan int, boidsCount),
-		accels: accels,
-		wg:     new(sync.WaitGroup),
-		sg:     NewSpiralGrid(cohRadius),
+		jobsCH:   make(chan int, boidsCount),
+		accels:   accels,
+		wg:       new(sync.WaitGroup),
+		sg:       NewSpiralGrid(cohRadius),
+		neibPool: neibPool,
 	}
 	bgs, dels := loadGIF(bgPath)
 
@@ -85,6 +105,11 @@ func NewGame() *Game {
 
 	g.boids = boids
 	g.StartJobs()
+
+	if isDebug {
+		g.ticker = *time.NewTicker(debugTick)
+	}
+
 	return g
 }
 
@@ -99,15 +124,17 @@ func (g *Game) Run() error {
 }
 
 func (g *Game) StartJobs() {
+	defer g.ticker.Stop()
 	cpus := runtime.NumCPU()
-	// fmt.Printf("CPUS = %d\n", cpus)
 	for i := range cpus {
 		go func(i int) {
 			for id := range g.jobsCH {
 				b := g.boids[id]
-				neib := g.sg.GetNeighbours(b)
+				neib := g.neibPool.Get().([]int)
+				g.sg.GetNeighbours(b, &neib)
 				acc := b.calcAcceleration(g, neib)
-				// fmt.Printf("%d worker handling acc for boidID = %d\n", i, id)
+				neib = neib[:0]
+				g.neibPool.Put(neib)
 				g.accels[id] = &acc
 				g.wg.Done()
 			}
@@ -167,10 +194,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		b.Draw(screen)
 	}
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
-	r := rand.Int31n(10)
-	if r < 1 {
-		fmt.Printf("FPS = %s\n", fps)
+	if isDebug {
+		select {
+		case <-g.ticker.C:
+			fmt.Printf("FPS = %s\n", fps)
+		default:
+		}
 	}
+
 	ebitenutil.DebugPrint(screen, fps)
 }
 

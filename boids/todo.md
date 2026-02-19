@@ -12,7 +12,7 @@
 [x] add tests -> testing.B
 [x] cpu#1: rework to spiral grid
 [x] add worker pool
-[] cpu#2: math.pow && path.sqrt -> pre-calc sqrt for radiuses -> compare sqrt vs sqrt
+[x] cpu#2: math.pow && path.sqrt -> pre-calc sqrt for radiuses -> compare sqrt vs sqrt
 [] move results to worker
 [] how to pre-calc fish rotations
 [] how to skip fish rotation if direction didn't change

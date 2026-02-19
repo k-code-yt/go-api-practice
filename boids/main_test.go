@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
 
 const (
-	testDur = time.Second * 5
+	testDur = time.Second * 10
 )
 
 func BenchmarkMain(b *testing.B) {
@@ -24,11 +23,4 @@ func BenchmarkMain(b *testing.B) {
 
 	<-time.After(testDur)
 	close(exitCH)
-}
-
-func BenchmarkNewGame(b *testing.B) {
-	g := NewGame()
-	n := g.sg.GetNeighbours(g.boids[0])
-	fmt.Println(n)
-	g.sg.Clean()
 }
