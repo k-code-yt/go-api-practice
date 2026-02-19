@@ -26,5 +26,6 @@ compare-cpu:
 	@go tool pprof -diff_base=./profiling_results/cpu_with_spiral.prof -http=:8080  ./profiling_results/cpu_without_mathpow_1000b.prof
 
 mem:
-# 	@go tool pprof -diff_base=./profiling_results/mem_no_pool.prof  -http=:8080  ./profiling_results/mem_with_pool.prof 
-	@go tool pprof -http=:8080 ./profiling_results/mem.prof 
+	@go tool pprof -diff_base=./profiling_results/mem_with_pool.prof  -http=:8080  ./profiling_results/mem.prof 
+# 	@go tool pprof -http=:8080 ./profiling_results/mem.prof 
+# 	@go tool pprof ./profiling_results/mem_with_pool.prof 

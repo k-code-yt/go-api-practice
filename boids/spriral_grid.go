@@ -24,6 +24,7 @@ func NewSpiralGrid(cellSize float64) *SpiralGrid {
 
 func (sg *SpiralGrid) Insert(b *Boid) {
 	idx := sg.GetCellIndex(b.position.x, b.position.y)
+	// TODO -> why I got outof range here?
 	sg.cells[idx] = append(sg.cells[idx], b.id)
 }
 

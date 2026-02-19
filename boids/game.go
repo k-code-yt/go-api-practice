@@ -56,13 +56,37 @@ var (
 	fishImages []*FishImage
 )
 
+type Worker struct {
+	id      int
+	neibBuf []int
+}
+
+func NewWorker(id int) *Worker {
+	return &Worker{
+		id:      id,
+		neibBuf: []int{},
+	}
+}
+
+func (w *Worker) StartJob(g *Game) {
+	for id := range g.jobsCH {
+		b := g.boids[id]
+		g.sg.GetNeighbours(b, &w.neibBuf)
+		acc := b.calcAcceleration(g, w.neibBuf)
+		g.accels[id] = &acc
+		w.neibBuf = w.neibBuf[:0]
+		g.wg.Done()
+	}
+
+}
+
 type Game struct {
-	sg       *SpiralGrid
-	boids    []*Boid
-	jobsCH   chan (int)
-	accels   [boidsCount]*Vector2D
-	wg       *sync.WaitGroup
-	neibPool *sync.Pool
+	sg      *SpiralGrid
+	boids   []*Boid
+	jobsCH  chan (int)
+	accels  [boidsCount]*Vector2D
+	wg      *sync.WaitGroup
+	workers []*Worker
 
 	// TODO -> fix gif MEM usage
 	bgFrames []*ebiten.Image
@@ -76,18 +100,12 @@ type Game struct {
 
 func NewGame() *Game {
 	accels := [boidsCount]*Vector2D{}
-	neibPool := &sync.Pool{
-		New: func() interface{} {
-			return []int{}
-		},
-	}
 
 	g := &Game{
-		jobsCH:   make(chan int, boidsCount),
-		accels:   accels,
-		wg:       new(sync.WaitGroup),
-		sg:       NewSpiralGrid(cohRadius),
-		neibPool: neibPool,
+		jobsCH: make(chan int, boidsCount),
+		accels: accels,
+		wg:     new(sync.WaitGroup),
+		sg:     NewSpiralGrid(cohRadius),
 	}
 	bgs, dels := loadGIF(bgPath)
 
@@ -104,7 +122,7 @@ func NewGame() *Game {
 	}
 
 	g.boids = boids
-	g.StartJobs()
+	g.StartJob()
 
 	if isDebug {
 		g.ticker = *time.NewTicker(debugTick)
@@ -123,22 +141,14 @@ func (g *Game) Run() error {
 	return nil
 }
 
-func (g *Game) StartJobs() {
+func (g *Game) StartJob() {
 	defer g.ticker.Stop()
+
 	cpus := runtime.NumCPU()
+
 	for i := range cpus {
-		go func(i int) {
-			for id := range g.jobsCH {
-				b := g.boids[id]
-				neib := g.neibPool.Get().([]int)
-				g.sg.GetNeighbours(b, &neib)
-				acc := b.calcAcceleration(g, neib)
-				neib = neib[:0]
-				g.neibPool.Put(neib)
-				g.accels[id] = &acc
-				g.wg.Done()
-			}
-		}(i)
+		w := NewWorker(i)
+		go w.StartJob(g)
 	}
 }
 
