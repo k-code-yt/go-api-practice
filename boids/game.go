@@ -6,6 +6,7 @@ import (
 	"image/draw"
 	"image/gif"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"runtime"
@@ -21,9 +22,9 @@ const (
 	isDebug   = true
 	debugTick = time.Second
 
-	screenHeight   = 640 * 2
-	screenWidth    = 1080.00 * 2
-	boidsCount     = 1000
+	screenHeight   = 640 * 1.5
+	screenWidth    = 1080.00 * 1.5
+	boidsCount     = 500
 	boidSize       = 7
 	fishTargetSize = 50
 
@@ -144,7 +145,7 @@ func (g *Game) Run() error {
 func (g *Game) StartJob() {
 	defer g.ticker.Stop()
 
-	cpus := runtime.NumCPU()
+	cpus := int(math.Ceil(float64(runtime.NumCPU() / 2)))
 
 	for i := range cpus {
 		w := NewWorker(i)

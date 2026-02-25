@@ -37,6 +37,18 @@ func (sg *SpiralGrid) Clean() {
 func (sg *SpiralGrid) GetCellIndex(x, y float64) int {
 	col := int(x / sg.cellSize)
 	row := int(y / sg.cellSize)
+	if col >= sg.cols {
+		col = sg.cols - 1
+	}
+	if row >= sg.rows {
+		row = sg.rows - 1
+	}
+	if col < 0 {
+		col = 0
+	}
+	if row < 0 {
+		row = 0
+	}
 	return row*sg.cols + col
 }
 
