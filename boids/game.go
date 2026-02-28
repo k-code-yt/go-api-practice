@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	screenHeight   = 640 * 2.5
-	screenWidth    = 1080.00 * 2.5
-	boidsCount     = 500
+	screenHeight   = 640 * 1.5
+	screenWidth    = 1080.00 * 1.5
+	boidsCount     = 1000
 	boidSize       = 7
-	fishTargetSize = 60
+	fishTargetSize = 40
 
 	alignRadius = fishTargetSize * 1.5
 	alightForce = 0.05
@@ -100,15 +100,15 @@ func (g *Game) Run() error {
 
 func (g *Game) StartJobs() {
 	cpus := runtime.NumCPU()
-	// fmt.Printf("CPUS = %d\n", cpus)
-	for i := range cpus {
+	for i := range int(cpus / 2) {
 		go func(i int) {
+			neibBuf := []int{}
 			for id := range g.jobsCH {
 				b := g.boids[id]
-				neib := g.sg.GetNeighbours(b)
-				acc := b.calcAcceleration(g, neib)
-				// fmt.Printf("%d worker handling acc for boidID = %d\n", i, id)
+				g.sg.GetNeighbours(b, &neibBuf)
+				acc := b.calcAcceleration(g, &neibBuf)
 				g.accels[id] = &acc
+				neibBuf = neibBuf[:0]
 				g.wg.Done()
 			}
 		}(i)

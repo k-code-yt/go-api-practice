@@ -10,7 +10,7 @@ run: build
 
 # ---TESTS----
 test-main: 
-	@go test -bench=BenchmarkMain -memprofile=mem.prof -cpuprofile=cpu.prof 
+	@go test -bench=BenchmarkMain -cpuprofile=cpu.prof
 
 test-main-race: 
 	@go test -race -bench=BenchmarkMain -memprofile=mem.prof -cpuprofile=cpu.prof

@@ -33,14 +33,14 @@ func (b *Boid) Update(accel *Vector2D) {
 	b.invertOnWall()
 }
 
-func (b *Boid) calcAcceleration(g *Game, neib []int) Vector2D {
+func (b *Boid) calcAcceleration(g *Game, neib *[]int) Vector2D {
 	avgVelocity := Vector2D{}
 	avgPosition := Vector2D{}
 	separation := Vector2D{}
 	countCoh := 0.0
 	countSep := 0.0
 
-	for _, otherIdx := range neib {
+	for _, otherIdx := range *neib {
 		other := g.boids[otherIdx]
 		dist := b.position.Distance(other.position)
 		if dist < cohRadius && dist > sepRadius {

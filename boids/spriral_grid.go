@@ -36,16 +36,25 @@ func (sg *SpiralGrid) Clean() {
 func (sg *SpiralGrid) GetCellIndex(x, y float64) int {
 	col := int(x / sg.cellSize)
 	row := int(y / sg.cellSize)
+	if col >= sg.cols {
+		col = sg.cols - 1
+	}
+	if row >= sg.rows {
+		row = sg.rows - 1
+	}
+	if col < 0 {
+		col = 0
+	}
+	if row < 0 {
+		row = 0
+	}
 	return row*sg.cols + col
 }
 
-func (sg *SpiralGrid) GetNeighbours(b *Boid) []int {
+func (sg *SpiralGrid) GetNeighbours(b *Boid, result *[]int) {
 	bCol := int(b.position.x / sg.cellSize)
 	bRow := int(b.position.y / sg.cellSize)
 
-	// TODO -> how to re-use results
-	// sync.Pool?
-	var results []int
 	for nc := -1; nc <= 1; nc++ {
 		for nr := -1; nr <= 1; nr++ {
 			col := bCol + nc
@@ -57,10 +66,8 @@ func (sg *SpiralGrid) GetNeighbours(b *Boid) []int {
 
 			cellIdx := row*sg.cols + col
 			for _, boidIdx := range sg.cells[cellIdx] {
-				// TODO -> remove outselfs?
-				results = append(results, boidIdx)
+				*result = append(*result, boidIdx)
 			}
 		}
 	}
-	return results
 }
