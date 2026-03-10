@@ -43,16 +43,15 @@ func (b *Boid) calcAcceleration(g *Game, neib *[]int) Vector2D {
 	for _, otherIdx := range *neib {
 		other := g.boids[otherIdx]
 		dist := b.position.Distance(other.position)
-		if dist < cohRadius && dist > sepRadius {
-			avgVelocity = avgVelocity.Add(other.velocity)
-			avgPosition = avgPosition.Add(other.position)
-			countCoh++
-		}
-
 		if dist <= sepRadius {
 			push := b.position.Sub(other.position).Div((sepRadius - dist) / dist).Normalize().Mul(sepForce)
 			separation = separation.Add(push)
 			countSep++
+		} else if dist < cohRadius {
+			avgVelocity = avgVelocity.Add(other.velocity)
+			avgPosition = avgPosition.Add(other.position)
+			countCoh++
+
 		}
 	}
 

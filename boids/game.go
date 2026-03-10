@@ -21,7 +21,7 @@ const (
 	screenWidth    = 1080.00 * 1.5
 	boidsCount     = 1000
 	boidSize       = 7
-	fishTargetSize = 40
+	fishTargetSize = 45
 
 	alignRadius = fishTargetSize * 1.5
 	alightForce = 0.05
@@ -69,10 +69,10 @@ func NewGame() *Game {
 		wg:     new(sync.WaitGroup),
 		sg:     NewSpiralGrid(cohRadius),
 	}
-	bgs, dels := loadGIF(bgPath)
+	// bgs, dels := loadGIF(bgPath)
 
-	g.bgDelays = dels
-	g.bgFrames = bgs
+	// g.bgDelays = dels
+	// g.bgFrames = bgs
 
 	boids := make([]*Boid, boidsCount)
 	for id := range boidsCount {
@@ -100,7 +100,7 @@ func (g *Game) Run() error {
 
 func (g *Game) StartJobs() {
 	cpus := runtime.NumCPU()
-	for i := range int(cpus / 2) {
+	for i := range int(cpus / 4) {
 		go func(i int) {
 			neibBuf := []int{}
 			for id := range g.jobsCH {
@@ -131,7 +131,7 @@ func (g *Game) UpdateBG() {
 }
 
 func (g *Game) Update() error {
-	g.UpdateBG()
+	// g.UpdateBG()
 
 	g.sg.Clean()
 	for _, b := range g.boids {
@@ -161,14 +161,16 @@ func (g *Game) DrawBG(screen *ebiten.Image) {
 	screen.DrawImage(bg, op)
 }
 
+var drawInt int
+
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.DrawBG(screen)
+	// g.DrawBG(screen)
 	for _, b := range g.boids {
 		b.Draw(screen)
 	}
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
-	r := rand.Int31n(10)
-	if r < 1 {
+	drawInt++
+	if drawInt%120 == 0 {
 		fmt.Printf("FPS = %s\n", fps)
 	}
 	ebitenutil.DebugPrint(screen, fps)

@@ -15,36 +15,6 @@ const (
 	ResultsFileSuffix = "json"
 )
 
-type MemSnapshot struct {
-	Alloc         uint64    `json:"Alloc"`
-	TotalAlloc    uint64    `json:"TotalAlloc"`
-	Sys           uint64    `json:"Sys"`
-	HeapObjects   uint64    `json:"HeapObjects"`
-	HeapInuse     uint64    `json:"HeapInuse"`
-	HeapIdle      uint64    `json:"HeapIdle"`
-	StackInuse    uint64    `json:"StackInuse"`
-	Mallocs       uint64    `json:"Mallocs"`
-	Frees         uint64    `json:"Frees"`
-	NumGC         uint32    `json:"NumGC"`
-	GCCPUFraction float64   `json:"GCCPUFraction"`
-	Timestamp     time.Time `json:"Timestamp"`
-}
-
-type MemDelta struct {
-	AllocDelta         int64         `json:"AllocDelta"`
-	TotalAllocDelta    int64         `json:"TotalAllocDelta"`
-	SysDelta           int64         `json:"SysDelta"`
-	HeapObjectsDelta   int64         `json:"HeapObjectsDelta"`
-	HeapInuseDelta     int64         `json:"HeapInuseDelta"`
-	HeapIdleDelta      int64         `json:"HeapIdleDelta"`
-	StackInuseDelta    int64         `json:"StackInuseDelta"`
-	MallocsDelta       int64         `json:"MallocsDelta"`
-	FreesDelta         int64         `json:"FreesDelta"`
-	NumGCDelta         int32         `json:"NumGCDelta"`
-	GCCPUFractionDelta float64       `json:"GCCPUFractionDelta"`
-	Duration           time.Duration `json:"Duration"`
-}
-
 type BenchmarkResult struct {
 	Name           string `json:"Name"`
 	Implementation string `json:"Implementation"`

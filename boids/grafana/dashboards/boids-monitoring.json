@@ -1,0 +1,157 @@
+{
+  "title": "Boids Game Metrics",
+  "uid": "boids-dashboard",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-5m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Heap Alloc / Inuse / Idle (bytes)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        { "expr": "mem_alloc_bytes", "legendFormat": "Alloc" },
+        { "expr": "mem_heap_inuse_bytes", "legendFormat": "Heap Inuse" },
+        { "expr": "mem_heap_idle_bytes", "legendFormat": "Heap Idle" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Sys & Stack Inuse (bytes)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        { "expr": "mem_sys_bytes", "legendFormat": "Sys" },
+        { "expr": "mem_stack_inuse_bytes", "legendFormat": "Stack Inuse" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Live Heap Objects",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        { "expr": "mem_heap_objects", "legendFormat": "Heap Objects" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "GC CPU Fraction",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "lineWidth": 2 },
+          "min": 0
+        }
+      },
+      "targets": [{ "expr": "mem_gc_cpu_fraction", "legendFormat": "GC CPU %" }]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Mallocs vs Frees (rate/s)",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        {
+          "expr": "rate(mem_mallocs_total[10s])",
+          "legendFormat": "Mallocs/s"
+        },
+        {
+          "expr": "rate(mem_frees_total[10s])",
+          "legendFormat": "Frees/s"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "GC Cycles (rate/s)",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        {
+          "expr": "rate(mem_gc_total[10s])",
+          "legendFormat": "GC cycles/s"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Current Alloc",
+      "gridPos": { "x": 0, "y": 24, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "mem_alloc_bytes", "legendFormat": "" }]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Sys Memory",
+      "gridPos": { "x": 4, "y": 24, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "mem_sys_bytes", "legendFormat": "" }]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Heap Objects",
+      "gridPos": { "x": 8, "y": 24, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [{ "expr": "mem_heap_objects", "legendFormat": "" }]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "GC CPU Fraction",
+      "gridPos": { "x": 12, "y": 24, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "percentunit" } },
+      "targets": [{ "expr": "mem_gc_cpu_fraction", "legendFormat": "" }]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Total GC Cycles",
+      "gridPos": { "x": 16, "y": 24, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [{ "expr": "mem_gc_total", "legendFormat": "" }]
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Total Alloc (lifetime)",
+      "gridPos": { "x": 20, "y": 24, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "mem_total_alloc_bytes_total", "legendFormat": "" }]
+    }
+  ]
+}
