@@ -8,13 +8,16 @@ import (
 )
 
 type Boid struct {
-	position Vector2D
-	velocity Vector2D
-	id       int
-	img      *FishImage
+	position   Vector2D
+	velocity   Vector2D
+	id         int
+	img        *SheepImage
+	frameIdx   int
+	frameTick  int
+	facingLeft bool
 }
 
-func NewBoid(id int, img *FishImage) *Boid {
+func NewBoid(id int, img *SheepImage) *Boid {
 	position := Vector2D{rand.Float64() * screenWidth, rand.Float64() * screenHeight}
 	velocity := Vector2D{(rand.Float64() * 2) - 1, (rand.Float64() * 2) - 1}
 
@@ -23,6 +26,7 @@ func NewBoid(id int, img *FishImage) *Boid {
 		velocity: velocity,
 		position: position,
 		img:      img,
+		frameIdx: rand.Intn(img.frameCount),
 	}
 	return b
 }
@@ -31,6 +35,48 @@ func (b *Boid) Update(accel *Vector2D) {
 	b.velocity = b.velocity.Add(*accel).LimitSpeed()
 	b.position = b.position.Add(b.velocity)
 	b.invertOnWall()
+	maxTickPerFrame := 12
+
+	ln := b.velocity.Len()
+	tickPerFrame := int(math.Max(minSpeed, float64(maxTickPerFrame)-ln))
+	b.frameTick++
+	if b.frameTick >= tickPerFrame {
+		b.frameTick = 0
+		b.frameIdx = (b.frameIdx + 1) % b.img.frameCount
+
+		if b.velocity.x > 0.5 {
+			b.facingLeft = false
+		} else if b.velocity.x < 0.5 {
+			b.facingLeft = true
+		}
+
+	}
+	// -------
+}
+
+func (b *Boid) Draw(screen *ebiten.Image) {
+	op := &ebiten.DrawImageOptions{}
+	img := b.img
+	frame := b.img.Frame(b.frameIdx)
+	// vx, vy := b.velocity.x, b.velocity.y
+	// scaleX := img.scaleX
+
+	// angle := math.Atan2(vy, math.Abs(vx)) - math.Pi/2
+	// maxTilt := math.Pi / 18
+	// angle = math.Max(-maxTilt, math.Min(maxTilt, angle))
+
+	// op.GeoM.Scale(scaleX, img.scaleY)
+	// op.GeoM.Rotate(angle)
+
+	scaleX := img.scaleX
+	if b.facingLeft {
+		scaleX = -scaleX
+	}
+	op.GeoM.Translate(-b.img.frameW/2, -b.img.frameH/2)
+	op.GeoM.Scale(scaleX, img.scaleY)
+	op.GeoM.Translate(b.position.x, b.position.y)
+
+	screen.DrawImage(frame, op)
 }
 
 func (b *Boid) calcAcceleration(g *Game, neib *[]int) Vector2D {
@@ -113,20 +159,6 @@ func (b *Boid) bounceOnBorder(min, max float64) float64 {
 		return 2 / (min - max)
 	}
 	return 0
-}
-
-func (b *Boid) Draw(screen *ebiten.Image) {
-	img := b.img
-
-	angle := math.Atan2(b.velocity.y, b.velocity.x)
-	op := &ebiten.DrawImageOptions{}
-
-	op.GeoM.Translate(-img.w/2, -img.h/2)
-	op.GeoM.Scale(img.scaleX, img.scaleY)
-	op.GeoM.Rotate(angle + math.Pi)
-	op.GeoM.Translate(b.position.x, b.position.y)
-
-	screen.DrawImage(img.img, op)
 }
 
 func (b *Boid) invertOnWall() {
