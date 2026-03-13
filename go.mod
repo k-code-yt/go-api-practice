@@ -26,9 +26,14 @@ require (
 	github.com/bufbuild/protocompile v0.8.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/ebitengine/gomobile v0.0.0-20250923094054-ea854a63cce1 // indirect
+	github.com/ebitengine/hideconsole v1.0.0 // indirect
+	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/hajimehoshi/ebiten/v2 v2.9.8 // indirect
 	github.com/heetch/avro v0.4.5 // indirect
+	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/jhump/protoreflect v1.15.6 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/moby/go-archive v0.2.0 // indirect
