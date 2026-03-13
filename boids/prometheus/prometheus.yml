@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: "boids-game"
+    static_configs:
+      - targets: ["172.31.140.195:2112"]
+    scrape_interval: 2s
