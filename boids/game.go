@@ -2,62 +2,55 @@ package main
 
 import (
 	"fmt"
-	"image"
-	"image/draw"
-	"image/gif"
 	"log"
-	"math/rand"
-	"os"
 	"runtime"
-	"strings"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+
+	_ "image/jpeg"
+	_ "image/png"
 )
 
 const (
-	screenHeight   = 640 * 1.5
-	screenWidth    = 1080.00 * 1.5
-	boidsCount     = 1000
+	screenHeight   = 640 * 2
+	screenWidth    = 1080.00 * 2
+	boidsCount     = 250
 	boidSize       = 7
-	fishTargetSize = 45
+	targetBoidSize = 65
 
-	alignRadius = fishTargetSize * 1.5
+	alignRadius = targetBoidSize * 1.5
 	alightForce = 0.05
 
-	cohRadius = fishTargetSize * 3
+	cohRadius = targetBoidSize * 2.5
 	cohForce  = 0.0025
 
-	sepRadius = fishTargetSize / 2
-	sepForce  = 1.5
+	sepRadius = targetBoidSize / 5
+	sepForce  = 2
 
-	minSpeed = 1
-	maxSpeed = 4
+	minSpeed float64 = 1
+	maxSpeed float64 = 4
 
 	wallSepDistance = screenWidth / 15
 	wallSepForce    = 0.75
 
-	bgPath = "./assets/bg.gif"
+	bgPath       = "./assets/bush_border/bush.jpg"
+	sheepImgPath = "./assets/sheep/sheep_run.png"
 )
 
 var (
-	fishImages []*FishImage
+	sheepSheet *ebiten.Image
 )
 
 type Game struct {
-	sg *SpiralGrid
-	// TODO -> should I remove from here? just keep in sg?
+	sg     *SpiralGrid
 	boids  []*Boid
 	jobsCH chan (int)
 	accels [boidsCount]*Vector2D
 	wg     *sync.WaitGroup
 
-	// TODO -> fix gif MEM usage
-	bgFrames []*ebiten.Image
-	bgDelays []int // delay per frame in 100ths of a second
-	bgFrame  int   // current frame index
-	bgTick   int   // counts up each Update()
+	bgImage *ebiten.Image
 }
 
 func NewGame() *Game {
@@ -69,16 +62,11 @@ func NewGame() *Game {
 		wg:     new(sync.WaitGroup),
 		sg:     NewSpiralGrid(cohRadius),
 	}
-	// bgs, dels := loadGIF(bgPath)
 
-	// g.bgDelays = dels
-	// g.bgFrames = bgs
-
+	g.loadBgImg()
 	boids := make([]*Boid, boidsCount)
 	for id := range boidsCount {
-		randIdx := rand.Intn(len(fishImages))
-		randFish := fishImages[randIdx]
-		b := NewBoid(id, randFish)
+		b := NewBoid(id, NewSheepImage(sheepSheet, 5))
 		boids[id] = b
 		g.sg.Insert(b)
 	}
@@ -86,6 +74,14 @@ func NewGame() *Game {
 	g.boids = boids
 	g.StartJobs()
 	return g
+}
+
+func (g *Game) loadBgImg() {
+	img, _, err := ebitenutil.NewImageFromFile(bgPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	g.bgImage = img
 }
 
 func (g *Game) Run() error {
@@ -115,24 +111,7 @@ func (g *Game) StartJobs() {
 	}
 }
 
-func (g *Game) UpdateBG() {
-	g.bgTick++
-
-	throshold := g.bgDelays[g.bgFrame] * 60 / 100
-	if throshold < 1 {
-		throshold = 1
-	}
-
-	if g.bgTick >= throshold {
-		g.bgTick = 0
-		lbg := len(g.bgFrames)
-		g.bgFrame = (g.bgFrame + 1) % lbg
-	}
-}
-
 func (g *Game) Update() error {
-	// g.UpdateBG()
-
 	g.sg.Clean()
 	for _, b := range g.boids {
 		g.sg.Insert(b)
@@ -152,19 +131,17 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) DrawBG(screen *ebiten.Image) {
-	// TODO -> remove it from DRAW -> do it New
 	op := &ebiten.DrawImageOptions{}
-	bg := g.bgFrames[g.bgFrame]
-	scaleX := screenWidth / float64(bg.Bounds().Dx())
-	scaleY := screenHeight / float64(bg.Bounds().Dy())
+	scaleX := screenWidth / float64(g.bgImage.Bounds().Dx())
+	scaleY := screenHeight / float64(g.bgImage.Bounds().Dy())
 	op.GeoM.Scale(scaleX, scaleY)
-	screen.DrawImage(bg, op)
+	screen.DrawImage(g.bgImage, op)
 }
 
 var drawInt int
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	// g.DrawBG(screen)
+	g.DrawBG(screen)
 	for _, b := range g.boids {
 		b.Draw(screen)
 	}
@@ -180,49 +157,29 @@ func (g *Game) Layout(_, _ int) (sw, sh int) {
 	return screenWidth, screenHeight
 }
 
-func loadGIF(path string) ([]*ebiten.Image, []int) {
-	f, err := os.Open(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	g, err := gif.DecodeAll(f)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	frames := make([]*ebiten.Image, len(g.Image))
-	delays := make([]int, len(g.Delay))
-
-	bounds := g.Image[0].Bounds()
-	rgba := image.NewRGBA(bounds)
-
-	for i, frame := range g.Image {
-		draw.Draw(rgba, bounds, frame, bounds.Min, draw.Over)
-		// TODO -> understand how and fix if possible
-		frames[i] = ebiten.NewImageFromImage(rgba)
-		delays[i] = g.Delay[i]
-	}
-
-	return frames, delays
-}
-
 func init() {
-	dirPath := "./assets"
-	dir, err := os.ReadDir(dirPath)
+	sheet, _, err := ebitenutil.NewImageFromFile(sheepImgPath)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	for _, f := range dir {
-		f.Info()
-		if strings.HasSuffix(f.Name(), ".png") && strings.Contains(f.Name(), "fish") {
-			img, _, err := ebitenutil.NewImageFromFile(fmt.Sprintf("%s/%s", dirPath, f.Name()))
-			if err != nil {
-				panic(err)
-			}
-			calculatedFish := NewFishImage(img)
-			fishImages = append(fishImages, calculatedFish)
-		}
-	}
+	sheepSheet = sheet
 }
+
+// func initOLD() {
+// 	dirPath := "./assets"
+// 	dir, err := os.ReadDir(dirPath)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	for _, f := range dir {
+// 		f.Info()
+// 		if strings.HasSuffix(f.Name(), ".png") && strings.Contains(f.Name(), "fish") {
+// 			img, _, err := ebitenutil.NewImageFromFile(fmt.Sprintf("%s/%s", dirPath, f.Name()))
+// 			if err != nil {
+// 				panic(err)
+// 			}
+// 			calculatedFish := NewSheepImage(img)
+// 			SheepImages = append(SheepImages, calculatedFish)
+// 		}
+// 	}
+// }
