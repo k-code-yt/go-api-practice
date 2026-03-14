@@ -8,25 +8,41 @@ import (
 )
 
 type Boid struct {
-	position   Vector2D
-	velocity   Vector2D
-	id         int
-	img        *SheepImage
-	frameIdx   int
-	frameTick  int
-	facingLeft bool
+	position        Vector2D
+	velocity        Vector2D
+	id              int
+	img             *SheepImage
+	frameIdx        int
+	frameTick       int
+	facingLeft      bool
+	bgCollisionMask *BgCollisionMask
 }
 
-func NewBoid(id int, img *SheepImage) *Boid {
+func NewBoid(id int, img *SheepImage, bgCollisionMask *BgCollisionMask) *Boid {
+	borderMargin := 0.2
 	position := Vector2D{rand.Float64() * screenWidth, rand.Float64() * screenHeight}
 	velocity := Vector2D{(rand.Float64() * 2) - 1, (rand.Float64() * 2) - 1}
 
+	if position.x < screenWidth*borderMargin {
+		position.x = screenWidth * borderMargin
+	}
+	if position.y < screenHeight*borderMargin {
+		position.y = screenHeight * borderMargin
+	}
+	if position.x > screenWidth*(1-borderMargin) {
+		position.x = screenWidth * (1 - borderMargin)
+	}
+	if position.y > screenHeight*(1-borderMargin) {
+		position.y = screenHeight * (1 - borderMargin)
+	}
+
 	b := &Boid{
-		id:       id,
-		velocity: velocity,
-		position: position,
-		img:      img,
-		frameIdx: rand.Intn(img.frameCount),
+		id:              id,
+		velocity:        velocity,
+		position:        position,
+		img:             img,
+		frameIdx:        rand.Intn(img.frameCount),
+		bgCollisionMask: bgCollisionMask,
 	}
 	return b
 }
@@ -58,6 +74,8 @@ func (b *Boid) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	img := b.img
 	frame := b.img.Frame(b.frameIdx)
+
+	// TODO -> add angle
 	// vx, vy := b.velocity.x, b.velocity.y
 	// scaleX := img.scaleX
 
@@ -67,6 +85,7 @@ func (b *Boid) Draw(screen *ebiten.Image) {
 
 	// op.GeoM.Scale(scaleX, img.scaleY)
 	// op.GeoM.Rotate(angle)
+	// ---
 
 	scaleX := img.scaleX
 	if b.facingLeft {
@@ -117,8 +136,8 @@ func (b *Boid) calcAcceleration(g *Game, neib *[]int) Vector2D {
 		accel = accel.Add(accelSep)
 	}
 
-	wallSep := b.wallSeparation()
-	accel = accel.Add(wallSep)
+	// wallSep := b.wallSeparation()
+	// accel = accel.Add(wallSep)
 
 	return accel
 }
@@ -162,11 +181,41 @@ func (b *Boid) bounceOnBorder(min, max float64) float64 {
 }
 
 func (b *Boid) invertOnWall() {
-	next := b.position.Add(b.velocity)
-	if next.x >= screenWidth || next.x < 0 {
-		b.velocity = Vector2D{-b.velocity.x, b.velocity.y}
+	hw := targetBoidSize / 2.0 // half-width of scaled sprite
+	hh := targetBoidSize / 2.0 // half-height of scaled sprite
+	px, py := b.position.x, b.position.y
+
+	// --- Horizontal: check leading X edge ---
+	if b.velocity.x > 0 {
+		ex := px + hw
+		if b.bgCollisionMask.IsBush(ex, py-hh*0.4) ||
+			b.bgCollisionMask.IsBush(ex, py) ||
+			b.bgCollisionMask.IsBush(ex, py+hh*0.4) {
+			b.velocity.x = -b.velocity.x
+		}
+	} else if b.velocity.x < 0 {
+		ex := px - hw
+		if b.bgCollisionMask.IsBush(ex, py-hh*0.4) ||
+			b.bgCollisionMask.IsBush(ex, py) ||
+			b.bgCollisionMask.IsBush(ex, py+hh*0.4) {
+			b.velocity.x = -b.velocity.x
+		}
 	}
-	if next.y >= screenHeight || next.y < 0 {
-		b.velocity = Vector2D{b.velocity.x, -b.velocity.y}
+
+	// --- Vertical: check leading Y edge ---
+	if b.velocity.y > 0 {
+		ey := py + hh
+		if b.bgCollisionMask.IsBush(px-hw*0.4, ey) ||
+			b.bgCollisionMask.IsBush(px, ey) ||
+			b.bgCollisionMask.IsBush(px+hw*0.4, ey) {
+			b.velocity.y = -b.velocity.y
+		}
+	} else if b.velocity.y < 0 {
+		ey := py - hh
+		if b.bgCollisionMask.IsBush(px-hw*0.4, ey) ||
+			b.bgCollisionMask.IsBush(px, ey) ||
+			b.bgCollisionMask.IsBush(px+hw*0.4, ey) {
+			b.velocity.y = -b.velocity.y
+		}
 	}
 }

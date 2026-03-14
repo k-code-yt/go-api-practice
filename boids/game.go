@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	screenHeight   = 640 * 2
-	screenWidth    = 1080.00 * 2
-	boidsCount     = 250
+	screenHeight   = 640 * 1.5
+	screenWidth    = 1080.00 * 1.5
+	boidsCount     = 200
 	boidSize       = 7
 	targetBoidSize = 65
 
@@ -35,7 +35,7 @@ const (
 	wallSepDistance = screenWidth / 15
 	wallSepForce    = 0.75
 
-	bgPath       = "./assets/bush_border/bush.jpg"
+	bgPath       = "./assets/bush_border/bush.png"
 	sheepImgPath = "./assets/sheep/sheep_run.png"
 )
 
@@ -50,7 +50,8 @@ type Game struct {
 	accels [boidsCount]*Vector2D
 	wg     *sync.WaitGroup
 
-	bgImage *ebiten.Image
+	bgImage         *ebiten.Image
+	bgCollisionMask *BgCollisionMask
 }
 
 func NewGame() *Game {
@@ -64,9 +65,10 @@ func NewGame() *Game {
 	}
 
 	g.loadBgImg()
+	sheepImg := NewSheepImage(sheepSheet, 5)
 	boids := make([]*Boid, boidsCount)
 	for id := range boidsCount {
-		b := NewBoid(id, NewSheepImage(sheepSheet, 5))
+		b := NewBoid(id, sheepImg, g.bgCollisionMask)
 		boids[id] = b
 		g.sg.Insert(b)
 	}
@@ -77,11 +79,12 @@ func NewGame() *Game {
 }
 
 func (g *Game) loadBgImg() {
-	img, _, err := ebitenutil.NewImageFromFile(bgPath)
+	img, rawImg, err := ebitenutil.NewImageFromFile(bgPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	g.bgImage = img
+	g.bgCollisionMask = NewBgCollisionMask(rawImg)
 }
 
 func (g *Game) Run() error {
