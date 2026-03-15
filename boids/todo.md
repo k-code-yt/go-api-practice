@@ -19,10 +19,14 @@
 
 [x] change bg
 [x] render sheep sprite(remove fish)
+[x] investigate mem usage -> why 330mb(static, does not depend on sheep count)
+[x] how to bounce on bush border -> how to check for collision with bush
 
-[] investigate mem usage -> why 330mb(static, does not depend on sheep count)
-[] how to bounce on bush border -> how to check for collision with bush
-[] make sheep apear closer and further away
+[] add playble character
+[] add collision with sheep
+[] add push on collision
+
+[] vertical tilt -> make sheep apear closer and further away
 [] fix sheep angle
 
 <!-- PENDING -->
