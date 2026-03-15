@@ -40,7 +40,8 @@ const (
 )
 
 var (
-	sheepSheet *ebiten.Image
+	sheepSheet  *ebiten.Image
+	playerSheet *ebiten.Image
 )
 
 type Game struct {
@@ -52,6 +53,8 @@ type Game struct {
 
 	bgImage         *ebiten.Image
 	bgCollisionMask *BgCollisionMask
+
+	player *Player
 }
 
 func NewGame() *Game {
@@ -65,6 +68,8 @@ func NewGame() *Game {
 	}
 
 	g.loadBgImg()
+
+	g.player = NewPlayer(g.bgCollisionMask)
 	sheepImg := NewSheepImage(sheepSheet, 5)
 	boids := make([]*Boid, boidsCount)
 	for id := range boidsCount {
@@ -115,6 +120,7 @@ func (g *Game) StartJobs() {
 }
 
 func (g *Game) Update() error {
+	g.player.Update()
 	g.sg.Clean()
 	for _, b := range g.boids {
 		g.sg.Insert(b)
@@ -145,6 +151,7 @@ var drawInt int
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.DrawBG(screen)
+	g.player.Draw(screen)
 	for _, b := range g.boids {
 		b.Draw(screen)
 	}
@@ -166,23 +173,11 @@ func init() {
 		log.Fatal(err)
 	}
 	sheepSheet = sheet
-}
 
-// func initOLD() {
-// 	dirPath := "./assets"
-// 	dir, err := os.ReadDir(dirPath)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	for _, f := range dir {
-// 		f.Info()
-// 		if strings.HasSuffix(f.Name(), ".png") && strings.Contains(f.Name(), "fish") {
-// 			img, _, err := ebitenutil.NewImageFromFile(fmt.Sprintf("%s/%s", dirPath, f.Name()))
-// 			if err != nil {
-// 				panic(err)
-// 			}
-// 			calculatedFish := NewSheepImage(img)
-// 			SheepImages = append(SheepImages, calculatedFish)
-// 		}
-// 	}
-// }
+	img, _, err := ebitenutil.NewImageFromFile(playerSheetPath)
+	if err != nil {
+		log.Fatal("player sprite:", err)
+	}
+	playerSheet = img
+
+}

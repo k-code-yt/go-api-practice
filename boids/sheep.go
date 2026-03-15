@@ -15,7 +15,6 @@ type SheepImage struct {
 }
 
 func NewSheepImage(img *ebiten.Image, frameCount int) *SheepImage {
-
 	w := float64(img.Bounds().Dx())
 	h := float64(img.Bounds().Dy())
 
