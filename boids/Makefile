@@ -14,3 +14,8 @@ test-main:
 
 test-main-race: 
 	@go test -race -bench=BenchmarkMain -memprofile=mem.prof -cpuprofile=cpu.prof
+
+
+# -----WINDOWS-----
+build-windows:
+	GOOS=windows GOARCH=amd64 go build -ldflags "-H=windowsgui" -o game.exe .

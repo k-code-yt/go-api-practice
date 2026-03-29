@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	screenHeight   = 640 * 1.5
-	screenWidth    = 1080.00 * 1.5
+	screenHeight   = 640
+	screenWidth    = 1080.00
 	boidsCount     = 200
 	boidSize       = 7
-	targetBoidSize = 65
+	targetBoidSize = 45
 
 	alignRadius = targetBoidSize * 1.5
 	alightForce = 0.05
@@ -37,18 +37,31 @@ const (
 
 	bgPath       = "./assets/bush_border/bush.png"
 	sheepImgPath = "./assets/sheep/sheep_run.png"
+
+	// ---collision w/ sheep
+	fleeRadius        = targetBoidSize * 1.5 // distance at which sheep start fleeing
+	catchRadius       = targetBoidSize * 1.1 // distance at which sheep are "caught"
+	fleeSpeed         = maxSpeed * 1.25      // speed when fleeing/caught
+	fleeForce         = 0.025                // acceleration strength while fleeing
+	caughtTicks       = 180
+	stuckSpriteFrames = 8
+	stuckImgPath      = "./assets/sheep/Sheep_beee.png"
+
+	// ---for debug
+	ShouldDrawCollisions = false
 )
 
 var (
 	sheepSheet  *ebiten.Image
 	playerSheet *ebiten.Image
+	stuckSheet  *ebiten.Image
 )
 
 type Game struct {
 	sg     *SpiralGrid
 	boids  []*Boid
 	jobsCH chan (int)
-	accels [boidsCount]*Vector2D
+	accels [boidsCount]Vector2D
 	wg     *sync.WaitGroup
 
 	bgImage         *ebiten.Image
@@ -58,7 +71,7 @@ type Game struct {
 }
 
 func NewGame() *Game {
-	accels := [boidsCount]*Vector2D{}
+	accels := [boidsCount]Vector2D{}
 
 	g := &Game{
 		jobsCH: make(chan int, boidsCount),
@@ -71,9 +84,10 @@ func NewGame() *Game {
 
 	g.player = NewPlayer(g.bgCollisionMask)
 	sheepImg := NewSheepImage(sheepSheet, 5)
+	stuckImg := NewSheepImage(stuckSheet, stuckSpriteFrames)
 	boids := make([]*Boid, boidsCount)
 	for id := range boidsCount {
-		b := NewBoid(id, sheepImg, g.bgCollisionMask)
+		b := NewBoid(id, sheepImg, stuckImg, g.bgCollisionMask)
 		boids[id] = b
 		g.sg.Insert(b)
 	}
@@ -103,15 +117,16 @@ func (g *Game) Run() error {
 }
 
 func (g *Game) StartJobs() {
-	cpus := runtime.NumCPU()
-	for i := range int(cpus / 4) {
+	workers := max(1, runtime.NumCPU()/4)
+
+	for i := range workers {
 		go func(i int) {
 			neibBuf := []int{}
 			for id := range g.jobsCH {
 				b := g.boids[id]
 				g.sg.GetNeighbours(b, &neibBuf)
-				acc := b.calcAcceleration(g, &neibBuf)
-				g.accels[id] = &acc
+				acc := b.calcAcceleration(g, neibBuf, g.player)
+				g.accels[id] = acc
 				neibBuf = neibBuf[:0]
 				g.wg.Done()
 			}
@@ -134,17 +149,9 @@ func (g *Game) Update() error {
 
 	for _, b := range g.boids {
 		acc := g.accels[b.id]
-		b.Update(acc)
+		b.Update(acc, g.player)
 	}
 	return nil
-}
-
-func (g *Game) DrawBG(screen *ebiten.Image) {
-	op := &ebiten.DrawImageOptions{}
-	scaleX := screenWidth / float64(g.bgImage.Bounds().Dx())
-	scaleY := screenHeight / float64(g.bgImage.Bounds().Dy())
-	op.GeoM.Scale(scaleX, scaleY)
-	screen.DrawImage(g.bgImage, op)
 }
 
 var drawInt int
@@ -155,12 +162,30 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, b := range g.boids {
 		b.Draw(screen)
 	}
+
+	activeCount := 0
+	for _, b := range g.boids {
+		b.Draw(screen)
+		if b.state != StateOffScreen && b.state != StateStuck {
+			activeCount++
+		}
+	}
+
+	DrawHUD(screen, activeCount)
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
 	drawInt++
 	if drawInt%120 == 0 {
 		fmt.Printf("FPS = %s\n", fps)
 	}
 	ebitenutil.DebugPrint(screen, fps)
+}
+
+func (g *Game) DrawBG(screen *ebiten.Image) {
+	op := &ebiten.DrawImageOptions{}
+	scaleX := screenWidth / float64(g.bgImage.Bounds().Dx())
+	scaleY := screenHeight / float64(g.bgImage.Bounds().Dy())
+	op.GeoM.Scale(scaleX, scaleY)
+	screen.DrawImage(g.bgImage, op)
 }
 
 func (g *Game) Layout(_, _ int) (sw, sh int) {
@@ -179,5 +204,11 @@ func init() {
 		log.Fatal("player sprite:", err)
 	}
 	playerSheet = img
+
+	stuckRaw, _, err := ebitenutil.NewImageFromFile(stuckImgPath)
+	if err != nil {
+		log.Fatal("stuck sprite:", err)
+	}
+	stuckSheet = stuckRaw
 
 }
