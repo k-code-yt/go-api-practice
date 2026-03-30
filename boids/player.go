@@ -6,14 +6,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// ── Sprite sheet layout ──────────────────────────────────────────────────────
-// 2 cols (animation frames) × 6 rows (directions / actions)
-//   Row 0 → walk DOWN
-//   Row 1 → walk LEFT
-//   Row 2 → walk RIGHT
-//   Row 3 → walk UP
-//   Row 4–5 → other animations (ignored for now)
-
 const (
 	playerSheetPath  = "./assets/character/knight_sprite.png"
 	playerSheetCols  = 2
@@ -27,36 +19,11 @@ const (
 type Direction int
 
 const (
-	DirDown  Direction = 0
-	DirLeft  Direction = 1
-	DirRight Direction = 2
-	DirUp    Direction = 3
+	DirDown  Direction = iota
+	DirLeft  Direction = iota
+	DirRight Direction = iota
+	DirUp    Direction = iota
 )
-
-type PlayerState int
-
-const (
-	PlayerStateStaleUp    PlayerState = iota
-	PlayerStateStaleDown  PlayerState = iota
-	PlayerStateStaleRight PlayerState = iota
-	PlayerStateStaleLeft  PlayerState = iota
-
-	PlayerStateMovingUp    PlayerState = iota
-	PlayerStateMovingDown  PlayerState = iota
-	PlayerStateMovingRight PlayerState = iota
-	PlayerStateMovingLeft  PlayerState = iota
-)
-
-const (
-	FrameIdxStaleUpDown = 0
-	FrameIdxMoveUpDown  = 1
-	FrameIdxMoveLeft    = 2
-	FrameIdxMoveRight   = 3
-	FrameIdxStaleLeft   = 4
-	FrameIdxStaleRight  = 5
-)
-
-var frameIdxToColRow = map[int][]int{}
 
 // ── Player ───────────────────────────────────────────────────────────────────
 
@@ -72,10 +39,7 @@ type Player struct {
 	scaleX float64
 	scaleY float64
 
-	bgMask          *BgCollisionMask
-	state           PlayerState
-	stateToFrameMap map[PlayerState]*ebiten.Image
-	nextFrame       *ebiten.Image
+	bgMask *BgCollisionMask
 }
 
 func NewPlayer(bgMask *BgCollisionMask) *Player {
@@ -96,23 +60,8 @@ func NewPlayer(bgMask *BgCollisionMask) *Player {
 		scaleX:   scaleX,
 		scaleY:   scaleY,
 		frameIdx: 0,
-		state:    -1,
 	}
 
-	stateToFrameIdxMap := map[PlayerState]*ebiten.Image{
-		PlayerStateMovingDown:  p.frame(FrameIdxMoveUpDown),
-		PlayerStateMovingUp:    p.frame(FrameIdxMoveUpDown),
-		PlayerStateMovingRight: p.frame(FrameIdxMoveRight),
-		PlayerStateMovingLeft:  p.frame(FrameIdxMoveLeft),
-
-		PlayerStateStaleDown:  p.frame(FrameIdxStaleUpDown),
-		PlayerStateStaleUp:    p.frame(FrameIdxStaleUpDown),
-		PlayerStateStaleRight: p.frame(FrameIdxStaleRight),
-		PlayerStateStaleLeft:  p.frame(FrameIdxStaleLeft),
-	}
-
-	p.stateToFrameMap = stateToFrameIdxMap
-	p.nextFrame = p.stateToFrameMap[FrameIdxStaleUpDown]
 	return p
 }
 
@@ -121,7 +70,7 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	op.GeoM.Translate(-float64(p.frameW)/2, -float64(p.frameH)/2)
 	op.GeoM.Scale(p.scaleX, p.scaleY)
 	op.GeoM.Translate(p.position.x, p.position.y)
-	screen.DrawImage(p.nextFrame, op)
+	screen.DrawImage(p.currentFrame(), op)
 }
 
 func (p *Player) Update() {
@@ -131,9 +80,6 @@ func (p *Player) Update() {
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
 		dx = -playerSpeed
 		p.dir = DirLeft
-		if !moving && (p.state == -1 || p.state != PlayerStateMovingLeft) {
-			p.state = PlayerStateMovingLeft
-		}
 		moving = true
 	} else if ebiten.IsKeyPressed(ebiten.KeyArrowRight) || ebiten.IsKeyPressed(ebiten.KeyD) {
 		dx = playerSpeed
@@ -175,14 +121,6 @@ func (p *Player) Update() {
 }
 
 func (p *Player) updateNextFrame() {
-	if p.dir == DirLeft {
-		p.nextFrame = p.stateToFrameMap[p.state]
-		if p.state == PlayerStateMovingLeft {
-			p.state = PlayerStateStaleLeft
-		} else {
-			p.state = PlayerStateMovingLeft
-		}
-	}
 }
 
 func (p *Player) frame(frameIdx int) *ebiten.Image {
