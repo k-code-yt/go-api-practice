@@ -22,10 +22,16 @@
 [x] investigate mem usage -> why 330mb(static, does not depend on sheep count)
 [x] how to bounce on bush border -> how to check for collision with bush
 
-[] add playble character
-[] add collision with sheep
-[] add push on collision
+<!-- player -->
 
+[x] add playble character
+[x] coll/row usage detection -> detect current frame to render from sprite
+[x] bg collision -> isBush && collision box draw for debug
+[] add collision unstuck logic -> N-ticks same pos -> disable coll
+
+<!-- sheep collision -->
+
+[] add collision with sheep
 [] vertical tilt -> make sheep apear closer and further away
 [] fix sheep angle
 

@@ -13,32 +13,6 @@ import (
 	_ "image/png"
 )
 
-const (
-	screenHeight   = 640 * 1.5
-	screenWidth    = 1080.00 * 1.5
-	boidsCount     = 200
-	boidSize       = 7
-	targetBoidSize = 65
-
-	alignRadius = targetBoidSize * 1.5
-	alightForce = 0.05
-
-	cohRadius = targetBoidSize * 2.5
-	cohForce  = 0.0025
-
-	sepRadius = targetBoidSize / 5
-	sepForce  = 2
-
-	minSpeed float64 = 1
-	maxSpeed float64 = 4
-
-	wallSepDistance = screenWidth / 15
-	wallSepForce    = 0.75
-
-	bgPath       = "./assets/bush_border/bush.png"
-	sheepImgPath = "./assets/sheep/sheep_run.png"
-)
-
 var (
 	sheepSheet  *ebiten.Image
 	playerSheet *ebiten.Image
@@ -110,7 +84,7 @@ func (g *Game) StartJobs() {
 			for id := range g.jobsCH {
 				b := g.boids[id]
 				g.sg.GetNeighbours(b, &neibBuf)
-				acc := b.calcAcceleration(g, &neibBuf)
+				acc := b.calcAcceleration(g, neibBuf, g.player)
 				g.accels[id] = &acc
 				neibBuf = neibBuf[:0]
 				g.wg.Done()
@@ -134,7 +108,7 @@ func (g *Game) Update() error {
 
 	for _, b := range g.boids {
 		acc := g.accels[b.id]
-		b.Update(acc)
+		b.Update(acc, g.player)
 	}
 	return nil
 }

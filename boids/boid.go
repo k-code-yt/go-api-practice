@@ -7,14 +7,25 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+type BoidState int
+
+const (
+	StateFlocking BoidState = iota
+	StateFleeing
+	StateCaught
+)
+
 type Boid struct {
-	position        Vector2D
-	velocity        Vector2D
-	id              int
-	img             *SheepImage
-	frameIdx        int
-	frameTick       int
-	facingLeft      bool
+	position   Vector2D
+	velocity   Vector2D
+	id         int
+	img        *SheepImage
+	frameIdx   int
+	frameTick  int
+	facingLeft bool
+	state      BoidState
+	caughtTick int
+
 	bgCollisionMask *BgCollisionMask
 }
 
@@ -47,7 +58,9 @@ func NewBoid(id int, img *SheepImage, bgCollisionMask *BgCollisionMask) *Boid {
 	return b
 }
 
-func (b *Boid) Update(accel *Vector2D) {
+func (b *Boid) Update(accel *Vector2D, p *Player) {
+	b.updateState(p)
+
 	b.velocity = b.velocity.Add(*accel).LimitSpeed()
 	b.position = b.position.Add(b.velocity)
 	b.invertOnWall()
@@ -67,7 +80,6 @@ func (b *Boid) Update(accel *Vector2D) {
 		}
 
 	}
-	// -------
 }
 
 func (b *Boid) Draw(screen *ebiten.Image) {
@@ -98,14 +110,44 @@ func (b *Boid) Draw(screen *ebiten.Image) {
 	screen.DrawImage(frame, op)
 }
 
-func (b *Boid) calcAcceleration(g *Game, neib *[]int) Vector2D {
+func (b *Boid) updateState(p *Player) {
+	dist := b.position.Distance(p.position)
+
+	switch b.state {
+	case StateFlocking:
+		if dist < catchRadius {
+			b.state = StateCaught
+			b.caughtTick = 0
+		} else if dist < fleeRadius {
+			b.state = StateFleeing
+		}
+	case StateCaught:
+		b.caughtTick++
+		if b.caughtTick > caughtTicks {
+			b.state = StateFlocking
+		}
+	case StateFleeing:
+		if dist < catchRadius {
+			b.state = StateCaught
+			b.caughtTick = 0
+		} else if dist > fleeRadius {
+			b.state = StateFlocking
+		}
+	}
+}
+
+func (b *Boid) calcAcceleration(g *Game, neib []int, p *Player) Vector2D {
+	if b.state == StateCaught || b.state == StateFleeing {
+		return b.fleeAccel(p)
+	}
+
 	avgVelocity := Vector2D{}
 	avgPosition := Vector2D{}
 	separation := Vector2D{}
 	countCoh := 0.0
 	countSep := 0.0
 
-	for _, otherIdx := range *neib {
+	for _, otherIdx := range neib {
 		other := g.boids[otherIdx]
 		dist := b.position.Distance(other.position)
 		if dist <= sepRadius {
@@ -140,6 +182,10 @@ func (b *Boid) calcAcceleration(g *Game, neib *[]int) Vector2D {
 	// accel = accel.Add(wallSep)
 
 	return accel
+}
+
+func (b *Boid) fleeAccel(p *Player) Vector2D {
+	return b.position.Sub(p.position).Normalize().Mul(fleeForce)
 }
 
 func (b *Boid) wallSeparation() Vector2D {

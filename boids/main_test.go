@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -23,4 +24,8 @@ func BenchmarkMain(b *testing.B) {
 
 	<-time.After(testDur)
 	close(exitCH)
+}
+
+func TestModulo(t *testing.T) {
+	fmt.Println((0 + 1) % playerSheetCols)
 }
