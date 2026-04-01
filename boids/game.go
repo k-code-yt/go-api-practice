@@ -16,6 +16,7 @@ import (
 var (
 	sheepSheet  *ebiten.Image
 	playerSheet *ebiten.Image
+	barnSheet   *ebiten.Image
 )
 
 type Game struct {
@@ -28,17 +29,21 @@ type Game struct {
 	bgImage         *ebiten.Image
 	bgCollisionMask *BgCollisionMask
 
-	player *Player
+	player    *Player
+	leftBarn  *Barn
+	rightBarn *Barn
 }
 
 func NewGame() *Game {
 	accels := [boidsCount]*Vector2D{}
 
 	g := &Game{
-		jobsCH: make(chan int, boidsCount),
-		accels: accels,
-		wg:     new(sync.WaitGroup),
-		sg:     NewSpiralGrid(cohRadius),
+		jobsCH:    make(chan int, boidsCount),
+		accels:    accels,
+		wg:        new(sync.WaitGroup),
+		sg:        NewSpiralGrid(cohRadius),
+		leftBarn:  NewBarn(true, barnSizeX/2+barnOffsetX, screenHeight/2),
+		rightBarn: NewBarn(false, screenWidth-(barnSizeX/2+barnOffsetX), screenHeight/2),
 	}
 
 	g.loadBgImg()
@@ -126,6 +131,8 @@ var drawInt int
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.DrawBG(screen)
 	g.player.Draw(screen)
+	g.leftBarn.Draw(screen)
+	g.rightBarn.Draw(screen)
 	for _, b := range g.boids {
 		b.Draw(screen)
 	}
@@ -142,16 +149,21 @@ func (g *Game) Layout(_, _ int) (sw, sh int) {
 }
 
 func init() {
-	sheet, _, err := ebitenutil.NewImageFromFile(sheepImgPath)
+	sheep, _, err := ebitenutil.NewImageFromFile(sheepImgPath)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("sheep sprite:", err)
 	}
-	sheepSheet = sheet
+	sheepSheet = sheep
 
-	img, _, err := ebitenutil.NewImageFromFile(playerSheetPath)
+	pImg, _, err := ebitenutil.NewImageFromFile(playerSheetPath)
 	if err != nil {
 		log.Fatal("player sprite:", err)
 	}
-	playerSheet = img
+	playerSheet = pImg
 
+	barnImg, _, err := ebitenutil.NewImageFromFile(barnSheetPath)
+	if err != nil {
+		log.Fatal("barn sprite:", err)
+	}
+	barnSheet = barnImg
 }

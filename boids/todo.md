@@ -21,20 +21,24 @@
 [x] render sheep sprite(remove fish)
 [x] investigate mem usage -> why 330mb(static, does not depend on sheep count)
 [x] how to bounce on bush border -> how to check for collision with bush
+[x] add collision with sheep
 
 <!-- player -->
 
 [x] add playble character
 [x] coll/row usage detection -> detect current frame to render from sprite
 [x] bg collision -> isBush && collision box draw for debug
-[] add collision unstuck logic -> N-ticks same pos -> disable coll
 
-<!-- sheep collision -->
+<!-- TILES -->
 
-[] add collision with sheep
-[] vertical tilt -> make sheep apear closer and further away
-[] fix sheep angle
+[] add sheep bush bounce
+[] render barn tile
+[] add logic that checks if sheep collided with barn
+[] add sheep counter && remove sheep from render once in barn
 
 <!-- PENDING -->
 
+[] add collision unstuck logic -> N-ticks same pos -> disable coll
+[] fix sheep angle
+[] vertical tilt -> make sheep apear closer and further away
 [] investigate race condition error -> https://claude.ai/chat/db32d764-e9fa-4409-8d3f-2f82ffd5600e

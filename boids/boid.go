@@ -62,8 +62,8 @@ func (b *Boid) Update(accel *Vector2D, p *Player) {
 	b.updateState(p)
 
 	b.velocity = b.velocity.Add(*accel).LimitSpeed()
-	b.position = b.position.Add(b.velocity)
 	b.invertOnWall()
+	b.position = b.position.Add(b.velocity)
 	maxTickPerFrame := 12
 
 	ln := b.velocity.Len()
@@ -162,8 +162,8 @@ func (b *Boid) calcAcceleration(g *Game, neib []int, p *Player) Vector2D {
 		}
 	}
 
-	// accel := Vector2D{b.bounceOnBorder(b.position.x, screenWidth), b.bounceOnBorder(b.position.y, screenHeight)}
-	accel := Vector2D{}
+	accel := Vector2D{b.bounceOnBorder(b.position.x, screenWidth), b.bounceOnBorder(b.position.y, screenHeight)}
+	// accel := Vector2D{}
 	if countCoh > 0 {
 		avgVelocity = avgVelocity.Div(countCoh).Sub(b.velocity)
 		avgPosition = avgPosition.Div(countCoh).Sub(b.position)
@@ -227,8 +227,8 @@ func (b *Boid) bounceOnBorder(min, max float64) float64 {
 }
 
 func (b *Boid) invertOnWall() {
-	hw := targetBoidSize / 2.0 // half-width of scaled sprite
-	hh := targetBoidSize / 2.0 // half-height of scaled sprite
+	hw := targetBoidSize / 2.0
+	hh := targetBoidSize / 2.0
 	px, py := b.position.x, b.position.y
 
 	// --- Horizontal: check leading X edge ---
@@ -238,6 +238,7 @@ func (b *Boid) invertOnWall() {
 			b.bgCollisionMask.IsBush(ex, py) ||
 			b.bgCollisionMask.IsBush(ex, py+hh*0.4) {
 			b.velocity.x = -b.velocity.x
+
 		}
 	} else if b.velocity.x < 0 {
 		ex := px - hw

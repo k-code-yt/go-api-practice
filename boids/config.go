@@ -9,7 +9,7 @@ const (
 
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────
 const (
-	boidsCount     = 150
+	boidsCount     = 50
 	targetBoidSize = 65
 	sheepImgPath   = "./assets/sheep/sheep_run.png"
 
@@ -56,4 +56,30 @@ const (
 	collisionW       float64 = 0.22
 	collisionH       float64 = 0.36
 	collisionOffsetY float64 = 0.18
+)
+
+// ── Barn ───────────────────────────────────────────────────────────────────
+const (
+	barnSheetPath = "./assets/tiles/barn25d.png"
+	barnSizeX     = 400
+	barnSizeY     = 500
+	barnOffsetX   = 10
+
+	// -for collision drawing
+	barnBodyOffX = -60.0 // computed from pixel scan: (54+315)/2 - 251) * (400/502)
+	barnBodyOffY = -40.0 // wall base is in lower half of image
+	barnBodyW    = 200.0
+	barnBodyH    = 280.0
+
+	// Fence pen
+	barnFenceOffX = +130.0
+	barnFenceOffY = +54.0
+	barnFenceW    = 95.0
+	barnFenceH    = 318.0
+
+	// Gate opening (entry point for sheep)
+	barnGateOffX = +111.0
+	barnGateOffY = +164.0
+	barnGateW    = 32.0
+	barnGateH    = 44.0
 )
