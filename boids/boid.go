@@ -26,10 +26,10 @@ type Boid struct {
 	state      BoidState
 	caughtTick int
 
-	bgCollisionMask *BgCollisionMask
+	collChecker CollisionChecker
 }
 
-func NewBoid(id int, img *SheepImage, bgCollisionMask *BgCollisionMask) *Boid {
+func NewBoid(id int, img *SheepImage, collChecker CollisionChecker) *Boid {
 	borderMargin := 0.2
 	position := Vector2D{rand.Float64() * screenWidth, rand.Float64() * screenHeight}
 	velocity := Vector2D{(rand.Float64() * 2) - 1, (rand.Float64() * 2) - 1}
@@ -48,12 +48,12 @@ func NewBoid(id int, img *SheepImage, bgCollisionMask *BgCollisionMask) *Boid {
 	}
 
 	b := &Boid{
-		id:              id,
-		velocity:        velocity,
-		position:        position,
-		img:             img,
-		frameIdx:        rand.Intn(img.frameCount),
-		bgCollisionMask: bgCollisionMask,
+		id:          id,
+		velocity:    velocity,
+		position:    position,
+		img:         img,
+		frameIdx:    rand.Intn(img.frameCount),
+		collChecker: collChecker,
 	}
 	return b
 }
@@ -86,18 +86,6 @@ func (b *Boid) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	img := b.img
 	frame := b.img.Frame(b.frameIdx)
-
-	// TODO -> add angle
-	// vx, vy := b.velocity.x, b.velocity.y
-	// scaleX := img.scaleX
-
-	// angle := math.Atan2(vy, math.Abs(vx)) - math.Pi/2
-	// maxTilt := math.Pi / 18
-	// angle = math.Max(-maxTilt, math.Min(maxTilt, angle))
-
-	// op.GeoM.Scale(scaleX, img.scaleY)
-	// op.GeoM.Rotate(angle)
-	// ---
 
 	scaleX := img.scaleX
 	if b.facingLeft {
@@ -234,17 +222,17 @@ func (b *Boid) invertOnWall() {
 	// --- Horizontal: check leading X edge ---
 	if b.velocity.x > 0 {
 		ex := px + hw
-		if b.bgCollisionMask.IsBush(ex, py-hh*0.4) ||
-			b.bgCollisionMask.IsBush(ex, py) ||
-			b.bgCollisionMask.IsBush(ex, py+hh*0.4) {
+		if b.collChecker(ex, py-hh*0.4) ||
+			b.collChecker(ex, py) ||
+			b.collChecker(ex, py+hh*0.4) {
 			b.velocity.x = -b.velocity.x
 
 		}
 	} else if b.velocity.x < 0 {
 		ex := px - hw
-		if b.bgCollisionMask.IsBush(ex, py-hh*0.4) ||
-			b.bgCollisionMask.IsBush(ex, py) ||
-			b.bgCollisionMask.IsBush(ex, py+hh*0.4) {
+		if b.collChecker(ex, py-hh*0.4) ||
+			b.collChecker(ex, py) ||
+			b.collChecker(ex, py+hh*0.4) {
 			b.velocity.x = -b.velocity.x
 		}
 	}
@@ -252,16 +240,16 @@ func (b *Boid) invertOnWall() {
 	// --- Vertical: check leading Y edge ---
 	if b.velocity.y > 0 {
 		ey := py + hh
-		if b.bgCollisionMask.IsBush(px-hw*0.4, ey) ||
-			b.bgCollisionMask.IsBush(px, ey) ||
-			b.bgCollisionMask.IsBush(px+hw*0.4, ey) {
+		if b.collChecker(px-hw*0.4, ey) ||
+			b.collChecker(px, ey) ||
+			b.collChecker(px+hw*0.4, ey) {
 			b.velocity.y = -b.velocity.y
 		}
 	} else if b.velocity.y < 0 {
 		ey := py - hh
-		if b.bgCollisionMask.IsBush(px-hw*0.4, ey) ||
-			b.bgCollisionMask.IsBush(px, ey) ||
-			b.bgCollisionMask.IsBush(px+hw*0.4, ey) {
+		if b.collChecker(px-hw*0.4, ey) ||
+			b.collChecker(px, ey) ||
+			b.collChecker(px+hw*0.4, ey) {
 			b.velocity.y = -b.velocity.y
 		}
 	}

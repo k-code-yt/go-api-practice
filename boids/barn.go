@@ -16,16 +16,21 @@ type Barn struct {
 	y      float64
 	w      float64
 	h      float64
+	drawnW float64
+	drawnH float64
+	isLeft bool
+
+	mask *BarnCollisionMask
 }
 
-func NewBarn(flipX bool, x, y float64) *Barn {
+func NewBarn(flipX bool, x, y float64, mask *BarnCollisionMask) *Barn {
 	bounds := playerSheet.Bounds()
 	w, h := float64(bounds.Dx()), float64(bounds.Dy())
 
 	scaleX := float64(barnSizeX / w)
 	scaleY := float64(barnSizeY / h)
 
-	p := &Barn{
+	b := &Barn{
 		w:      w,
 		h:      h,
 		sheet:  playerSheet,
@@ -34,16 +39,20 @@ func NewBarn(flipX bool, x, y float64) *Barn {
 		flipX:  flipX,
 		x:      x,
 		y:      y,
+		drawnW: w * scaleX,
+		drawnH: h * scaleY,
+		mask:   mask,
+		isLeft: flipX,
 	}
 
-	return p
+	return b
 }
 
 func (b *Barn) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	sx := b.scaleX
 
-	if !b.flipX {
+	if b.flipX {
 		sx = -b.scaleX
 	}
 
@@ -58,32 +67,33 @@ func (b *Barn) Draw(screen *ebiten.Image) {
 	}
 }
 
-func (b *Barn) drawCollisionBox(screen *ebiten.Image) {
+func (b *Barn) getCollisionBox() (cx, cy, hw, hh float64) {
 	sign := 1.0
-	if !b.flipX {
+	if b.flipX {
 		sign = -1
 	}
-
-	boxes := []struct {
-		ox, oy, w, h float64
-		col          color.RGBA
-	}{
-		// Tune these by eye with debug rendering - roof doesn't matter
-		{sign * barnBodyOffX, barnBodyOffY, barnBodyW, barnBodyH, color.RGBA{R: 255, A: 255}},
-		{sign * barnFenceOffX, barnFenceOffY, barnFenceW, barnFenceH, color.RGBA{R: 255, G: 165, A: 255}},
-		{sign * barnGateOffX, barnGateOffY, barnGateW, barnGateH, color.RGBA{G: 255, A: 255}},
-	}
-	for _, box := range boxes {
-		x := float32(b.x + box.ox - box.w/2)
-		y := float32(b.y + box.oy - box.h/2)
-		vector.StrokeRect(screen, x, y, float32(box.w), float32(box.h), strokeWidth, box.col, false)
-	}
+	cx = b.x + sign*barnGateOffX*b.drawnW
+	cy = b.y + barnGateOffY*b.drawnH
+	hw = barnGateW * b.drawnW / 2
+	hh = barnGateH * b.drawnH / 2
+	return cx, cy, hw, hh
 }
 
-func (b *Barn) IsGate(pos Vector2D) {}
-
-func (b *Barn) IsBarnCollision(pos Vector2D) {
-
+func (b *Barn) drawCollisionBox(screen *ebiten.Image) {
+	cx, cy, hw, hh := b.getCollisionBox()
+	vector.StrokeRect(screen,
+		float32(cx-hw), float32(cy-hh),
+		float32(hw*2), float32(hh*2),
+		strokeWidth, color.RGBA{R: 255, A: 255}, false)
 }
 
-func (b *Barn) getCollisionBox(screen *ebiten.Image) {}
+func (b *Barn) IsGate(x, y float64) bool {
+	cx, cy, hw, hh := b.getCollisionBox()
+
+	return x >= cx-hw && x <= cx+hw &&
+		y >= cy-hh && y <= cy+hh
+}
+
+func (b *Barn) IsBlocking(x, y float64) bool {
+	return b.mask.IsSolid(x, y, b.x, b.y, b.drawnW, b.drawnH, b.flipX)
+}

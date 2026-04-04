@@ -45,11 +45,11 @@ type Player struct {
 	wasMoving bool
 
 	// collision
-	bgMask *BgCollisionMask
-	bgColl map[Direction]bool
+	collChecker CollisionChecker
+	collishMap  map[Direction]bool
 }
 
-func NewPlayer(bgMask *BgCollisionMask) *Player {
+func NewPlayer(collChecker CollisionChecker) *Player {
 	bounds := playerSheet.Bounds()
 	fw := bounds.Dx() / playerSheetCols
 	fh := bounds.Dy() / playerSheetRows
@@ -58,16 +58,16 @@ func NewPlayer(bgMask *BgCollisionMask) *Player {
 	scaleY := playerSize / float64(fh)
 
 	p := &Player{
-		position: Vector2D{screenWidth / 2, screenHeight / 2},
-		dir:      DirDown,
-		sheet:    playerSheet,
-		frameW:   fw,
-		frameH:   fh,
-		bgMask:   bgMask,
-		scaleX:   scaleX,
-		scaleY:   scaleY,
-		frameIdx: 0,
-		bgColl:   make(map[Direction]bool),
+		position:    Vector2D{screenWidth / 2, screenHeight / 2},
+		dir:         DirDown,
+		sheet:       playerSheet,
+		frameW:      fw,
+		frameH:      fh,
+		scaleX:      scaleX,
+		scaleY:      scaleY,
+		frameIdx:    0,
+		collChecker: collChecker,
+		collishMap:  make(map[Direction]bool),
 	}
 
 	return p
@@ -117,12 +117,10 @@ func (p *Player) Update() {
 		p.isMoving = true
 	}
 
-	p.detectCollisionWithBGMask(dx, dy)
+	p.detectCollision(dx, dy)
 
 	if p.isMoving {
-		// running -> swap idle && run
 		if !p.wasMoving {
-			// init frame on single tap
 			p.frameIdx = 1
 			p.frameTick = 0
 		} else {
@@ -133,7 +131,6 @@ func (p *Player) Update() {
 			}
 		}
 	} else {
-		// Idle state
 		p.frameIdx = 0
 		p.frameTick = 0
 		p.dir = DirDown
@@ -150,7 +147,7 @@ func (p *Player) currentFrame() *ebiten.Image {
 	return p.sheet.SubImage(rect).(*ebiten.Image)
 }
 
-func (p *Player) detectCollisionWithBGMask(dx, dy float64) {
+func (p *Player) detectCollision(dx, dy float64) {
 	hw, hh, offsetY := p.getCollisionBox()
 	nx := p.position.x + dx
 	yOff := p.position.y + offsetY
@@ -159,47 +156,47 @@ func (p *Player) detectCollisionWithBGMask(dx, dy float64) {
 	nextYOff := ny + offsetY
 
 	if dx > 0 {
-		if !p.bgMask.IsBush(nx+hw, yOff+hh) &&
-			!p.bgMask.IsBush(nx+hw, yOff-hh) &&
-			!p.bgMask.IsBush(nx+hw, yOff) {
+		if !p.collChecker(nx+hw, yOff+hh) &&
+			!p.collChecker(nx+hw, yOff-hh) &&
+			!p.collChecker(nx+hw, yOff) {
 			p.position.x = nx
-			p.bgColl[DirRight] = false
+			p.collishMap[DirRight] = false
 		} else {
-			p.bgColl[DirRight] = true
+			p.collishMap[DirRight] = true
 		}
-		p.bgColl[DirLeft] = false
+		p.collishMap[DirLeft] = false
 	} else {
-		if !p.bgMask.IsBush(nx-hw, yOff+hh) &&
-			!p.bgMask.IsBush(nx-hw, yOff-hh) &&
-			!p.bgMask.IsBush(nx-hw, yOff) {
+		if !p.collChecker(nx-hw, yOff+hh) &&
+			!p.collChecker(nx-hw, yOff-hh) &&
+			!p.collChecker(nx-hw, yOff) {
 			p.position.x = nx
-			p.bgColl[DirLeft] = false
+			p.collishMap[DirLeft] = false
 		} else {
-			p.bgColl[DirLeft] = true
+			p.collishMap[DirLeft] = true
 		}
-		p.bgColl[DirRight] = false
+		p.collishMap[DirRight] = false
 	}
 
 	if dy > 0 {
-		if !p.bgMask.IsBush(p.position.x-hw, nextYOff+hh) &&
-			!p.bgMask.IsBush(p.position.x, nextYOff+hh) &&
-			!p.bgMask.IsBush(p.position.x+hw, nextYOff+hh) {
+		if !p.collChecker(p.position.x-hw, nextYOff+hh) &&
+			!p.collChecker(p.position.x, nextYOff+hh) &&
+			!p.collChecker(p.position.x+hw, nextYOff+hh) {
 			p.position.y = ny
-			p.bgColl[DirDown] = false
+			p.collishMap[DirDown] = false
 		} else {
-			p.bgColl[DirDown] = true
+			p.collishMap[DirDown] = true
 		}
-		p.bgColl[DirUp] = false
+		p.collishMap[DirUp] = false
 	} else {
-		if !p.bgMask.IsBush(p.position.x-hw, nextYOff-hh) &&
-			!p.bgMask.IsBush(p.position.x, nextYOff-hh) &&
-			!p.bgMask.IsBush(p.position.x+hw, nextYOff-hh) {
+		if !p.collChecker(p.position.x-hw, nextYOff-hh) &&
+			!p.collChecker(p.position.x, nextYOff-hh) &&
+			!p.collChecker(p.position.x+hw, nextYOff-hh) {
 			p.position.y = ny
-			p.bgColl[DirUp] = false
+			p.collishMap[DirUp] = false
 		} else {
-			p.bgColl[DirUp] = true
+			p.collishMap[DirUp] = true
 		}
-		p.bgColl[DirDown] = false
+		p.collishMap[DirDown] = false
 
 	}
 }
@@ -212,7 +209,7 @@ func (p *Player) drawCollisionBox(screen *ebiten.Image) {
 	y := float32(currY - hh)
 
 	sideColor := func(dir Direction) color.RGBA {
-		if p.bgColl[dir] {
+		if p.collishMap[dir] {
 			return color.RGBA{G: 255, A: 255}
 		}
 		return color.RGBA{R: 255, A: 255}

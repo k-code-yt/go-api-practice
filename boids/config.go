@@ -9,7 +9,7 @@ const (
 
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────
 const (
-	boidsCount     = 50
+	boidsCount     = 500
 	targetBoidSize = 65
 	sheepImgPath   = "./assets/sheep/sheep_run.png"
 
@@ -60,26 +60,19 @@ const (
 
 // ── Barn ───────────────────────────────────────────────────────────────────
 const (
-	barnSheetPath = "./assets/tiles/barn25d.png"
-	barnSizeX     = 400
-	barnSizeY     = 500
-	barnOffsetX   = 10
+	barnSheetPath = "./assets/tiles/barn.png"
+	barnSizeX     = 500
+	barnSizeY     = 550
+	barnOffsetX   = -40
 
 	// -for collision drawing
-	barnBodyOffX = -60.0 // computed from pixel scan: (54+315)/2 - 251) * (400/502)
-	barnBodyOffY = -40.0 // wall base is in lower half of image
-	barnBodyW    = 200.0
-	barnBodyH    = 280.0
+	// barnBodyOffX = -60.0 // computed from pixel scan: (54+315)/2 - 251) * (400/502)
+	// barnBodyOffY = 43.0  // wall base is in lower half of image
+	// barnBodyW    = 180.0
+	// barnBodyH    = 100.0
 
-	// Fence pen
-	barnFenceOffX = +130.0
-	barnFenceOffY = +54.0
-	barnFenceW    = 95.0
-	barnFenceH    = 318.0
-
-	// Gate opening (entry point for sheep)
-	barnGateOffX = +111.0
-	barnGateOffY = +164.0
-	barnGateW    = 32.0
-	barnGateH    = 44.0
+	barnGateOffX = -0.14 // X offset from center as fraction of drawnW
+	barnGateOffY = 0.09  // Y offset from center as fraction of drawnH
+	barnGateW    = 0.40  // half-width  as fraction of drawnW (full = *2)
+	barnGateH    = 0.18  // half-height as fraction of drawnH
 )

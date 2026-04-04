@@ -26,33 +26,40 @@ type Game struct {
 	accels [boidsCount]*Vector2D
 	wg     *sync.WaitGroup
 
-	bgImage         *ebiten.Image
-	bgCollisionMask *BgCollisionMask
+	bgImage           *ebiten.Image
+	bgCollisionMask   *BgCollisionMask
+	barnCollisionMask *BarnCollisionMask
 
-	player    *Player
-	leftBarn  *Barn
-	rightBarn *Barn
+	player *Player
+	barns  [2]*Barn
 }
 
 func NewGame() *Game {
 	accels := [boidsCount]*Vector2D{}
 
 	g := &Game{
-		jobsCH:    make(chan int, boidsCount),
-		accels:    accels,
-		wg:        new(sync.WaitGroup),
-		sg:        NewSpiralGrid(cohRadius),
-		leftBarn:  NewBarn(true, barnSizeX/2+barnOffsetX, screenHeight/2),
-		rightBarn: NewBarn(false, screenWidth-(barnSizeX/2+barnOffsetX), screenHeight/2),
+		jobsCH: make(chan int, boidsCount),
+		accels: accels,
+		wg:     new(sync.WaitGroup),
+		sg:     NewSpiralGrid(cohRadius),
+		barns:  [2]*Barn{},
 	}
+
+	g.loadBarnMask()
+	g.barns[0] = NewBarn(true, barnSizeX/2+barnOffsetX, screenHeight/2, g.barnCollisionMask)
+	g.barns[1] = NewBarn(false, screenWidth-(barnSizeX/2+barnOffsetX), screenHeight/2, g.barnCollisionMask)
 
 	g.loadBgImg()
 
-	g.player = NewPlayer(g.bgCollisionMask)
+	collChecker := g.buildCollisionChecker()
+	g.player = NewPlayer(collChecker)
 	sheepImg := NewSheepImage(sheepSheet, 5)
+
+	// gateChecker := g.buildGateChecker()
+
 	boids := make([]*Boid, boidsCount)
 	for id := range boidsCount {
-		b := NewBoid(id, sheepImg, g.bgCollisionMask)
+		b := NewBoid(id, sheepImg, collChecker)
 		boids[id] = b
 		g.sg.Insert(b)
 	}
@@ -60,15 +67,6 @@ func NewGame() *Game {
 	g.boids = boids
 	g.StartJobs()
 	return g
-}
-
-func (g *Game) loadBgImg() {
-	img, rawImg, err := ebitenutil.NewImageFromFile(bgPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	g.bgImage = img
-	g.bgCollisionMask = NewBgCollisionMask(rawImg)
 }
 
 func (g *Game) Run() error {
@@ -131,10 +129,11 @@ var drawInt int
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.DrawBG(screen)
 	g.player.Draw(screen)
-	g.leftBarn.Draw(screen)
-	g.rightBarn.Draw(screen)
-	for _, b := range g.boids {
-		b.Draw(screen)
+	for _, barn := range g.barns {
+		barn.Draw(screen)
+	}
+	for _, boid := range g.boids {
+		boid.Draw(screen)
 	}
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
 	drawInt++
@@ -146,6 +145,50 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 func (g *Game) Layout(_, _ int) (sw, sh int) {
 	return screenWidth, screenHeight
+}
+
+func (g *Game) loadBgImg() {
+	img, rawImg, err := ebitenutil.NewImageFromFile(bgPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	g.bgImage = img
+	g.bgCollisionMask = NewBgCollisionMask(rawImg)
+}
+
+func (g *Game) loadBarnMask() {
+	barnImg, raw, err := ebitenutil.NewImageFromFile(barnSheetPath)
+	if err != nil {
+		log.Fatal("barn sprite:", err)
+	}
+	barnSheet = barnImg
+
+	g.barnCollisionMask = NewBarnCollisionMask(raw)
+}
+
+func (g *Game) buildCollisionChecker() CollisionChecker {
+	return func(x, y float64) bool {
+		if g.bgCollisionMask.IsBush(x, y) {
+			return true
+		}
+		for _, b := range g.barns {
+			if b.IsBlocking(x, y) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func (g *Game) buildGateChecker() func(x, y float64) *Barn {
+	return func(x, y float64) *Barn {
+		for _, b := range g.barns {
+			if b.IsGate(x, y) {
+				return b
+			}
+		}
+		return nil
+	}
 }
 
 func init() {
@@ -160,10 +203,4 @@ func init() {
 		log.Fatal("player sprite:", err)
 	}
 	playerSheet = pImg
-
-	barnImg, _, err := ebitenutil.NewImageFromFile(barnSheetPath)
-	if err != nil {
-		log.Fatal("barn sprite:", err)
-	}
-	barnSheet = barnImg
 }

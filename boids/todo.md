@@ -31,8 +31,8 @@
 
 <!-- TILES -->
 
-[] add sheep bush bounce
-[] render barn tile
+[x] add sheep bush bounce
+[] render barn && gate collision
 [] add logic that checks if sheep collided with barn
 [] add sheep counter && remove sheep from render once in barn
 
