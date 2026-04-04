@@ -26,10 +26,10 @@ type Boid struct {
 	state      BoidState
 	caughtTick int
 
-	bgCollisionMask *BgCollisionMask
+	bgCollisionMask CollisionMask // was *BgCollisionMask — now the interface
 }
 
-func NewBoid(id int, img *SheepImage, bgCollisionMask *BgCollisionMask) *Boid {
+func NewBoid(id int, img *SheepImage, bgCollisionMask CollisionMask) *Boid {
 	borderMargin := 0.2
 	position := Vector2D{rand.Float64() * screenWidth, rand.Float64() * screenHeight}
 	velocity := Vector2D{(rand.Float64() * 2) - 1, (rand.Float64() * 2) - 1}
@@ -47,7 +47,7 @@ func NewBoid(id int, img *SheepImage, bgCollisionMask *BgCollisionMask) *Boid {
 		position.y = screenHeight * (1 - borderMargin)
 	}
 
-	b := &Boid{
+	return &Boid{
 		id:              id,
 		velocity:        velocity,
 		position:        position,
@@ -55,7 +55,6 @@ func NewBoid(id int, img *SheepImage, bgCollisionMask *BgCollisionMask) *Boid {
 		frameIdx:        rand.Intn(img.frameCount),
 		bgCollisionMask: bgCollisionMask,
 	}
-	return b
 }
 
 func (b *Boid) Update(accel *Vector2D, p *Player) {
@@ -64,55 +63,36 @@ func (b *Boid) Update(accel *Vector2D, p *Player) {
 	b.velocity = b.velocity.Add(*accel).LimitSpeed()
 	b.invertOnWall()
 	b.position = b.position.Add(b.velocity)
-	maxTickPerFrame := 12
 
+	maxTickPerFrame := 12
 	ln := b.velocity.Len()
 	tickPerFrame := int(math.Max(minSpeed, float64(maxTickPerFrame)-ln))
 	b.frameTick++
 	if b.frameTick >= tickPerFrame {
 		b.frameTick = 0
 		b.frameIdx = (b.frameIdx + 1) % b.img.frameCount
-
 		if b.velocity.x > 0.5 {
 			b.facingLeft = false
-		} else if b.velocity.x < 0.5 {
+		} else if b.velocity.x < -0.5 {
 			b.facingLeft = true
 		}
-
 	}
 }
 
 func (b *Boid) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
-	img := b.img
-	frame := b.img.Frame(b.frameIdx)
-
-	// TODO -> add angle
-	// vx, vy := b.velocity.x, b.velocity.y
-	// scaleX := img.scaleX
-
-	// angle := math.Atan2(vy, math.Abs(vx)) - math.Pi/2
-	// maxTilt := math.Pi / 18
-	// angle = math.Max(-maxTilt, math.Min(maxTilt, angle))
-
-	// op.GeoM.Scale(scaleX, img.scaleY)
-	// op.GeoM.Rotate(angle)
-	// ---
-
-	scaleX := img.scaleX
+	scaleX := b.img.scaleX
 	if b.facingLeft {
 		scaleX = -scaleX
 	}
 	op.GeoM.Translate(-b.img.frameW/2, -b.img.frameH/2)
-	op.GeoM.Scale(scaleX, img.scaleY)
+	op.GeoM.Scale(scaleX, b.img.scaleY)
 	op.GeoM.Translate(b.position.x, b.position.y)
-
-	screen.DrawImage(frame, op)
+	screen.DrawImage(b.img.Frame(b.frameIdx), op)
 }
 
 func (b *Boid) updateState(p *Player) {
 	dist := b.position.Distance(p.position)
-
 	switch b.state {
 	case StateFlocking:
 		if dist < catchRadius {
@@ -158,62 +138,25 @@ func (b *Boid) calcAcceleration(g *Game, neib []int, p *Player) Vector2D {
 			avgVelocity = avgVelocity.Add(other.velocity)
 			avgPosition = avgPosition.Add(other.position)
 			countCoh++
-
 		}
 	}
 
 	accel := Vector2D{b.bounceOnBorder(b.position.x, screenWidth), b.bounceOnBorder(b.position.y, screenHeight)}
-	// accel := Vector2D{}
 	if countCoh > 0 {
 		avgVelocity = avgVelocity.Div(countCoh).Sub(b.velocity)
 		avgPosition = avgPosition.Div(countCoh).Sub(b.position)
-		accelAlign := (avgVelocity.Normalize()).Mul(alightForce)
-		accelCoh := avgPosition.Normalize().Mul(cohForce)
-
-		accel = accel.Add(accelAlign).Add(accelCoh)
+		accel = accel.Add(avgVelocity.Normalize().Mul(alightForce))
+		accel = accel.Add(avgPosition.Normalize().Mul(cohForce))
 	}
-
 	if countSep > 0 {
-		accelSep := separation.Div(countSep)
-		accel = accel.Add(accelSep)
+		accel = accel.Add(separation.Div(countSep))
 	}
-
-	// wallSep := b.wallSeparation()
-	// accel = accel.Add(wallSep)
 
 	return accel
 }
 
 func (b *Boid) fleeAccel(p *Player) Vector2D {
 	return b.position.Sub(p.position).Normalize().Mul(fleeForce)
-}
-
-func (b *Boid) wallSeparation() Vector2D {
-	wallSep := Vector2D{}
-
-	if b.position.x < wallSepDistance {
-		force := wallSepForce * (wallSepDistance - b.position.x) / wallSepDistance
-		wallSep.x += force
-	}
-
-	widthDiff := screenWidth - wallSepDistance
-	if b.position.x > widthDiff {
-		force := wallSepForce * (b.position.x - widthDiff) / widthDiff
-		wallSep.x -= force
-	}
-
-	if b.position.y < wallSepDistance {
-		force := wallSepForce * (wallSepDistance - b.position.y) / wallSepDistance
-		wallSep.y += force
-	}
-
-	hightDiff := screenHeight - wallSepDistance
-	if b.position.y > hightDiff {
-		force := wallSepForce * (b.position.y - hightDiff) / hightDiff
-		wallSep.y -= force
-	}
-
-	return wallSep
 }
 
 func (b *Boid) bounceOnBorder(min, max float64) float64 {
@@ -226,19 +169,34 @@ func (b *Boid) bounceOnBorder(min, max float64) float64 {
 	return 0
 }
 
+func (b *Boid) wallSeparation() Vector2D {
+	wallSep := Vector2D{}
+	if b.position.x < wallSepDistance {
+		wallSep.x += wallSepForce * (wallSepDistance - b.position.x) / wallSepDistance
+	}
+	if b.position.x > screenWidth-wallSepDistance {
+		wallSep.x -= wallSepForce * (b.position.x - (screenWidth - wallSepDistance)) / wallSepDistance
+	}
+	if b.position.y < wallSepDistance {
+		wallSep.y += wallSepForce * (wallSepDistance - b.position.y) / wallSepDistance
+	}
+	if b.position.y > screenHeight-wallSepDistance {
+		wallSep.y -= wallSepForce * (b.position.y - (screenHeight - wallSepDistance)) / wallSepDistance
+	}
+	return wallSep
+}
+
 func (b *Boid) invertOnWall() {
 	hw := targetBoidSize / 2.0
 	hh := targetBoidSize / 2.0
 	px, py := b.position.x, b.position.y
 
-	// --- Horizontal: check leading X edge ---
 	if b.velocity.x > 0 {
 		ex := px + hw
 		if b.bgCollisionMask.IsBush(ex, py-hh*0.4) ||
 			b.bgCollisionMask.IsBush(ex, py) ||
 			b.bgCollisionMask.IsBush(ex, py+hh*0.4) {
 			b.velocity.x = -b.velocity.x
-
 		}
 	} else if b.velocity.x < 0 {
 		ex := px - hw
@@ -249,7 +207,6 @@ func (b *Boid) invertOnWall() {
 		}
 	}
 
-	// --- Vertical: check leading Y edge ---
 	if b.velocity.y > 0 {
 		ey := py + hh
 		if b.bgCollisionMask.IsBush(px-hw*0.4, ey) ||

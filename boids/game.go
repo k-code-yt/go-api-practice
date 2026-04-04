@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"runtime"
 	"sync"
 
@@ -22,12 +23,14 @@ var (
 type Game struct {
 	sg     *SpiralGrid
 	boids  []*Boid
-	jobsCH chan (int)
+	jobsCH chan int
 	accels [boidsCount]*Vector2D
 	wg     *sync.WaitGroup
 
 	bgImage         *ebiten.Image
-	bgCollisionMask *BgCollisionMask
+	bgCollisionMask CollisionMask // interface — backed by *Tilemap
+
+	tilemap *Tilemap
 
 	player    *Player
 	leftBarn  *Barn
@@ -35,20 +38,19 @@ type Game struct {
 }
 
 func NewGame() *Game {
-	accels := [boidsCount]*Vector2D{}
-
 	g := &Game{
-		jobsCH:    make(chan int, boidsCount),
-		accels:    accels,
-		wg:        new(sync.WaitGroup),
-		sg:        NewSpiralGrid(cohRadius),
-		leftBarn:  NewBarn(true, barnSizeX/2+barnOffsetX, screenHeight/2),
-		rightBarn: NewBarn(false, screenWidth-(barnSizeX/2+barnOffsetX), screenHeight/2),
+		jobsCH: make(chan int, boidsCount),
+		accels: [boidsCount]*Vector2D{},
+		wg:     new(sync.WaitGroup),
+		sg:     NewSpiralGrid(cohRadius),
+		// leftBarn:  NewBarn(true, barnSizeX/2+barnOffsetX, screenHeight/2),
+		// rightBarn: NewBarn(false, screenWidth-(barnSizeX/2+barnOffsetX), screenHeight/2),
 	}
 
 	g.loadBgImg()
 
 	g.player = NewPlayer(g.bgCollisionMask)
+
 	sheepImg := NewSheepImage(sheepSheet, 5)
 	boids := make([]*Boid, boidsCount)
 	for id := range boidsCount {
@@ -56,35 +58,40 @@ func NewGame() *Game {
 		boids[id] = b
 		g.sg.Insert(b)
 	}
-
 	g.boids = boids
+
 	g.StartJobs()
 	return g
 }
 
 func (g *Game) loadBgImg() {
-	img, rawImg, err := ebitenutil.NewImageFromFile(bgPath)
+	// Plain background (grass/dirt — no bushes baked in).
+	img, _, err := ebitenutil.NewImageFromFile(bgPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	g.bgImage = img
-	g.bgCollisionMask = NewBgCollisionMask(rawImg)
+
+	// Build the tilemap, populate it, then use it as the collision mask.
+	tm := NewTilemap(tileSheetPath)
+	PopulateBorderTiles(tm, rand.New(rand.NewSource(42)))
+	g.tilemap = tm
+	g.bgCollisionMask = tm // *Tilemap satisfies CollisionMask
 }
 
 func (g *Game) Run() error {
 	ebiten.SetWindowTitle("boids game")
 	ebiten.SetWindowSize(screenWidth, screenHeight)
-	err := ebiten.RunGame(g)
-	if err != nil {
-		return err
-	}
-	return nil
+	return ebiten.RunGame(g)
 }
 
 func (g *Game) StartJobs() {
-	cpus := runtime.NumCPU()
-	for i := range int(cpus / 4) {
-		go func(i int) {
+	workers := runtime.NumCPU() / 4
+	if workers < 1 {
+		workers = 1
+	}
+	for range workers {
+		go func() {
 			neibBuf := []int{}
 			for id := range g.jobsCH {
 				b := g.boids[id]
@@ -94,7 +101,7 @@ func (g *Game) StartJobs() {
 				neibBuf = neibBuf[:0]
 				g.wg.Done()
 			}
-		}(i)
+		}()
 	}
 }
 
@@ -112,8 +119,7 @@ func (g *Game) Update() error {
 	g.wg.Wait()
 
 	for _, b := range g.boids {
-		acc := g.accels[b.id]
-		b.Update(acc, g.player)
+		b.Update(g.accels[b.id], g.player)
 	}
 	return nil
 }
@@ -130,12 +136,16 @@ var drawInt int
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.DrawBG(screen)
-	g.player.Draw(screen)
-	g.leftBarn.Draw(screen)
-	g.rightBarn.Draw(screen)
+	g.tilemap.Draw(screen) // trees drawn after bg, before entities
+
+	// g.leftBarn.Draw(screen)
+	// g.rightBarn.Draw(screen)
+
 	for _, b := range g.boids {
 		b.Draw(screen)
 	}
+	g.player.Draw(screen)
+
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())
 	drawInt++
 	if drawInt%120 == 0 {

@@ -39,7 +39,11 @@ const (
 const (
 	screenHeight = 640 * 1.5
 	screenWidth  = 1080.00 * 1.5
-	bgPath       = "./assets/bush_border/bush.png"
+	// background
+	bgPath         = "./assets/bush_border/bg_plain.png"
+	secondaryGap   = 400
+	secondaryBand  = 120
+	sendaryMinProb = 0.05
 )
 
 // ── Player ───────────────────────────────────────────────────────────────────
@@ -82,4 +86,9 @@ const (
 	barnGateOffY = +164.0
 	barnGateW    = 32.0
 	barnGateH    = 44.0
+)
+
+// ── Tiles ───────────────────────────────────────────────────────────────────
+const (
+	tileSheetPath = "./assets/tiles/trees.png"
 )
