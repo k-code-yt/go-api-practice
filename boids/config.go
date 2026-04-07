@@ -9,7 +9,7 @@ const (
 
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────
 const (
-	boidsCount     = 500
+	boidsCount     = 80
 	targetBoidSize = 65
 	sheepImgPath   = "./assets/sheep/sheep_run.png"
 
@@ -42,37 +42,53 @@ const (
 	bgPath       = "./assets/bush_border/bush.png"
 )
 
+// ── Events ───────────────────────────────────────────────────────────────────
+const (
+	bananaEventPath          = "./assets/tiles/banana.png"
+	energyEventPath          = "./assets/tiles/energy.png"
+	bananaPeelPath           = "./assets/tiles/banana_peel.png"
+	bananaSize               = 100
+	bananaCollisionW float64 = 0.38
+	bananaCollisionH float64 = 0.43
+
+	bananaPeelCollisionW float64 = 0.3
+	bananaPeelCollisionH float64 = 0.2
+
+	bananaPeelCount = 3
+)
+
 // ── Player ───────────────────────────────────────────────────────────────────
 const (
-	playerSheetPath  = "./assets/character/knight_sprite.png"
-	playerSheetCols  = 2
-	playerSheetRows  = 3
-	playerFrameCount = playerSheetCols * playerSheetRows
-	playerFrameDelay = 10
-	playerSpeed      = 5.0
-	playerSize       = targetBoidSize * 2
+	playerSheetPath    = "./assets/character/knight_sprite.png"
+	playerSheetCols    = 2
+	playerSheetRows    = 3
+	playerFrameCount   = playerSheetCols * playerSheetRows
+	playerFrameDelay   = 10
+	playerDefaultSpeed = 5.0
+	playerEnergyMult   = 2.0
+	playerSizeX        = 140
+	playerSizeY        = 140
 
 	// collision box
-	collisionW       float64 = 0.22
-	collisionH       float64 = 0.36
-	collisionOffsetY float64 = 0.18
+	playerCollisionW     float64 = 0.22
+	playerCollisionH     float64 = 0.36
+	collisionOffsetY     float64 = 0.18
+	playerSlipDuration           = 45
+	playerEnergyDuration         = 600
 )
 
 // ── Barn ───────────────────────────────────────────────────────────────────
 const (
 	barnSheetPath = "./assets/tiles/barn.png"
-	barnSizeX     = 500
-	barnSizeY     = 550
-	barnOffsetX   = -40
+	barnSizeX     = 550
+	barnSizeY     = 530
+	barnOffsetX   = -100
 
-	// -for collision drawing
-	// barnBodyOffX = -60.0 // computed from pixel scan: (54+315)/2 - 251) * (400/502)
-	// barnBodyOffY = 43.0  // wall base is in lower half of image
-	// barnBodyW    = 180.0
-	// barnBodyH    = 100.0
+	barnGateOffX = -0.21 // X offset from center as fraction of drawnW
+	barnGateOffY = 0.11  // Y offset from center as fraction of drawnH
+	barnGateW    = 0.35  // half-width  as fraction of drawnW (full = *2)
+	barnGateH    = 0.21  // half-height as fraction of drawnH
 
-	barnGateOffX = -0.14 // X offset from center as fraction of drawnW
-	barnGateOffY = 0.09  // Y offset from center as fraction of drawnH
-	barnGateW    = 0.40  // half-width  as fraction of drawnW (full = *2)
-	barnGateH    = 0.18  // half-height as fraction of drawnH
+	barnEntryForce     = 1.0
+	barnEntryTolerance = 4.0
 )

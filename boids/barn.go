@@ -8,23 +8,23 @@ import (
 )
 
 type Barn struct {
-	sheet  *ebiten.Image
-	flipX  bool
-	scaleX float64
-	scaleY float64
-	x      float64
-	y      float64
-	w      float64
-	h      float64
-	drawnW float64
-	drawnH float64
-	isLeft bool
+	sheet      *ebiten.Image
+	flipX      bool
+	scaleX     float64
+	scaleY     float64
+	x          float64
+	y          float64
+	w          float64
+	h          float64
+	drawnW     float64
+	drawnH     float64
+	SheepCount int
 
 	mask *BarnCollisionMask
 }
 
 func NewBarn(flipX bool, x, y float64, mask *BarnCollisionMask) *Barn {
-	bounds := playerSheet.Bounds()
+	bounds := barnSheet.Bounds()
 	w, h := float64(bounds.Dx()), float64(bounds.Dy())
 
 	scaleX := float64(barnSizeX / w)
@@ -33,7 +33,7 @@ func NewBarn(flipX bool, x, y float64, mask *BarnCollisionMask) *Barn {
 	b := &Barn{
 		w:      w,
 		h:      h,
-		sheet:  playerSheet,
+		sheet:  barnSheet,
 		scaleX: scaleX,
 		scaleY: scaleY,
 		flipX:  flipX,
@@ -42,7 +42,6 @@ func NewBarn(flipX bool, x, y float64, mask *BarnCollisionMask) *Barn {
 		drawnW: w * scaleX,
 		drawnH: h * scaleY,
 		mask:   mask,
-		isLeft: flipX,
 	}
 
 	return b

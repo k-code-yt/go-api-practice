@@ -30,6 +30,18 @@ var dirRow = map[Direction]int{
 	DirLeft:  rowSide,
 }
 
+type PlayerState int
+
+const (
+	PlayerStateNormal   PlayerState = iota
+	PlayerStateEnergy   PlayerState = iota
+	PlayerStateSlipping PlayerState = iota
+)
+
+type PlayerCollisionBox struct {
+	hw, hh, offsetY float64
+}
+
 type Player struct {
 	position  Vector2D
 	dir       Direction
@@ -42,23 +54,39 @@ type Player struct {
 	scaleX    float64
 	scaleY    float64
 	isMoving  bool
+	isLeft    bool
 	wasMoving bool
+	collBox   *PlayerCollisionBox
 
 	// collision
 	collChecker CollisionChecker
 	collishMap  map[Direction]bool
+
+	// slip logic
+	state    PlayerState
+	slipTick int
+
+	// under energy event
+	energyTick int
 }
 
-func NewPlayer(collChecker CollisionChecker) *Player {
+func NewPlayer(collChecker CollisionChecker, isLeft bool) *Player {
 	bounds := playerSheet.Bounds()
 	fw := bounds.Dx() / playerSheetCols
 	fh := bounds.Dy() / playerSheetRows
 
-	scaleX := playerSize / float64(fw)
-	scaleY := playerSize / float64(fh)
+	scaleX := playerSizeX / float64(fw)
+	scaleY := playerSizeY / float64(fh)
+	var position Vector2D
+	if isLeft {
+		position = Vector2D{screenWidth / 4, screenHeight / 2}
+	} else {
+		position = Vector2D{screenWidth * 3 / 4, screenHeight / 2}
+	}
 
 	p := &Player{
-		position:    Vector2D{screenWidth / 2, screenHeight / 2},
+		position:    position,
+		isLeft:      isLeft,
 		dir:         DirDown,
 		sheet:       playerSheet,
 		frameW:      fw,
@@ -90,27 +118,57 @@ func (p *Player) Draw(screen *ebiten.Image) {
 }
 
 func (p *Player) Update() {
+	pSpeed := playerDefaultSpeed
+	switch p.state {
+	case PlayerStateSlipping:
+		p.slipTick++
+		if p.slipTick >= playerSlipDuration {
+			p.state = PlayerStateNormal
+			p.slipTick = 0
+		}
+		return
+	case PlayerStateEnergy:
+		pSpeed = playerDefaultSpeed * playerEnergyMult
+		p.energyTick++
+		if p.energyTick >= playerEnergyDuration {
+			p.state = PlayerStateNormal
+			p.energyTick = 0
+		}
+		break
+	}
+
+	p.UpdateMovement(pSpeed)
+}
+
+func (p *Player) UpdateMovement(pSpeed float64) {
 	dx, dy := 0.0, 0.0
 	p.isMoving = false
 
-	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
-		dx = -playerSpeed
+	var keyLeft, keyRight, keyDown, keyUp ebiten.Key
+	if p.isLeft {
+		keyLeft, keyRight, keyDown, keyUp = ebiten.KeyA, ebiten.KeyD, ebiten.KeyS, ebiten.KeyW
+	} else {
+		keyLeft, keyRight, keyDown, keyUp = ebiten.KeyArrowLeft, ebiten.KeyArrowRight, ebiten.KeyArrowDown, ebiten.KeyArrowUp
+	}
+
+	if ebiten.IsKeyPressed(keyLeft) {
+		dx = -pSpeed
 		p.dir = DirLeft
 		p.isMoving = true
-	} else if ebiten.IsKeyPressed(ebiten.KeyArrowRight) || ebiten.IsKeyPressed(ebiten.KeyD) {
-		dx = playerSpeed
+	} else if ebiten.IsKeyPressed(keyRight) {
+		dx = pSpeed
 		p.dir = DirRight
 		p.isMoving = true
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) || ebiten.IsKeyPressed(ebiten.KeyW) {
-		dy = -playerSpeed
+	if ebiten.IsKeyPressed(keyUp) {
+		dy = -pSpeed
 		if !p.isMoving {
 			p.dir = DirUp
 		}
 		p.isMoving = true
-	} else if ebiten.IsKeyPressed(ebiten.KeyArrowDown) || ebiten.IsKeyPressed(ebiten.KeyS) {
-		dy = playerSpeed
+	} else if ebiten.IsKeyPressed(keyDown) {
+		dy = pSpeed
 		if !p.isMoving {
 			p.dir = DirDown
 		}
@@ -137,12 +195,38 @@ func (p *Player) Update() {
 	}
 	p.wasMoving = p.isMoving
 }
+func (p *Player) Energy() {
+	if p.state == PlayerStateEnergy {
+		return
+	}
+	p.state = PlayerStateEnergy
+	p.energyTick = 0
+}
+
+func (p *Player) Slip() {
+	if p.state == PlayerStateSlipping {
+		return
+	}
+	p.state = PlayerStateSlipping
+	p.slipTick = 0
+}
 
 func (p *Player) currentFrame() *ebiten.Image {
 	col := p.frameIdx
 	row := dirRow[p.dir]
+	var y0 int
+	if p.state == PlayerStateSlipping {
+		row = rowSlip
+		if p.slipTick < playerFrameDelay {
+			col = 0
+		} else {
+			col = 1
+		}
+		y0 = row * (p.frameH + 10)
+	} else {
+		y0 = row * p.frameH
+	}
 	x0 := col * p.frameW
-	y0 := row * p.frameH
 	rect := image.Rect(x0, y0, x0+p.frameW, y0+p.frameH)
 	return p.sheet.SubImage(rect).(*ebiten.Image)
 }
@@ -225,9 +309,14 @@ func (p *Player) drawCollisionBox(screen *ebiten.Image) {
 	vector.StrokeLine(screen, float32(x), float32(y+float32(hh)*2), float32(x+float32(hw)*2), float32(y+float32(hh)*2), strokeWidth, sideColor(DirDown), false)
 }
 
-func (p *Player) getCollisionBox() (hw, hh, offsetY float64) {
-	hw = float64(p.frameW) * p.scaleX * collisionW
-	hh = float64(p.frameH) * p.scaleY * collisionH
-	offsetY = hh * collisionOffsetY
-	return
+func (p *Player) getCollisionBox() (float64, float64, float64) {
+	if p.collBox == nil {
+		hw := float64(p.frameW) * p.scaleX * playerCollisionW
+		hh := float64(p.frameH) * p.scaleY * playerCollisionH
+		offsetY := hh * collisionOffsetY
+		p.collBox = &PlayerCollisionBox{
+			hw, hh, offsetY,
+		}
+	}
+	return p.collBox.hw, p.collBox.hh, p.collBox.offsetY
 }

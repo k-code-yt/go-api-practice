@@ -13,6 +13,8 @@ const (
 	StateFlocking BoidState = iota
 	StateFleeing
 	StateCaught
+	StateMovingToDoor
+	StateInBarn
 )
 
 type Boid struct {
@@ -26,26 +28,17 @@ type Boid struct {
 	state      BoidState
 	caughtTick int
 
+	targetX    float64
+	targetY    float64
+	targetBarn *Barn
+
+	gateChecker GateChecker
 	collChecker CollisionChecker
 }
 
-func NewBoid(id int, img *SheepImage, collChecker CollisionChecker) *Boid {
-	borderMargin := 0.2
-	position := Vector2D{rand.Float64() * screenWidth, rand.Float64() * screenHeight}
+func NewBoid(id int, img *SheepImage, collChecker CollisionChecker, gateChecker GateChecker) *Boid {
+	position := safeSpawnPosition(collChecker, nil)
 	velocity := Vector2D{(rand.Float64() * 2) - 1, (rand.Float64() * 2) - 1}
-
-	if position.x < screenWidth*borderMargin {
-		position.x = screenWidth * borderMargin
-	}
-	if position.y < screenHeight*borderMargin {
-		position.y = screenHeight * borderMargin
-	}
-	if position.x > screenWidth*(1-borderMargin) {
-		position.x = screenWidth * (1 - borderMargin)
-	}
-	if position.y > screenHeight*(1-borderMargin) {
-		position.y = screenHeight * (1 - borderMargin)
-	}
 
 	b := &Boid{
 		id:          id,
@@ -53,6 +46,7 @@ func NewBoid(id int, img *SheepImage, collChecker CollisionChecker) *Boid {
 		position:    position,
 		img:         img,
 		frameIdx:    rand.Intn(img.frameCount),
+		gateChecker: gateChecker,
 		collChecker: collChecker,
 	}
 	return b
@@ -60,9 +54,12 @@ func NewBoid(id int, img *SheepImage, collChecker CollisionChecker) *Boid {
 
 func (b *Boid) Update(accel *Vector2D, p *Player) {
 	b.updateState(p)
-
 	b.velocity = b.velocity.Add(*accel).LimitSpeed()
-	b.invertOnWall()
+
+	if b.state != StateMovingToDoor && b.state != StateInBarn {
+		b.invertOnWall()
+	}
+
 	b.position = b.position.Add(b.velocity)
 	maxTickPerFrame := 12
 
@@ -83,6 +80,9 @@ func (b *Boid) Update(accel *Vector2D, p *Player) {
 }
 
 func (b *Boid) Draw(screen *ebiten.Image) {
+	if b.state == StateInBarn {
+		return
+	}
 	op := &ebiten.DrawImageOptions{}
 	img := b.img
 	frame := b.img.Frame(b.frameIdx)
@@ -111,22 +111,50 @@ func (b *Boid) updateState(p *Player) {
 		}
 	case StateCaught:
 		b.caughtTick++
-		if b.caughtTick > caughtTicks {
+		if barn := b.gateChecker(b.position.x, b.position.y); barn != nil {
+			b.state = StateMovingToDoor
+			b.targetBarn = barn
+			b.targetX = barn.x
+			b.targetY = barn.GateCenterY()
+			b.caughtTick = 0
+		} else if b.caughtTick > caughtTicks {
 			b.state = StateFlocking
 		}
 	case StateFleeing:
-		if dist < catchRadius {
+		if barn := b.gateChecker(b.position.x, b.position.y); barn != nil {
+			b.state = StateMovingToDoor
+			b.targetBarn = barn
+			b.targetX = barn.x
+			b.targetY = barn.GateCenterY()
+			b.caughtTick = 0
+		} else if dist < catchRadius {
 			b.state = StateCaught
 			b.caughtTick = 0
 		} else if dist > fleeRadius {
 			b.state = StateFlocking
 		}
+	case StateMovingToDoor:
+		dyLeft := math.Abs(b.position.y - b.targetY)
+		if dyLeft > barnEntryTolerance {
+			break
+		}
+		dxLeft := math.Abs(b.position.x - b.targetX)
+		if dxLeft < barnEntryTolerance {
+			b.state = StateInBarn
+			b.targetBarn.SheepCount++
+		}
 	}
+
 }
 
 func (b *Boid) calcAcceleration(g *Game, neib []int, p *Player) Vector2D {
-	if b.state == StateCaught || b.state == StateFleeing {
+	switch b.state {
+	case StateCaught, StateFleeing:
 		return b.fleeAccel(p)
+	case StateMovingToDoor:
+		return b.moveToDoorAccel()
+	case StateInBarn:
+		return Vector2D{}
 	}
 
 	avgVelocity := Vector2D{}
@@ -172,8 +200,20 @@ func (b *Boid) calcAcceleration(g *Game, neib []int, p *Player) Vector2D {
 	return accel
 }
 
+// TODO -> move out of calcAccel -> do not calc neighb if in this state
 func (b *Boid) fleeAccel(p *Player) Vector2D {
 	return b.position.Sub(p.position).Normalize().Mul(fleeForce)
+}
+
+func (b *Boid) moveToDoorAccel() Vector2D {
+	dyLeft := math.Abs(b.position.y - b.targetY)
+	if dyLeft > barnEntryTolerance {
+		target := Vector2D{b.position.x, b.targetY}
+		return target.Sub(b.position).Normalize().Mul(barnEntryForce)
+	}
+	b.position.y = b.targetY
+	target := Vector2D{b.targetX, b.targetY}
+	return target.Sub(b.position).Normalize().Mul(barnEntryForce)
 }
 
 func (b *Boid) wallSeparation() Vector2D {
@@ -251,6 +291,40 @@ func (b *Boid) invertOnWall() {
 			b.collChecker(px, ey) ||
 			b.collChecker(px+hw*0.4, ey) {
 			b.velocity.y = -b.velocity.y
+		}
+	}
+}
+
+func (b *Barn) GateCenterY() float64 {
+	return b.y + 1.5*barnGateOffY*b.drawnH
+}
+
+type CollisionOpts struct {
+	isLeft bool
+}
+
+func safeSpawnPosition(collides CollisionChecker, collOpts *CollisionOpts) Vector2D {
+	margin := 0.2
+	var x, y float64
+
+	for {
+		if collOpts != nil {
+			if collOpts.isLeft {
+				x = margin*screenWidth + rand.Float64()*(screenWidth*0.5-margin*screenWidth)
+			} else {
+				x = screenWidth*0.5 + rand.Float64()*(screenWidth*(0.5-margin))
+			}
+		} else {
+			x = margin*screenWidth + rand.Float64()*(screenWidth*(1-2*margin))
+		}
+		y = margin*screenHeight + rand.Float64()*(screenHeight*(1-2*margin))
+
+		if !collides(x, y) &&
+			!collides(x+targetBoidSize/2, y) &&
+			!collides(x-targetBoidSize/2, y) &&
+			!collides(x, y+targetBoidSize/2) &&
+			!collides(x, y-targetBoidSize/2) {
+			return Vector2D{x, y}
 		}
 	}
 }

@@ -8,4 +8,5 @@ go.sum
 */*.prof
 *.out
 */*.out
-./boids/assets/character/kid
+**/personal
+boids/assets/25d

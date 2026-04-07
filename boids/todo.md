@@ -1,3 +1,34 @@
+<!-- NEXT TODOs -->
+
+<!-- add 2nd player -->
+
+[x] split arrows && WASD -> arr to right, WASD to left
+[] add sprite and dimentiontions based on sprite
+[] make chars same size
+[] assign each player to barn? -> or just whatever in barn
+
+<!-- events -->
+
+[x] add banana slip event
+[x] make bananas spawn only on oppisite side
+[] collide with feet only???
+
+[x] add energy/speed event
+[] add wolf hiding in bush event
+
+<!-- performance -->
+
+[] go over per-ce todos
+
+<!-- pending/hanging -->
+
+[] add collision unstuck logic -> N-ticks same pos -> disable coll
+[] investigate race condition error -> https://claude.ai/chat/db32d764-e9fa-4409-8d3f-2f82ffd5600e
+[] convert game to 2.5d
+
+<!-- DONE -->
+<!-- init -->
+
 [x] rework to single game loop
 [x] get nearest boids in a loop
 [x] check a, c, s formulas
@@ -5,7 +36,7 @@
 [x] add actual fish
 [x] add gif background
 
-<!-- PERFORMANCE -->
+<!-- perf-ce -->
 
 [x] add tests -> testing.B
 [x] cpu#1: rework to spiral grid
@@ -15,7 +46,7 @@
 [x] how to pre-calc fish rotations
 [x] how to skip fish rotation if direction didn't change
 
-<!-- SHEEP -->
+<!-- sheep -->
 
 [x] change bg
 [x] render sheep sprite(remove fish)
@@ -29,16 +60,9 @@
 [x] coll/row usage detection -> detect current frame to render from sprite
 [x] bg collision -> isBush && collision box draw for debug
 
-<!-- TILES -->
+<!-- tiles -->
 
 [x] add sheep bush bounce
-[] render barn && gate collision
-[] add logic that checks if sheep collided with barn
-[] add sheep counter && remove sheep from render once in barn
-
-<!-- PENDING -->
-
-[] add collision unstuck logic -> N-ticks same pos -> disable coll
-[] fix sheep angle
-[] vertical tilt -> make sheep apear closer and further away
-[] investigate race condition error -> https://claude.ai/chat/db32d764-e9fa-4409-8d3f-2f82ffd5600e
+[x] render barn && gate collision
+[x] add logic that checks if sheep collided with barn
+[x] add sheep counter && remove sheep from render once in barn
