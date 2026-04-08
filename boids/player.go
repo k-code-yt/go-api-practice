@@ -8,11 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-const (
-	rowFront = 0
-	rowSide  = 1
-	rowSlip  = 2
-)
+type FrameCoords []int
 
 type Direction int
 
@@ -21,14 +17,8 @@ const (
 	DirLeft
 	DirRight
 	DirUp
+	DirSlip
 )
-
-var dirRow = map[Direction]int{
-	DirDown:  rowFront,
-	DirUp:    rowFront,
-	DirRight: rowSide,
-	DirLeft:  rowSide,
-}
 
 type PlayerState int
 
@@ -49,6 +39,8 @@ type Player struct {
 	frameTick int
 
 	sheet     *ebiten.Image
+	charType  CharacterType
+	charOpts  *CharacterOpts
 	frameW    int
 	frameH    int
 	scaleX    float64
@@ -70,15 +62,22 @@ type Player struct {
 	energyTick int
 }
 
-func NewPlayer(collChecker CollisionChecker, isLeft bool) *Player {
-	bounds := playerSheet.Bounds()
-	fw := bounds.Dx() / playerSheetCols
-	fh := bounds.Dy() / playerSheetRows
+type PlayerOpts struct {
+	isLeft       bool
+	charaterType CharacterType
+}
+
+func NewPlayer(collChecker CollisionChecker, opts *PlayerOpts) *Player {
+	charOpts := NewCharacterOpts(opts.charaterType)
+
+	bounds := charOpts.img.Bounds()
+	fw := bounds.Dx() / charOpts.sheetCols
+	fh := bounds.Dy() / charOpts.sheetRows
 
 	scaleX := playerSizeX / float64(fw)
 	scaleY := playerSizeY / float64(fh)
 	var position Vector2D
-	if isLeft {
+	if opts.isLeft {
 		position = Vector2D{screenWidth / 4, screenHeight / 2}
 	} else {
 		position = Vector2D{screenWidth * 3 / 4, screenHeight / 2}
@@ -86,9 +85,11 @@ func NewPlayer(collChecker CollisionChecker, isLeft bool) *Player {
 
 	p := &Player{
 		position:    position,
-		isLeft:      isLeft,
+		isLeft:      opts.isLeft,
+		charType:    opts.charaterType,
+		charOpts:    charOpts,
 		dir:         DirDown,
-		sheet:       playerSheet,
+		sheet:       charOpts.img,
 		frameW:      fw,
 		frameH:      fh,
 		scaleX:      scaleX,
@@ -185,7 +186,7 @@ func (p *Player) UpdateMovement(pSpeed float64) {
 			p.frameTick++
 			if p.frameTick >= playerFrameDelay {
 				p.frameTick = 0
-				p.frameIdx = (p.frameIdx + 1) % playerSheetCols
+				p.frameIdx = (p.frameIdx + 1) % p.charOpts.sheetCols
 			}
 		}
 	} else {
@@ -212,21 +213,31 @@ func (p *Player) Slip() {
 }
 
 func (p *Player) currentFrame() *ebiten.Image {
-	col := p.frameIdx
-	row := dirRow[p.dir]
-	var y0 int
+	dir := p.dir
 	if p.state == PlayerStateSlipping {
-		row = rowSlip
-		if p.slipTick < playerFrameDelay {
-			col = 0
-		} else {
-			col = 1
-		}
-		y0 = row * (p.frameH + 10)
-	} else {
-		y0 = row * p.frameH
+		dir = DirSlip
 	}
-	x0 := col * p.frameW
+
+	frameCoords := dirPosKnight[dir]
+	var coord FrameCoords
+	frameH := p.frameH
+	if p.state == PlayerStateSlipping {
+		frameStep := playerSlipDuration / (len(frameCoords) * 4)
+		frameI := p.slipTick / frameStep
+		if frameI >= len(frameCoords) {
+			frameI = len(frameCoords) - 1
+		}
+		coord = frameCoords[frameI]
+		if p.charType == KnightCharacter {
+			frameH += 10
+		}
+	} else {
+		coord = frameCoords[p.frameIdx%len(frameCoords)]
+	}
+
+	y0 := coord[1] * frameH
+	x0 := coord[0] * p.frameW
+
 	rect := image.Rect(x0, y0, x0+p.frameW, y0+p.frameH)
 	return p.sheet.SubImage(rect).(*ebiten.Image)
 }

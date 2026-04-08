@@ -3,9 +3,10 @@
 <!-- add 2nd player -->
 
 [x] split arrows && WASD -> arr to right, WASD to left
-[] add sprite and dimentiontions based on sprite
+[] add chars enum && add sprite map for each
+[] dimentiontions map based on sprite/char
 [] make chars same size
-[] assign each player to barn? -> or just whatever in barn
+[] assign each player to barn? -> or just whatever in barn???
 
 <!-- events -->
 
@@ -14,7 +15,16 @@
 [] collide with feet only???
 
 [x] add energy/speed event
+[] check why no collision box for energy event
 [] add wolf hiding in bush event
+[] add some throwable item -> mud or something
+[] add animation to events -> make them visibly different
+
+<!-- UI -->
+
+[] add good looking score
+[] add char select screen
+[] add more playbla characters
 
 <!-- performance -->
 
@@ -23,6 +33,8 @@
 <!-- pending/hanging -->
 
 [] add collision unstuck logic -> N-ticks same pos -> disable coll
+[] improve collision -> https://claude.ai/chat/e6ac8b3a-e7a6-4f2f-ba99-62ee0418e295
+[] investigate why FPS drops on higher resolution
 [] investigate race condition error -> https://claude.ai/chat/db32d764-e9fa-4409-8d3f-2f82ffd5600e
 [] convert game to 2.5d
 

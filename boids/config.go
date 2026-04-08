@@ -59,10 +59,11 @@ const (
 
 // ── Player ───────────────────────────────────────────────────────────────────
 const (
-	playerSheetPath    = "./assets/character/knight_sprite.png"
-	playerSheetCols    = 2
-	playerSheetRows    = 3
-	playerFrameCount   = playerSheetCols * playerSheetRows
+	// knightSheetPath    = "./assets/character/knight_sprite.png"
+	// girlSheetPath      = "./assets/character/girl_og.png"
+	// playerSheetCols    = 2
+	// playerSheetRows    = 3
+	// playerFrameCount   = playerSheetCols * playerSheetRows
 	playerFrameDelay   = 10
 	playerDefaultSpeed = 5.0
 	playerEnergyMult   = 2.0

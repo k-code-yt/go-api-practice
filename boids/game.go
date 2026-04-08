@@ -20,7 +20,6 @@ import (
 // TODO -> move to separate file
 var (
 	sheepSheet       *ebiten.Image
-	playerSheet      *ebiten.Image
 	barnSheet        *ebiten.Image
 	bananaEventSheet *ebiten.Image
 	bananaPeelSheet  *ebiten.Image
@@ -64,7 +63,7 @@ func NewGame() *Game {
 	g.loadBgImg()
 
 	collChecker := g.buildCollisionChecker()
-	g.player = NewPlayer(collChecker, false)
+	g.player = NewPlayer(collChecker, &PlayerOpts{isLeft: true, charaterType: GirlCharacter})
 	sheepImg := NewSheepImage(sheepSheet, 5)
 	g.eventManager = NewEventManager(collChecker, bananaEventSheet, bananaPeelSheet, energySheet)
 
@@ -287,9 +286,15 @@ func init() {
 	}
 	energySheet = energy
 
-	pImg, _, err := ebitenutil.NewImageFromFile(playerSheetPath)
+	knightImg, _, err := ebitenutil.NewImageFromFile(KnightOpts.sheetPath)
 	if err != nil {
 		log.Fatal("player sprite:", err)
 	}
-	playerSheet = pImg
+	KnightOpts.img = knightImg
+
+	girlImg, _, err := ebitenutil.NewImageFromFile(GirlOpts.sheetPath)
+	if err != nil {
+		log.Fatal("player sprite:", err)
+	}
+	GirlOpts.img = girlImg
 }
