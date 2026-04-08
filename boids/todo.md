@@ -3,10 +3,12 @@
 <!-- add 2nd player -->
 
 [x] split arrows && WASD -> arr to right, WASD to left
-[] add chars enum && add sprite map for each
-[] dimentiontions map based on sprite/char
-[] make chars same size
-[] assign each player to barn? -> or just whatever in barn???
+[x] add chars enum && add sprite map for each
+[x] dimentiontions map based on sprite/char
+[x] make chars same size
+[] add 2nd player:
+-> boid accel
+-> collisions w/ events
 
 <!-- events -->
 

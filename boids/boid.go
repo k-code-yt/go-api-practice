@@ -147,6 +147,7 @@ func (b *Boid) updateState(p *Player) {
 
 }
 
+// TODO(perf) -> get neib only for flocking state
 func (b *Boid) calcAcceleration(g *Game, neib []int, p *Player) Vector2D {
 	switch b.state {
 	case StateCaught, StateFleeing:
