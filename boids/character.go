@@ -1,6 +1,88 @@
 package main
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"image"
+
+	"github.com/hajimehoshi/ebiten/v2"
+)
+
+// ── Frame identity ────────────────────────────────────────────────────────────
+
+// FrameID is a typed int so the compiler catches wrong values in direction maps.
+type FrameID int
+
+const (
+	// Knight frames
+	KnightFrontIdle FrameID = iota
+	KnightFrontWalk
+	KnightSideWalk1
+	KnightSideWalk2
+	KnightSlip1
+	KnightSlip2
+
+	// Girl frames
+	GirlFrontIdle
+	GirlFrontWalk
+	GirlFrontAttack
+	GirlSideWalk1
+	GirlSideWalk2
+	GirlSlip
+	GirlExtra0
+	GirlExtra1
+	GirlExtra2
+	GirlExtra3
+)
+
+// FrameRect is the pixel boundary of one frame in the sheet.
+type FrameRect struct{ X, Y, W, H int }
+
+// ── Per-character rect tables (measured) ─────────────────────────────────────
+
+// Knight: 470x531, 2 sprites per row, margin cols stripped
+// row1 y=6-192   row2 y=192-364   row3 y=364-526
+var knightRects = map[FrameID]FrameRect{
+	KnightFrontIdle: {X: 32, Y: 6, W: 198, H: 186},
+	KnightFrontWalk: {X: 230, Y: 6, W: 210, H: 186},
+	KnightSideWalk1: {X: 18, Y: 192, W: 225, H: 172},
+	KnightSideWalk2: {X: 243, Y: 192, W: 198, H: 172},
+	KnightSlip1:     {X: 22, Y: 364, W: 204, H: 162},
+	KnightSlip2:     {X: 226, Y: 364, W: 223, H: 162},
+}
+
+// Girl: 463x539, variable cols per row (measured separately)
+// row0 y=4-184   row1 y=184-360   row2 y=360-531
+var girlRects = map[FrameID]FrameRect{
+	GirlFrontIdle:   {X: 6, Y: 4, W: 135, H: 180},
+	GirlFrontWalk:   {X: 141, Y: 4, W: 123, H: 180},
+	GirlFrontAttack: {X: 264, Y: 4, W: 192, H: 180},
+	GirlSideWalk1:   {X: 5, Y: 184, W: 136, H: 176},
+	GirlSideWalk2:   {X: 141, Y: 184, W: 127, H: 176},
+	GirlSlip:        {X: 268, Y: 184, W: 181, H: 176},
+	GirlExtra0:      {X: 16, Y: 360, W: 119, H: 171},
+	GirlExtra1:      {X: 135, Y: 360, W: 120, H: 171},
+	GirlExtra2:      {X: 255, Y: 360, W: 110, H: 171},
+	GirlExtra3:      {X: 365, Y: 360, W: 92, H: 171},
+}
+
+// ── Direction → frame sequence ────────────────────────────────────────────────
+
+var knightDirFrames = map[Direction][]FrameID{
+	DirDown:  {KnightFrontIdle, KnightFrontWalk},
+	DirUp:    {KnightFrontIdle, KnightFrontWalk},
+	DirRight: {KnightSideWalk1, KnightSideWalk2},
+	DirLeft:  {KnightSideWalk1, KnightSideWalk2},
+	DirSlip:  {KnightSlip1, KnightSlip2},
+}
+
+var girlDirFrames = map[Direction][]FrameID{
+	DirDown:  {GirlFrontIdle, GirlFrontWalk},
+	DirUp:    {GirlFrontIdle, GirlFrontWalk},
+	DirRight: {GirlSideWalk1, GirlSideWalk2},
+	DirLeft:  {GirlSideWalk1, GirlSideWalk2},
+	DirSlip:  {GirlSlip},
+}
+
+// ── Spritesheet ───────────────────────────────────────────────────────────────
 
 type CharacterType int
 
@@ -10,11 +92,12 @@ const (
 )
 
 type CharacterOpts struct {
-	sheetPath  string
-	img        *ebiten.Image
-	sheetCols  int
-	sheetRows  int
-	frameCount int
+	sheetPath   string
+	img         *ebiten.Image
+	sheetCols   int
+	sheetRows   int
+	frameCount  int
+	spritesheet *Spritesheet
 }
 
 var KnightOpts = &CharacterOpts{
@@ -23,27 +106,10 @@ var KnightOpts = &CharacterOpts{
 	sheetRows: 3,
 }
 
-// col, row
-var dirPosKnight = map[Direction][]FrameCoords{
-	DirDown:  []FrameCoords{[]int{0, 0}, []int{1, 0}},
-	DirUp:    []FrameCoords{[]int{0, 0}, []int{1, 0}},
-	DirRight: []FrameCoords{[]int{0, 1}, []int{1, 1}},
-	DirLeft:  []FrameCoords{[]int{0, 1}, []int{1, 1}},
-	DirSlip:  []FrameCoords{[]int{0, 2}, []int{1, 2}},
-}
-
 var GirlOpts = &CharacterOpts{
 	sheetPath: "./assets/character/girl_sprite.png",
 	sheetCols: 3,
 	sheetRows: 3,
-}
-
-var dirPosGirl = map[Direction][]FrameCoords{
-	DirDown:  []FrameCoords{[]int{0, 0}, []int{1, 2}, []int{0, 2}},
-	DirUp:    []FrameCoords{[]int{0, 0}, []int{1, 2}, []int{0, 2}},
-	DirRight: []FrameCoords{[]int{2, 2}, []int{2, 1}, []int{2, 0}, []int{1, 0}},
-	DirLeft:  []FrameCoords{[]int{2, 2}, []int{2, 1}, []int{2, 0}, []int{1, 0}},
-	DirSlip:  []FrameCoords{[]int{1, 0}, []int{1, 1}, []int{2, 1}},
 }
 
 func NewCharacterOpts(cType CharacterType) *CharacterOpts {
@@ -52,12 +118,69 @@ func NewCharacterOpts(cType CharacterType) *CharacterOpts {
 		if KnightOpts.frameCount == 0 {
 			KnightOpts.frameCount = KnightOpts.sheetCols * KnightOpts.sheetRows
 		}
+		if KnightOpts.img == nil {
+			panic("knight img was not loaded")
+		}
+		KnightOpts.spritesheet = NewKnightSpritesheet(KnightOpts.img)
 		return KnightOpts
 	case GirlCharacter:
 		if GirlOpts.frameCount == 0 {
 			GirlOpts.frameCount = GirlOpts.sheetCols * GirlOpts.sheetRows
 		}
+		if GirlOpts.img == nil {
+			panic("girl img was not loaded")
+		}
+		GirlOpts.spritesheet = NewGirlSpritesheet(GirlOpts.img)
 		return GirlOpts
 	}
 	return nil
+}
+
+type Spritesheet struct {
+	frames    map[FrameID]*ebiten.Image
+	dirFrames map[Direction][]FrameID
+}
+
+func NewSpritesheet(sheet *ebiten.Image, rects map[FrameID]FrameRect, dirFrames map[Direction][]FrameID) *Spritesheet {
+	frames := make(map[FrameID]*ebiten.Image, len(rects))
+	for id, r := range rects {
+		rect := image.Rect(r.X, r.Y, r.X+r.W, r.Y+r.H)
+		frames[id] = sheet.SubImage(rect).(*ebiten.Image)
+	}
+	return &Spritesheet{frames: frames, dirFrames: dirFrames}
+}
+
+func NewKnightSpritesheet(sheet *ebiten.Image) *Spritesheet {
+	return NewSpritesheet(sheet, knightRects, knightDirFrames)
+}
+
+func NewGirlSpritesheet(sheet *ebiten.Image) *Spritesheet {
+	return NewSpritesheet(sheet, girlRects, girlDirFrames)
+}
+
+func (s *Spritesheet) Frame(id FrameID) *ebiten.Image {
+	return s.frames[id]
+}
+
+// FrameForState resolves the correct FrameID given player direction, state and ticks.
+func (s *Spritesheet) FrameForState(dir Direction, state PlayerState, frameIdx, slipTick int) *ebiten.Image {
+	if state == PlayerStateSlipping {
+		dir = DirSlip
+	}
+
+	ids := s.dirFrames[dir]
+
+	var id FrameID
+	if state == PlayerStateSlipping {
+		step := playerSlipDuration / len(ids)
+		i := slipTick / step
+		if i >= len(ids) {
+			i = len(ids) - 1
+		}
+		id = ids[i]
+	} else {
+		id = ids[frameIdx%len(ids)]
+	}
+
+	return s.frames[id]
 }

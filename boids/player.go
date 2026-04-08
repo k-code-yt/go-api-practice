@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -38,9 +37,10 @@ type Player struct {
 	frameIdx  int
 	frameTick int
 
-	sheet     *ebiten.Image
-	charType  CharacterType
-	charOpts  *CharacterOpts
+	spritesheet *Spritesheet
+	charType    CharacterType
+	charOpts    *CharacterOpts
+
 	frameW    int
 	frameH    int
 	scaleX    float64
@@ -88,8 +88,8 @@ func NewPlayer(collChecker CollisionChecker, opts *PlayerOpts) *Player {
 		isLeft:      opts.isLeft,
 		charType:    opts.charaterType,
 		charOpts:    charOpts,
+		spritesheet: charOpts.spritesheet,
 		dir:         DirDown,
-		sheet:       charOpts.img,
 		frameW:      fw,
 		frameH:      fh,
 		scaleX:      scaleX,
@@ -213,33 +213,7 @@ func (p *Player) Slip() {
 }
 
 func (p *Player) currentFrame() *ebiten.Image {
-	dir := p.dir
-	if p.state == PlayerStateSlipping {
-		dir = DirSlip
-	}
-
-	frameCoords := dirPosKnight[dir]
-	var coord FrameCoords
-	frameH := p.frameH
-	if p.state == PlayerStateSlipping {
-		frameStep := playerSlipDuration / (len(frameCoords) * 4)
-		frameI := p.slipTick / frameStep
-		if frameI >= len(frameCoords) {
-			frameI = len(frameCoords) - 1
-		}
-		coord = frameCoords[frameI]
-		if p.charType == KnightCharacter {
-			frameH += 10
-		}
-	} else {
-		coord = frameCoords[p.frameIdx%len(frameCoords)]
-	}
-
-	y0 := coord[1] * frameH
-	x0 := coord[0] * p.frameW
-
-	rect := image.Rect(x0, y0, x0+p.frameW, y0+p.frameH)
-	return p.sheet.SubImage(rect).(*ebiten.Image)
+	return p.spritesheet.FrameForState(p.dir, p.state, p.frameIdx, p.slipTick)
 }
 
 func (p *Player) detectCollision(dx, dy float64) {
