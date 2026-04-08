@@ -3,7 +3,7 @@ package main
 // ── Global ───────────────────────────────────────────────────────────────────
 const (
 	// for debug
-	isDebugMode         = true
+	isDebugMode         = false
 	strokeWidth float32 = 3.0
 )
 

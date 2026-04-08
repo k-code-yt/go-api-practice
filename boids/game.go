@@ -63,7 +63,7 @@ func NewGame() *Game {
 	g.loadBgImg()
 
 	collChecker := g.buildCollisionChecker()
-	g.player = NewPlayer(collChecker, &PlayerOpts{isLeft: true, charaterType: KnightCharacter})
+	g.player = NewPlayer(collChecker, &PlayerOpts{isLeft: true, charaterType: GirlCharacter})
 	sheepImg := NewSheepImage(sheepSheet, 5)
 	g.eventManager = NewEventManager(collChecker, bananaEventSheet, bananaPeelSheet, energySheet)
 

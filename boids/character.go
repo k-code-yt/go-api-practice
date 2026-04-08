@@ -33,7 +33,6 @@ const (
 	GirlExtra3
 )
 
-// FrameRect is the pixel boundary of one frame in the sheet.
 type FrameRect struct{ X, Y, W, H int }
 
 // ── Per-character rect tables (measured) ─────────────────────────────────────
@@ -41,7 +40,7 @@ type FrameRect struct{ X, Y, W, H int }
 // Knight: 470x531, 2 sprites per row, margin cols stripped
 // row1 y=6-192   row2 y=192-364   row3 y=364-526
 var knightRects = map[FrameID]FrameRect{
-	KnightFrontIdle: {X: 32, Y: 6, W: 198, H: 186},
+	KnightFrontIdle: {X: 6, Y: 6, W: 198, H: 186},
 	KnightFrontWalk: {X: 230, Y: 6, W: 210, H: 186},
 	KnightSideWalk1: {X: 18, Y: 192, W: 225, H: 172},
 	KnightSideWalk2: {X: 243, Y: 192, W: 198, H: 172},
@@ -75,11 +74,11 @@ var knightDirFrames = map[Direction][]FrameID{
 }
 
 var girlDirFrames = map[Direction][]FrameID{
-	DirDown:  {GirlFrontIdle, GirlFrontWalk},
-	DirUp:    {GirlFrontIdle, GirlFrontWalk},
-	DirRight: {GirlSideWalk1, GirlSideWalk2},
-	DirLeft:  {GirlSideWalk1, GirlSideWalk2},
-	DirSlip:  {GirlSlip},
+	DirDown:  {GirlFrontIdle, GirlExtra2, GirlExtra1},
+	DirUp:    {GirlFrontIdle, GirlExtra2, GirlExtra1},
+	DirRight: {GirlExtra2, GirlFrontWalk, GirlSideWalk1, GirlFrontAttack},
+	DirLeft:  {GirlExtra2, GirlFrontWalk, GirlSideWalk1, GirlFrontAttack},
+	DirSlip:  {GirlFrontWalk, GirlSideWalk2, GirlSlip},
 }
 
 // ── Spritesheet ───────────────────────────────────────────────────────────────
@@ -162,7 +161,6 @@ func (s *Spritesheet) Frame(id FrameID) *ebiten.Image {
 	return s.frames[id]
 }
 
-// FrameForState resolves the correct FrameID given player direction, state and ticks.
 func (s *Spritesheet) FrameForState(dir Direction, state PlayerState, frameIdx, slipTick int) *ebiten.Image {
 	if state == PlayerStateSlipping {
 		dir = DirSlip
@@ -172,7 +170,7 @@ func (s *Spritesheet) FrameForState(dir Direction, state PlayerState, frameIdx, 
 
 	var id FrameID
 	if state == PlayerStateSlipping {
-		step := playerSlipDuration / len(ids)
+		step := playerSlipDuration / (len(ids) * 2)
 		i := slipTick / step
 		if i >= len(ids) {
 			i = len(ids) - 1
