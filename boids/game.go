@@ -24,6 +24,7 @@ var (
 	bananaEventSheet *ebiten.Image
 	bananaPeelSheet  *ebiten.Image
 	energySheet      *ebiten.Image
+	ramSheet         *ebiten.Image
 )
 var scoreFont *text.GoTextFace
 var drawInt int
@@ -39,8 +40,8 @@ type Game struct {
 	bgCollisionMask   *BgCollisionMask
 	barnCollisionMask *BarnCollisionMask
 
-	player *Player
-	barns  [2]*Barn
+	players [2]*Player
+	barns   [2]*Barn
 
 	eventManager *EventManager
 }
@@ -52,7 +53,7 @@ func NewGame() *Game {
 		jobsCH: make(chan int, boidsCount),
 		accels: accels,
 		wg:     new(sync.WaitGroup),
-		sg:     NewSpiralGrid(cohRadius),
+		sg:     NewSpiralGrid(screenWidth / 3),
 		barns:  [2]*Barn{},
 	}
 
@@ -63,7 +64,8 @@ func NewGame() *Game {
 	g.loadBgImg()
 
 	collChecker := g.buildCollisionChecker()
-	g.player = NewPlayer(collChecker, &PlayerOpts{isLeft: true, charaterType: GirlCharacter})
+	g.players[0] = NewPlayer(collChecker, &PlayerOpts{isLeft: true, charaterType: KnightCharacter})
+	g.players[1] = NewPlayer(collChecker, &PlayerOpts{isLeft: false, charaterType: GirlCharacter})
 	sheepImg := NewSheepImage(sheepSheet, 5)
 	g.eventManager = NewEventManager(collChecker, bananaEventSheet, bananaPeelSheet, energySheet)
 
@@ -96,8 +98,11 @@ func (g *Game) StartJobs() {
 			neibBuf := []int{}
 			for id := range g.jobsCH {
 				b := g.boids[id]
-				g.sg.GetNeighbours(b, &neibBuf)
-				acc := b.calcAcceleration(g, neibBuf, g.player)
+				// TODO -> move to boid
+				if b.state == StateFlocking {
+					g.sg.GetNeighbours(b, &neibBuf)
+				}
+				acc := b.calcAcceleration(g, neibBuf, g.players)
 				g.accels[id] = &acc
 				neibBuf = neibBuf[:0]
 				g.wg.Done()
@@ -107,22 +112,30 @@ func (g *Game) StartJobs() {
 }
 
 func (g *Game) Update() error {
-	for i, peel := range g.eventManager.drawItems {
-		if peel.IsCollidingWith(g.player) {
-			g.player.Slip()
-			// TODO(perf) -> optimize slice? ringbuffer?
-			// remove this peel from the slice
-			g.eventManager.drawItems = append(
-				g.eventManager.drawItems[:i],
-				g.eventManager.drawItems[i+1:]...,
-			)
-			break
+	for i, event := range g.eventManager.drawItems {
+		p := findNearestPlayer(g.players, event.GetPosition())
+		event.Update(p)
+		if event.IsCollidingWith(p) {
+			if event.EventType() == BananaPeel {
+				p.Slip()
+				// TODO(perf) -> optimize slice? ringbuffer?
+				// remove this peel from the slice
+				g.eventManager.drawItems = append(
+					g.eventManager.drawItems[:i],
+					g.eventManager.drawItems[i+1:]...,
+				)
+				break
+			}
 		}
 	}
 
-	g.player.Update()
 	g.sg.Clean()
-	g.eventManager.HandlePickUpCollision(g.player)
+
+	for _, p := range g.players {
+		p.Update()
+	}
+
+	g.eventManager.HandlePickUpCollision(g.players)
 
 	activeBoids := 0
 	for _, b := range g.boids {
@@ -132,9 +145,9 @@ func (g *Game) Update() error {
 		}
 	}
 
-	if activeBoids%2 == 0 {
-		// TODO -> also spawn based on timeout or sheep in barn
-		g.eventManager.SpawnPickUp(activeBoids)
+	g.eventManager.spawnTick++
+	if activeBoids%2 == 0 || g.eventManager.spawnTick >= eventSpawnTicks {
+		g.eventManager.SpawnPickUp(activeBoids, g.players)
 	}
 
 	g.wg.Add(boidsCount)
@@ -145,7 +158,7 @@ func (g *Game) Update() error {
 
 	for _, b := range g.boids {
 		acc := g.accels[b.id]
-		b.Update(acc, g.player)
+		b.Update(acc)
 	}
 	return nil
 }
@@ -162,7 +175,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.DrawBG(screen)
 	g.drawScores(screen)
 
-	g.player.Draw(screen)
+	for _, p := range g.players {
+		p.Draw(screen)
+	}
 	for _, barn := range g.barns {
 		barn.Draw(screen)
 	}
@@ -285,6 +300,12 @@ func init() {
 		log.Fatal("energy sprite:", err)
 	}
 	energySheet = energy
+
+	ram, _, err := ebitenutil.NewImageFromFile(ramPath)
+	if err != nil {
+		log.Fatal("ram sprite:", err)
+	}
+	ramSheet = ram
 
 	knightImg, _, err := ebitenutil.NewImageFromFile(KnightOpts.sheetPath)
 	if err != nil {

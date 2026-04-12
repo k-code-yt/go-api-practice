@@ -1,26 +1,25 @@
 <!-- NEXT TODOs -->
 
-<!-- add 2nd player -->
+<!-- ram -->
 
-[x] split arrows && WASD -> arr to right, WASD to left
-[x] add chars enum && add sprite map for each
-[x] dimentiontions map based on sprite/char
-[x] make chars same size
-[] add 2nd player:
--> boid accel
--> collisions w/ events
+[x] add ram charging at a player
+[x] direction switch
+[x] sleep animation
+[] state transition -> idle after sleep -> then charge again
+[] count -> allow re-spawn || once N-created they will be always there
+[] animation speed
+[] time limit for ram? -> or N-charges then remove him?
 
 <!-- events -->
 
-[x] add banana slip event
-[x] make bananas spawn only on oppisite side
-[] collide with feet only???
-
-[x] add energy/speed event
 [] check why no collision box for energy event
 [] add wolf hiding in bush event
 [] add some throwable item -> mud or something
 [] add animation to events -> make them visibly different
+[x] add banana slip event
+[x] make bananas spawn only on oppisite side
+[-] collide with feet only???
+[x] add energy/speed event
 
 <!-- UI -->
 
@@ -41,6 +40,15 @@
 [] convert game to 2.5d
 
 <!-- DONE -->
+
+<!-- add 2nd player -->
+
+[x] split arrows && WASD -> arr to right, WASD to left
+[x] add chars enum && add sprite map for each
+[x] dimentiontions map based on sprite/char
+[x] make chars same size
+[x] add 2nd player:
+
 <!-- init -->
 
 [x] rework to single game loop

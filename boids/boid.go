@@ -34,6 +34,8 @@ type Boid struct {
 
 	gateChecker GateChecker
 	collChecker CollisionChecker
+
+	nearestPlayer *Player
 }
 
 func NewBoid(id int, img *SheepImage, collChecker CollisionChecker, gateChecker GateChecker) *Boid {
@@ -52,8 +54,8 @@ func NewBoid(id int, img *SheepImage, collChecker CollisionChecker, gateChecker 
 	return b
 }
 
-func (b *Boid) Update(accel *Vector2D, p *Player) {
-	b.updateState(p)
+func (b *Boid) Update(accel *Vector2D) {
+	b.updateState(b.nearestPlayer)
 	b.velocity = b.velocity.Add(*accel).LimitSpeed()
 
 	if b.state != StateMovingToDoor && b.state != StateInBarn {
@@ -148,7 +150,11 @@ func (b *Boid) updateState(p *Player) {
 }
 
 // TODO(perf) -> get neib only for flocking state
-func (b *Boid) calcAcceleration(g *Game, neib []int, p *Player) Vector2D {
+func (b *Boid) calcAcceleration(g *Game, neib []int, players [2]*Player) Vector2D {
+	p := findNearestPlayer(players, b.position)
+	if b.nearestPlayer == nil || b.nearestPlayer != p {
+		b.nearestPlayer = p
+	}
 	switch b.state {
 	case StateCaught, StateFleeing:
 		return b.fleeAccel(p)

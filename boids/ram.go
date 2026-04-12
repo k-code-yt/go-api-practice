@@ -1,0 +1,334 @@
+package main
+
+import (
+	"image/color"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
+)
+
+type RamState int
+
+const (
+	RamStateIdle RamState = iota
+	RamStateCharging
+	RamStateMoving
+	RamStateSleeping
+)
+
+type Ram struct {
+	position  Vector2D
+	velocity  Vector2D
+	dir       Direction
+	frameIdx  int
+	frameTick int
+	img       *ebiten.Image
+
+	target      *Player
+	spritesheet *Spritesheet
+	// collision
+	collChecker CollisionChecker
+	// ticks && state transition
+	state      RamState
+	chargeTick int
+	sleepTick  int
+}
+
+func NewRam(position Vector2D, target *Player) *Ram {
+	r := &Ram{
+		state:       RamStateIdle,
+		position:    position,
+		target:      target,
+		spritesheet: NewRamSpritesheet(ramSheet),
+		dir:         DirDown,
+		collChecker: target.collChecker,
+	}
+	return r
+}
+
+// TODO -> radius or box collish?
+func (r *Ram) IsCollidingWith(p *Player) bool {
+	return r.position.Distance(p.position) < ramHitRadius
+
+	// bHW, bHH, bOffY := r.getCollisionBox()
+	// bx := r.position.x
+	// by := r.position.y + bOffY
+
+	// pHW, pHH, pOffY := p.getCollisionBox()
+	// px := p.position.x
+	// py := p.position.y + pOffY
+
+	// return math.Abs(px-bx) <= pHW+bHW &&
+	// 	math.Abs(py-by) <= pHH+bHH
+}
+
+func (r *Ram) DrawPickUp(screen *ebiten.Image) {
+	if r.state == RamStateCharging {
+		// TODO -> change Ram's angle???
+		vector.StrokeLine(screen, float32(r.position.x), float32(r.position.y), float32(r.target.position.x), float32(r.target.position.y), 1, color.RGBA{G: 255, A: 255}, false)
+	}
+
+	op := &ebiten.DrawImageOptions{}
+	frame := r.currentFrame()
+	bounds := frame.Bounds()
+	fw := float64(bounds.Dx())
+	fh := float64(bounds.Dy())
+	scaleX := ramSizeX / fw
+	sy := ramSizeY / fh
+
+	sx := scaleX
+	if r.velocity.x > 0 {
+		sx = -scaleX
+	}
+
+	op.GeoM.Translate(-float64(fw)/2, -float64(fh)/2)
+	op.GeoM.Scale(sx, sy)
+	op.GeoM.Translate(r.position.x, r.position.y)
+	screen.DrawImage(frame, op)
+	if isDebugMode {
+		r.drawCollisionBox(screen, fw, fh, sx, sy)
+	}
+
+}
+
+func (r *Ram) Update(p *Player) {
+	switch r.state {
+	case RamStateIdle:
+		r.progressAnim(ramDirFrames[stateToDir[RamStateIdle]], 12)
+		return
+	case RamStateCharging:
+		r.chargeTick++
+		r.progressAnim(ramDirFrames[stateToDir[RamStateCharging]], 8)
+		if r.chargeTick%10 == 0 {
+			r.target = p
+		}
+		if r.chargeTick >= ramChargeDuration {
+			dir := r.target.position.Sub(r.position).Normalize()
+			r.velocity = dir.Mul(ramSpeed)
+			r.state = RamStateMoving
+			r.chargeTick = 0
+			r.frameIdx = 0
+			return
+		}
+		return
+	case RamStateMoving:
+		r.progressAnim(ramDirFrames[stateToDir[RamStateMoving]], 12)
+		r.position = r.position.Add(r.velocity)
+		// TODO -> check player collision with both?
+		// for _, p := range players {
+		if r.position.Distance(p.position) < ramHitRadius {
+			// TODO -> add separate anim for ram hit
+			p.Slip()
+			r.sleep()
+			return
+		}
+		// }
+		if r.detectTileCollision() {
+			r.sleep()
+		}
+		return
+
+	case RamStateSleeping:
+		r.sleepTick++
+		r.progressAnim(ramDirFrames[stateToDir[RamStateSleeping]], 24)
+		if r.sleepTick >= ramSleepDuration {
+			r.state = RamStateCharging
+			r.sleepTick = 0
+			r.frameIdx = 0
+		}
+		return
+	}
+}
+
+func (r *Ram) Trigger() {
+	r.state = RamStateCharging
+	r.frameIdx = 0
+	r.sleepTick = 0
+	r.chargeTick = 0
+}
+
+func (r *Ram) GetPosition() Vector2D {
+	return r.position
+}
+func (r *Ram) EventType() EventType {
+	return RamEvent
+}
+
+func (r *Ram) ProgressState() {
+	switch r.state {
+	case RamStateIdle:
+		r.state = RamStateCharging
+	}
+	return
+}
+
+func (r *Ram) sleep() {
+	r.state = RamStateSleeping
+	r.sleepTick = 0
+	r.frameIdx = 0
+	r.velocity = Vector2D{}
+}
+
+func (r *Ram) getCollisionBox(w, h, scaleX, scaleY float64) (hw, hh, offsetY float64) {
+	hw = w * scaleX * bananaCollisionW
+	hh = h * scaleY * bananaCollisionH
+	offsetY = 0
+	return
+}
+
+func (r *Ram) progressAnim(frameIds []FrameID, ticksPerFrame int) {
+	r.frameTick++
+	if r.frameTick >= ticksPerFrame {
+		r.frameIdx = (r.frameIdx + 1) % len(frameIds)
+		r.frameTick = 0
+	}
+}
+
+func (r *Ram) currentFrame() *ebiten.Image {
+	var frameIds []FrameID
+	switch r.state {
+	case RamStateIdle:
+		frameIds = ramDirFrames[DirDown]
+	case RamStateCharging:
+		frameIds = ramDirFrames[DirUp]
+	case RamStateMoving:
+		frameIds = ramDirFrames[DirRight]
+	case RamStateSleeping:
+		frameIds = ramDirFrames[DirSlip]
+	default:
+		frameIds = ramDirFrames[DirUp]
+	}
+	// TODO -> debug -> probably wrong here
+	id := frameIds[r.frameIdx%len(frameIds)]
+	return r.spritesheet.frames[id]
+}
+
+func (r *Ram) detectTileCollision() bool {
+	hw := targetBoidSize / 2.0
+	hh := targetBoidSize / 2.0
+	px, py := r.position.x, r.position.y
+
+	// --- Horizontal: check leading X edge ---
+	if r.velocity.x > 0 {
+		ex := px + hw
+		if r.collChecker(ex, py-hh*0.4) ||
+			r.collChecker(ex, py) ||
+			r.collChecker(ex, py+hh*0.4) {
+			return true
+		}
+	} else if r.velocity.x < 0 {
+		ex := px - hw
+		if r.collChecker(ex, py-hh*0.4) ||
+			r.collChecker(ex, py) ||
+			r.collChecker(ex, py+hh*0.4) {
+			return true
+		}
+	}
+
+	// --- Vertical: check leading Y edge ---
+	if r.velocity.y > 0 {
+		ey := py + hh
+		if r.collChecker(px-hw*0.4, ey) ||
+			r.collChecker(px, ey) ||
+			r.collChecker(px+hw*0.4, ey) {
+			return true
+		}
+	} else if r.velocity.y < 0 {
+		ey := py - hh
+		if r.collChecker(px-hw*0.4, ey) ||
+			r.collChecker(px, ey) ||
+			r.collChecker(px+hw*0.4, ey) {
+			return true
+		}
+	}
+	return false
+}
+
+// TODO(refactor) -> move to shared?
+func (r *Ram) drawCollisionBox(screen *ebiten.Image, w, h, scaleX, scaleY float64) {
+	hw, hh, offsetY := r.getCollisionBox(w, h, scaleX, scaleY)
+	currX := r.position.x
+	currY := r.position.y + offsetY
+	x := float32(currX - hw)
+	y := float32(currY - hh)
+
+	// sideColor := func(dir Direction) color.RGBA {
+	// 	if r.collishMap[dir] {
+	// 		return color.RGBA{G: 255, A: 255}
+	// 	}
+	// 	return color.RGBA{R: 255, A: 255}
+	// }
+
+	// Left edge
+	vector.StrokeLine(screen, float32(x), float32(y), float32(x), float32(y+float32(hh)*2), strokeWidth, color.RGBA{G: 255, A: 255}, false)
+	// Right edge
+	vector.StrokeLine(screen, float32(x+float32(hw)*2), float32(y), float32(x+float32(hw)*2), float32(y+float32(hh)*2), strokeWidth, color.RGBA{G: 255, A: 255}, false)
+	// Top edge
+	vector.StrokeLine(screen, float32(x), float32(y), float32(x+float32(hw)*2), float32(y), strokeWidth, color.RGBA{G: 255, A: 255}, false)
+	// Bottom edge
+	vector.StrokeLine(screen, float32(x), float32(y+float32(hh)*2), float32(x+float32(hw)*2), float32(y+float32(hh)*2), strokeWidth, color.RGBA{G: 255, A: 255}, false)
+}
+
+// just a place holder for interface
+func (r *Ram) IsLeft() bool {
+	return false
+}
+func (r *Ram) SetLeft(_ bool) {
+	return
+}
+
+var ramRects = map[FrameID]FrameRect{
+	// row0 y=14-100  h=86  — right-facing walk (4 frames, 5th sliver is noise)
+	RamWalk0: {X: 4, Y: 14, W: 87, H: 86},
+	RamWalk1: {X: 91, Y: 14, W: 87, H: 86},
+	RamWalk2: {X: 178, Y: 14, W: 90, H: 86},
+	RamWalk3: {X: 268, Y: 14, W: 108, H: 86},
+
+	// row1 y=100-189  h=89  — left-facing walk (3 frames, 4th sliver is noise)
+	RamWalkLeft0: {X: 5, Y: 100, W: 89, H: 89},
+	RamWalkLeft1: {X: 94, Y: 100, W: 90, H: 89},
+	RamWalkLeft2: {X: 184, Y: 100, W: 151, H: 89},
+
+	// row2 y=189-268  h=79  — attack/charge (4 frames)
+	RamAttack0: {X: 5, Y: 189, W: 90, H: 79},
+	RamAttack1: {X: 95, Y: 189, W: 88, H: 79},
+	RamAttack2: {X: 183, Y: 189, W: 90, H: 79},
+	RamAttack3: {X: 273, Y: 189, W: 114, H: 79},
+
+	// row3 y=268-333  h=65  — hit flash + recovery (4 frames)
+	RamHit0: {X: 4, Y: 268, W: 110, H: 65},
+	RamHit1: {X: 114, Y: 268, W: 108, H: 65},
+	RamHit2: {X: 222, Y: 268, W: 89, H: 65},
+	RamHit3: {X: 311, Y: 268, W: 87, H: 65},
+
+	// row4 y=333-451  h=118  — explosion (2 real frames, rest are blank/noise)
+	RamExplode0: {X: 7, Y: 333, W: 90, H: 118},
+	RamExplode1: {X: 159, Y: 333, W: 142, H: 118},
+
+	// row5 y=451-549  h=98  — small squished (1 frame)
+	RamSmall: {X: 5, Y: 451, W: 236, H: 98},
+
+	// row6 y=549-623  h=74  — down-facing walk (4 frames, 5th sliver is noise)
+	RamWalkDown0: {X: 4, Y: 549, W: 92, H: 74},
+	RamWalkDown1: {X: 96, Y: 549, W: 91, H: 74},
+	RamWalkDown2: {X: 187, Y: 549, W: 91, H: 74},
+	RamWalkDown3: {X: 278, Y: 549, W: 103, H: 74},
+}
+
+var stateToDir = map[RamState]Direction{
+	RamStateIdle:     DirDown,
+	RamStateCharging: DirUp,
+	RamStateMoving:   DirRight,
+	RamStateSleeping: DirSlip,
+}
+
+var ramDirFrames = map[Direction][]FrameID{
+	// RamStateIdle
+	DirDown: {RamWalk0, RamWalk1, RamWalk2},
+	// RamStateCharging
+	DirUp: {RamAttack0, RamAttack1, RamAttack2, RamAttack3},
+	// RamStateMoving
+	DirRight: {RamHit0, RamHit1, RamHit2},
+	// RamStateSleeping
+	DirSlip: {RamWalkDown0, RamWalkDown1, RamWalkDown2, RamWalkDown3},
+}

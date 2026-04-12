@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image"
 	"image/color"
 	"math"
 	"math/rand"
@@ -15,9 +16,12 @@ const (
 	BananaEvent EventType = iota
 	BananaPeel  EventType = iota
 	EnergyEvent EventType = iota
+	RamEvent    EventType = iota
 )
 
-var TiggerableEventsTypes []EventType = []EventType{BananaEvent, EnergyEvent}
+var TiggerableEventsTypes []EventType = []EventType{BananaEvent, EnergyEvent, RamEvent}
+
+// var TiggerableEventsTypes []EventType = []EventType{RamEvent}
 
 type EventManagerState int
 
@@ -42,9 +46,11 @@ type EventManager struct {
 	bananaPeelImg  *ebiten.Image
 	energyEventImg *ebiten.Image
 	state          EventManagerState
-	nextEvent      *EventItem
-	drawItems      []*EventItem
+	nextEvent      PickUp
+	drawItems      []PickUp
 	bCount         int
+	spawnTick      int
+	ramEventCount  int
 }
 
 func NewEventManager(
@@ -59,7 +65,7 @@ func NewEventManager(
 		bananaPeelImg:  bananaPeelImg,
 		energyEventImg: energyEventImg,
 		state:          EventManagerState_None,
-		drawItems:      []*EventItem{},
+		drawItems:      []PickUp{},
 	}
 }
 
@@ -75,26 +81,33 @@ func (em *EventManager) UpdateState(t EventActionType) {
 		em.nextEvent = nil
 	}
 }
-func (em *EventManager) HandlePickUpCollision(player *Player) {
+func (em *EventManager) HandlePickUpCollision(players [2]*Player) {
 	if em.state == EventManagerState_ReadyForPickUp {
+		player := findNearestPlayer(players, em.nextEvent.GetPosition())
 		isColl := em.nextEvent.IsCollidingWith(player)
 		if isColl {
 			em.UpdateState(EventActionType_EventCollision)
-			em.nextEvent.isLeft = !player.isLeft
+			em.nextEvent.SetLeft(!player.isLeft)
 
-			switch em.nextEvent.eventType {
+			switch em.nextEvent.EventType() {
 			case EnergyEvent:
 				player.Energy()
+			case RamEvent:
+				em.nextEvent.ProgressState()
 			}
 		}
 	}
 
 }
 
-func (em *EventManager) SpawnPickUp(bCount int) {
-	if em.state != EventManagerState_None || bCount == em.bCount {
+func (em *EventManager) SpawnPickUp(bCount int, players [2]*Player) {
+	if em.state != EventManagerState_None {
 		return
 	}
+	if em.spawnTick < eventSpawnTicks && bCount == em.bCount {
+		return
+	}
+	em.spawnTick = 0
 	em.bCount = bCount
 	em.UpdateState(EventActionType_SpawnPickUp)
 	position := safeSpawnPosition(em.collChecker, nil)
@@ -102,23 +115,37 @@ func (em *EventManager) SpawnPickUp(bCount int) {
 	switch et {
 	case BananaEvent:
 		em.nextEvent = NewEventItem(position, BananaEvent)
+		break
 	case EnergyEvent:
 		em.nextEvent = NewEventItem(position, EnergyEvent)
+		break
+	case RamEvent:
+		if em.ramEventCount >= 2 {
+			// TODO -> refactor
+			em.nextEvent = NewEventItem(position, EnergyEvent)
+			break
+		}
+		p := findNearestPlayer(players, position)
+		em.nextEvent = NewRam(position, p)
+		em.ramEventCount++
+		break
 	}
 }
 
 func (em *EventManager) DrawTrigger(screen *ebiten.Image) {
 	if em.nextEvent != nil && em.state == EventManagerState_TriggerEvent {
-		switch em.nextEvent.eventType {
+		switch em.nextEvent.EventType() {
 		case BananaEvent:
 			for range bananaPeelCount {
 				ei := NewEventItem(
 					safeSpawnPosition(em.collChecker, &CollisionOpts{
-						isLeft: em.nextEvent.isLeft,
+						isLeft: em.nextEvent.IsLeft(),
 					}),
 					BananaPeel)
 				em.drawItems = append(em.drawItems, ei)
 			}
+		case RamEvent:
+			em.drawItems = append(em.drawItems, em.nextEvent)
 		}
 		em.UpdateState(EventActionType_Tiggered)
 	}
@@ -140,12 +167,14 @@ type EventItem struct {
 	w, h           float64
 	scaleX, scaleY float64
 	img            *ebiten.Image
+	sheet          *ebiten.Image
 	eventType      EventType
 	isLeft         bool
 }
 
 func NewEventItem(position Vector2D, eventType EventType) *EventItem {
 	var img *ebiten.Image
+	var sheet *ebiten.Image
 	switch eventType {
 	case BananaEvent:
 		img = bananaEventSheet
@@ -156,6 +185,12 @@ func NewEventItem(position Vector2D, eventType EventType) *EventItem {
 	case EnergyEvent:
 		img = energySheet
 		break
+	case RamEvent:
+		r := ramRects[RamAttack3]
+		rect := image.Rect(r.X, r.Y, r.X+r.W, r.Y+r.H)
+		img = ramSheet.SubImage(rect).(*ebiten.Image)
+		sheet = ramSheet
+		break
 	default:
 		panic("unknown eventType")
 	}
@@ -163,8 +198,8 @@ func NewEventItem(position Vector2D, eventType EventType) *EventItem {
 	w := float64(img.Bounds().Dx())
 	h := float64(img.Bounds().Dy())
 
-	scaleX := bananaSize / w
-	scaleY := bananaSize / h
+	scaleX := eventSize / w
+	scaleY := eventSize / h
 
 	return &EventItem{
 		position:  position,
@@ -173,8 +208,12 @@ func NewEventItem(position Vector2D, eventType EventType) *EventItem {
 		scaleX:    scaleX,
 		scaleY:    scaleY,
 		img:       img,
+		sheet:     sheet,
 		eventType: eventType,
 	}
+}
+
+func (ei *EventItem) Update(_ *Player) {
 }
 
 func (ei *EventItem) IsCollidingWith(p *Player) bool {
@@ -202,6 +241,20 @@ func (ei *EventItem) DrawPickUp(screen *ebiten.Image) {
 		ei.drawCollisionBox(screen)
 	}
 }
+
+func (ei *EventItem) GetPosition() Vector2D {
+	return ei.position
+}
+func (ei *EventItem) IsLeft() bool {
+	return ei.isLeft
+}
+func (ei *EventItem) SetLeft(dir bool) {
+	ei.isLeft = dir
+}
+func (ei *EventItem) EventType() EventType {
+	return ei.eventType
+}
+func (ei *EventItem) ProgressState() {}
 
 func (ei *EventItem) drawCollisionBox(screen *ebiten.Image) {
 	hw, hh, offsetY := ei.getCollisionBox()
@@ -234,6 +287,15 @@ func (ei *EventItem) getCollisionBox() (hw, hh, offsetY float64) {
 		hw = float64(ei.w) * ei.scaleX * bananaPeelCollisionW
 		hh = float64(ei.h) * ei.scaleY * bananaPeelCollisionH
 		offsetY = hh * collisionOffsetY
+	case EnergyEvent:
+		hw = float64(ei.w) * ei.scaleX * bananaCollisionW
+		hh = float64(ei.h) * ei.scaleY * bananaCollisionH
+		offsetY = 0
+	case RamEvent:
+		hw = float64(ei.w) * ei.scaleX * bananaCollisionW
+		hh = float64(ei.h) * ei.scaleY * bananaCollisionH
+		offsetY = 0
 	}
+
 	return
 }

@@ -31,6 +31,35 @@ const (
 	GirlExtra1
 	GirlExtra2
 	GirlExtra3
+
+	RamWalk0 // row0: walking right, step 1
+	RamWalk1 // row0: walking right, step 2
+	RamWalk2 // row0: walking right, step 3
+	RamWalk3 // row0: walking right, step 4
+
+	RamWalkLeft0 // row1: walking left, step 1
+	RamWalkLeft1 // row1: walking left, step 2
+	RamWalkLeft2 // row1: walking left, step 3
+
+	RamAttack0 // row2: charge/attack, step 1
+	RamAttack1 // row2: charge/attack, step 2
+	RamAttack2 // row2: charge/attack, step 3
+	RamAttack3 // row2: charge/attack, step 4
+
+	RamHit0 // row3: hit flash
+	RamHit1 // row3: hit flash 2
+	RamHit2 // row3: recovering
+	RamHit3 // row3: recovering 2
+
+	RamExplode0 // row4: explosion frame 1
+	RamExplode1 // row4: explosion frame 2
+
+	RamSmall // row5: small/squished single frame
+
+	RamWalkDown0 // row6: walking down, step 1
+	RamWalkDown1 // row6: walking down, step 2
+	RamWalkDown2 // row6: walking down, step 3
+	RamWalkDown3 // row6: walking down, step 4
 )
 
 type FrameRect struct{ X, Y, W, H int }
@@ -76,8 +105,8 @@ var knightDirFrames = map[Direction][]FrameID{
 var girlDirFrames = map[Direction][]FrameID{
 	DirDown:  {GirlFrontIdle, GirlExtra2, GirlExtra1},
 	DirUp:    {GirlFrontIdle, GirlExtra2, GirlExtra1},
-	DirRight: {GirlExtra2, GirlFrontWalk, GirlSideWalk1, GirlFrontAttack},
-	DirLeft:  {GirlExtra2, GirlFrontWalk, GirlSideWalk1, GirlFrontAttack},
+	DirRight: {GirlExtra2, GirlFrontWalk, GirlSideWalk2},
+	DirLeft:  {GirlExtra2, GirlFrontWalk, GirlSideWalk2},
 	DirSlip:  {GirlFrontWalk, GirlSideWalk2, GirlSlip},
 }
 
@@ -95,7 +124,6 @@ type CharacterOpts struct {
 	img         *ebiten.Image
 	sheetCols   int
 	sheetRows   int
-	frameCount  int
 	spritesheet *Spritesheet
 }
 
@@ -114,18 +142,12 @@ var GirlOpts = &CharacterOpts{
 func NewCharacterOpts(cType CharacterType) *CharacterOpts {
 	switch cType {
 	case KnightCharacter:
-		if KnightOpts.frameCount == 0 {
-			KnightOpts.frameCount = KnightOpts.sheetCols * KnightOpts.sheetRows
-		}
 		if KnightOpts.img == nil {
 			panic("knight img was not loaded")
 		}
 		KnightOpts.spritesheet = NewKnightSpritesheet(KnightOpts.img)
 		return KnightOpts
 	case GirlCharacter:
-		if GirlOpts.frameCount == 0 {
-			GirlOpts.frameCount = GirlOpts.sheetCols * GirlOpts.sheetRows
-		}
 		if GirlOpts.img == nil {
 			panic("girl img was not loaded")
 		}
@@ -155,6 +177,10 @@ func NewKnightSpritesheet(sheet *ebiten.Image) *Spritesheet {
 
 func NewGirlSpritesheet(sheet *ebiten.Image) *Spritesheet {
 	return NewSpritesheet(sheet, girlRects, girlDirFrames)
+}
+
+func NewRamSpritesheet(sheet *ebiten.Image) *Spritesheet {
+	return NewSpritesheet(sheet, ramRects, ramDirFrames)
 }
 
 func (s *Spritesheet) Frame(id FrameID) *ebiten.Image {

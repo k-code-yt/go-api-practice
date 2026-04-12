@@ -7,18 +7,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-type FrameCoords []int
-
-type Direction int
-
-const (
-	DirDown Direction = iota
-	DirLeft
-	DirRight
-	DirUp
-	DirSlip
-)
-
 type PlayerState int
 
 const (
@@ -26,10 +14,6 @@ const (
 	PlayerStateEnergy   PlayerState = iota
 	PlayerStateSlipping PlayerState = iota
 )
-
-type PlayerCollisionBox struct {
-	hw, hh, offsetY float64
-}
 
 type Player struct {
 	position  Vector2D
@@ -48,7 +32,7 @@ type Player struct {
 	isMoving  bool
 	isLeft    bool
 	wasMoving bool
-	collBox   *PlayerCollisionBox
+	collBox   *CollisionBox
 
 	// collision
 	collChecker CollisionChecker
@@ -299,9 +283,16 @@ func (p *Player) getCollisionBox() (float64, float64, float64) {
 		hw := float64(p.frameW) * p.scaleX * playerCollisionW
 		hh := float64(p.frameH) * p.scaleY * playerCollisionH
 		offsetY := hh * collisionOffsetY
-		p.collBox = &PlayerCollisionBox{
+		p.collBox = &CollisionBox{
 			hw, hh, offsetY,
 		}
 	}
 	return p.collBox.hw, p.collBox.hh, p.collBox.offsetY
+}
+
+func findNearestPlayer(players [2]*Player, pos Vector2D) *Player {
+	if pos.Distance(players[0].position) < pos.Distance(players[1].position) {
+		return players[0]
+	}
+	return players[1]
 }

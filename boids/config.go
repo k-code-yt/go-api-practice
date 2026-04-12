@@ -7,6 +7,14 @@ const (
 	strokeWidth float32 = 3.0
 )
 
+// ── Game ───────────────────────────────────────────────────────────────────
+const (
+	screenHeight    = 640 * 1.5
+	screenWidth     = 1080.00 * 1.5
+	bgPath          = "./assets/bush_border/bush.png"
+	eventSpawnTicks = 900
+)
+
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────
 const (
 	boidsCount     = 80
@@ -35,47 +43,51 @@ const (
 	fleeForce   = 1
 )
 
-// ── Game ───────────────────────────────────────────────────────────────────
-const (
-	screenHeight = 640 * 1.5
-	screenWidth  = 1080.00 * 1.5
-	bgPath       = "./assets/bush_border/bush.png"
-)
-
 // ── Events ───────────────────────────────────────────────────────────────────
 const (
 	bananaEventPath          = "./assets/tiles/banana.png"
 	energyEventPath          = "./assets/tiles/energy.png"
 	bananaPeelPath           = "./assets/tiles/banana_peel.png"
-	bananaSize               = 100
+	ramPath                  = "./assets/tiles/ram.png"
+	eventSize                = 100
 	bananaCollisionW float64 = 0.38
 	bananaCollisionH float64 = 0.43
 
 	bananaPeelCollisionW float64 = 0.3
 	bananaPeelCollisionH float64 = 0.2
 
-	bananaPeelCount = 3
+	bananaPeelCount = 5
 )
 
 // ── Player ───────────────────────────────────────────────────────────────────
 const (
-	// knightSheetPath    = "./assets/character/knight_sprite.png"
-	// girlSheetPath      = "./assets/character/girl_og.png"
-	// playerSheetCols    = 2
-	// playerSheetRows    = 3
-	// playerFrameCount   = playerSheetCols * playerSheetRows
-	playerFrameDelay   = 10
-	playerDefaultSpeed = 5.0
-	playerEnergyMult   = 2.0
-	playerSizeX        = 140
-	playerSizeY        = 140
-
-	// collision box
-	playerCollisionW     float64 = 0.22
-	playerCollisionH     float64 = 0.36
+	playerFrameDelay             = 10
+	playerDefaultSpeed           = 5.0
+	playerEnergyMult             = 2.0
+	playerSizeX                  = 140
+	playerSizeY                  = 140
 	collisionOffsetY     float64 = 0.18
 	playerSlipDuration           = 45
 	playerEnergyDuration         = 600
+
+	// collision box
+	playerCollisionW float64 = 0.22
+	playerCollisionH float64 = 0.36
+)
+
+// ── Ram ───────────────────────────────────────────────────────────────────
+const (
+	ramFrameDelay     = 10
+	ramSpeed          = 10.0
+	ramSizeX          = 140
+	ramSizeY          = 140
+	ramChargeDuration = 120
+	ramSleepDuration  = 450
+	ramHitRadius      = 120
+
+	// collision box
+	ramCollisionW float64 = 0.22
+	ramCollisionH float64 = 0.36
 )
 
 // ── Barn ───────────────────────────────────────────────────────────────────
