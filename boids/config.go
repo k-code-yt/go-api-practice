@@ -81,8 +81,9 @@ const (
 	ramSpeed          = 10.0
 	ramSizeX          = 140
 	ramSizeY          = 140
-	ramChargeDuration = 120
-	ramSleepDuration  = 450
+	ramChargeDuration = 30
+	ramSleepDuration  = 10
+	ramHitDuration    = 32
 	ramHitRadius      = 120
 
 	// collision box

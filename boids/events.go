@@ -19,9 +19,9 @@ const (
 	RamEvent    EventType = iota
 )
 
-var TiggerableEventsTypes []EventType = []EventType{BananaEvent, EnergyEvent, RamEvent}
+// var TiggerableEventsTypes []EventType = []EventType{BananaEvent, EnergyEvent, RamEvent}
 
-// var TiggerableEventsTypes []EventType = []EventType{RamEvent}
+var TiggerableEventsTypes []EventType = []EventType{RamEvent}
 
 type EventManagerState int
 

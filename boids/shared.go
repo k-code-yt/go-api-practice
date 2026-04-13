@@ -15,4 +15,5 @@ const (
 	DirRight
 	DirUp
 	DirSlip
+	DirHit
 )

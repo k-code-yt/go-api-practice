@@ -12,7 +12,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"golang.org/x/image/font/gofont/goregular"
 
-	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
 )
@@ -173,7 +172,7 @@ func (g *Game) DrawBG(screen *ebiten.Image) {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.DrawBG(screen)
-	g.drawScores(screen)
+	g.drawScore(screen)
 
 	for _, p := range g.players {
 		p.Draw(screen)
@@ -246,28 +245,11 @@ func (g *Game) buildGateChecker() func(x, y float64) *Barn {
 	}
 }
 
-func (g *Game) drawScores(screen *ebiten.Image) {
-	leftStr := fmt.Sprintf("score:%d", g.barns[0].SheepCount)
-	rightStr := fmt.Sprintf("score:%d", g.barns[1].SheepCount)
+func (g *Game) drawScore(screen *ebiten.Image) {
+	drawScoreSprite(screen, g.barns[0].SheepCount, 24, 24)
 
-	drawScore(screen, leftStr, 24, 24,
-		color.RGBA{R: 220, G: 50, B: 50, A: 255})
-
-	rightW, _ := text.Measure(rightStr, scoreFont, 0)
-	drawScore(screen, rightStr, screenWidth-rightW-24, 24,
-		color.RGBA{R: 50, G: 100, B: 220, A: 255})
-}
-
-func drawScore(screen *ebiten.Image, str string, x, y float64, col color.RGBA) {
-	shadowOp := &text.DrawOptions{}
-	shadowOp.GeoM.Translate(x+3, y+3)
-	shadowOp.ColorScale.ScaleWithColor(color.RGBA{A: 180})
-	text.Draw(screen, str, scoreFont, shadowOp)
-
-	mainOp := &text.DrawOptions{}
-	mainOp.GeoM.Translate(x, y)
-	mainOp.ColorScale.ScaleWithColor(col)
-	text.Draw(screen, str, scoreFont, mainOp)
+	rightW := measureScoreSprite(g.barns[1].SheepCount)
+	drawScoreSprite(screen, g.barns[1].SheepCount, screenWidth-rightW-24, 24)
 }
 
 func init() {
@@ -318,4 +300,6 @@ func init() {
 		log.Fatal("player sprite:", err)
 	}
 	GirlOpts.img = girlImg
+
+	initScoreDisplay()
 }
