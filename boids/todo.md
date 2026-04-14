@@ -1,31 +1,29 @@
 <!-- NEXT TODOs -->
 
-<!-- ram -->
+[] refactor
 
-[x] add ram charging at a player
-[x] direction switch
-[x] sleep animation
-[] state transition -> idle after sleep -> then charge again
-[] count -> allow re-spawn || once N-created they will be always there
-[] animation speed
+<!-- UI -->
+
+[] add good looking score -> invert on right side && add animation
+[] add menu -> select new_game, settings, exit
+[] add char select screen
+[] add more playble characters
+
+<!-- ram charge options -->
+
 [] time limit for ram? -> or N-charges then remove him?
+[] count -> allow re-spawn || once N-created they will be always there
+[] state transition -> idle after sleep -> then charge again
 
 <!-- events -->
 
-[] check why no collision box for energy event
 [] add wolf hiding in bush event
 [] add some throwable item -> mud or something
-[] add animation to events -> make them visibly different
+[x] check why no collision box for energy event
 [x] add banana slip event
 [x] make bananas spawn only on oppisite side
 [-] collide with feet only???
 [x] add energy/speed event
-
-<!-- UI -->
-
-[] add good looking score
-[] add char select screen
-[] add more playbla characters
 
 <!-- performance -->
 
@@ -88,3 +86,11 @@
 [x] render barn && gate collision
 [x] add logic that checks if sheep collided with barn
 [x] add sheep counter && remove sheep from render once in barn
+
+<!-- ram -->
+
+[x] add ram charging at a player
+[x] direction switch
+[x] sleep animation
+[x] rework animation to be generic impact effect
+[x] add animation to events -> make them visibly different

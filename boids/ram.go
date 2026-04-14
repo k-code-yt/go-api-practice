@@ -31,7 +31,11 @@ type Ram struct {
 	target      *Player
 	spritesheet *Spritesheet
 	// collision
-	collChecker CollisionChecker
+	collChecker   CollisionChecker
+	impactEffects []*ImpactEffect
+
+	sparkleEffect *SparkleEffect
+
 	// ticks && state transition
 	state      RamState
 	chargeTick int
@@ -40,13 +44,16 @@ type Ram struct {
 }
 
 func NewRam(position Vector2D, target *Player) *Ram {
+	se := NewSparkleEffect(eventSize, 1.3)
+
 	r := &Ram{
-		state:       RamStateIdle,
-		position:    position,
-		target:      target,
-		spritesheet: NewRamSpritesheet(ramSheet),
-		dir:         DirDown,
-		collChecker: target.collChecker,
+		state:         RamStateIdle,
+		position:      position,
+		target:        target,
+		spritesheet:   NewRamSpritesheet(ramSheet),
+		dir:           DirDown,
+		collChecker:   target.collChecker,
+		sparkleEffect: se,
 	}
 	return r
 }
@@ -56,20 +63,11 @@ func (r *Ram) IsCollidingWith(p *Player) bool {
 }
 
 func (r *Ram) DrawPickUp(screen *ebiten.Image) {
-	var frame *ebiten.Image
-	var overlayFrame *ebiten.Image
-
 	if r.state == RamStateCharging {
 		vector.StrokeLine(screen, float32(r.position.x), float32(r.position.y), float32(r.target.position.x), float32(r.target.position.y), 1, color.RGBA{G: 255, A: 255}, false)
 	}
 
-	if r.state == RamStateHit {
-		frame = r.defautFrame()
-		overlayFrame = r.currentFrame()
-	} else {
-		frame = r.currentFrame()
-	}
-
+	frame := r.currentFrame()
 	op := &ebiten.DrawImageOptions{}
 	bounds := frame.Bounds()
 	fw := float64(bounds.Dx())
@@ -84,16 +82,21 @@ func (r *Ram) DrawPickUp(screen *ebiten.Image) {
 	} else if r.velocity.x > 0 {
 		sx = -scaleX
 	}
-
 	prevSx := sx
 
 	op.GeoM.Translate(-fw/2, -fh/2)
 	op.GeoM.Scale(sx, sy)
 	op.GeoM.Translate(r.position.x, r.position.y)
 	screen.DrawImage(frame, op)
-	if overlayFrame != nil {
-		r.drawExplosion(screen, overlayFrame)
+
+	for _, e := range r.impactEffects {
+		e.Draw(screen)
 	}
+
+	if r.sparkleEffect != nil {
+		r.sparkleEffect.Draw(screen, r.position.x, r.position.y)
+	}
+
 	if isDebugMode {
 		r.drawCollisionBox(screen, fw, fh, sx, sy)
 	}
@@ -128,6 +131,9 @@ func (r *Ram) drawExplosion(screen *ebiten.Image, frame *ebiten.Image) {
 func (r *Ram) Update(p *Player) {
 	switch r.state {
 	case RamStateIdle:
+		if r.sparkleEffect != nil {
+			r.sparkleEffect.Update()
+		}
 		r.progressAnim(ramDirFrames[stateToDir[RamStateIdle]], 12)
 		return
 	case RamStateCharging:
@@ -149,7 +155,7 @@ func (r *Ram) Update(p *Player) {
 		r.progressAnim(ramDirFrames[stateToDir[RamStateMoving]], 12)
 		r.position = r.position.Add(r.velocity)
 		if r.position.Distance(p.position) < ramHitRadius {
-			// TODO -> add separate anim for ram hit
+			// TODO -> add separate anim for hit player
 			p.Slip()
 			r.hit()
 			return
@@ -162,10 +168,14 @@ func (r *Ram) Update(p *Player) {
 	case RamStateHit:
 		r.hitTick++
 		r.frameTick++
-		if r.frameTick >= ramHitDuration/2 && r.frameIdx < len(ramDirFrames[DirHit])-1 {
-			r.frameIdx++
-			r.frameTick = 0
+		for i, e := range r.impactEffects {
+			e.Update()
+			if e.done {
+				r.impactEffects = append(r.impactEffects[:i], r.impactEffects[i+1:]...)
+			}
 		}
+
+		r.progressAnim(ramDirFrames[stateToDir[RamStateHit]], ramHitDuration)
 		if r.hitTick >= ramHitDuration {
 			r.ProgressState()
 		}
@@ -187,6 +197,7 @@ func (r *Ram) Trigger() {
 	r.frameIdx = 0
 	r.sleepTick = 0
 	r.chargeTick = 0
+	r.sparkleEffect = nil
 }
 
 func (r *Ram) GetPosition() Vector2D {
@@ -199,10 +210,9 @@ func (r *Ram) EventType() EventType {
 func (r *Ram) ProgressState() {
 	switch r.state {
 	case RamStateIdle:
-		r.state = RamStateCharging
+		r.Trigger()
 	case RamStateHit:
 		r.state = RamStateSleeping
-	// TODO -> move to idle and start over after sleep?
 	case RamStateSleeping:
 		r.state = RamStateIdle
 		r.sleepTick = 0
@@ -217,6 +227,20 @@ func (r *Ram) hit() {
 	r.frameIdx = 0
 	r.hitDir = r.velocity.Normalize()
 	r.velocity = Vector2D{}
+
+	explosionPos := Vector2D{
+		r.position.x + r.hitDir.x*(ramSizeX/3),
+		r.position.y + r.hitDir.y*(ramSizeY/3),
+	}
+	explostionFrames := []FrameID{RamExplode0, RamExplode1}
+	explosionEffect := NewImpactEffect(explosionPos,
+		explostionFrames,
+		ramHitDuration/len(explostionFrames),
+		r.spritesheet,
+		ramSizeX,
+		ramSizeY,
+	)
+	r.impactEffects = append(r.impactEffects, explosionEffect)
 }
 
 func (r *Ram) sleep() {
@@ -395,7 +419,7 @@ var ramDirFrames = map[Direction][]FrameID{
 	// RamStateMoving
 	DirRight: {RamHit0, RamHit1, RamHit2},
 	// RamStateHit
-	DirHit: {RamExplode0, RamExplode1},
+	DirHit: {RamHit0, RamHit1},
 	// RamStateSleeping
 	DirSlip: {RamWalkDown0, RamWalkDown1, RamWalkDown2, RamWalkDown3},
 }

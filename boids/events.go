@@ -19,9 +19,9 @@ const (
 	RamEvent    EventType = iota
 )
 
-// var TiggerableEventsTypes []EventType = []EventType{BananaEvent, EnergyEvent, RamEvent}
+var TiggerableEventsTypes []EventType = []EventType{BananaEvent, EnergyEvent, RamEvent}
 
-var TiggerableEventsTypes []EventType = []EventType{RamEvent}
+// var TiggerableEventsTypes []EventType = []EventType{RamEvent}
 
 type EventManagerState int
 
@@ -69,17 +69,11 @@ func NewEventManager(
 	}
 }
 
-// TODO -> add state machine
-func (em *EventManager) UpdateState(t EventActionType) {
-	switch t {
-	case EventActionType_EventCollision:
-		em.state = EventManagerState_TriggerEvent
-	case EventActionType_SpawnPickUp:
-		em.state = EventManagerState_ReadyForPickUp
-	case EventActionType_Tiggered:
-		em.state = EventManagerState_None
-		em.nextEvent = nil
+func (em *EventManager) Update(players [2]*Player) {
+	if em.nextEvent != nil {
+		em.nextEvent.Update(players[0])
 	}
+	em.HandlePickUpCollision(players)
 }
 func (em *EventManager) HandlePickUpCollision(players [2]*Player) {
 	if em.state == EventManagerState_ReadyForPickUp {
@@ -98,6 +92,19 @@ func (em *EventManager) HandlePickUpCollision(players [2]*Player) {
 		}
 	}
 
+}
+
+// TODO -> add state machine
+func (em *EventManager) UpdateState(t EventActionType) {
+	switch t {
+	case EventActionType_EventCollision:
+		em.state = EventManagerState_TriggerEvent
+	case EventActionType_SpawnPickUp:
+		em.state = EventManagerState_ReadyForPickUp
+	case EventActionType_Tiggered:
+		em.state = EventManagerState_None
+		em.nextEvent = nil
+	}
 }
 
 func (em *EventManager) SpawnPickUp(bCount int, players [2]*Player) {
@@ -170,6 +177,8 @@ type EventItem struct {
 	sheet          *ebiten.Image
 	eventType      EventType
 	isLeft         bool
+
+	sparkleEffect *SparkleEffect
 }
 
 func NewEventItem(position Vector2D, eventType EventType) *EventItem {
@@ -201,6 +210,11 @@ func NewEventItem(position Vector2D, eventType EventType) *EventItem {
 	scaleX := eventSize / w
 	scaleY := eventSize / h
 
+	var se *SparkleEffect
+	if eventType == BananaEvent || eventType == EnergyEvent {
+		se = NewSparkleEffect(eventSize, 0.95)
+	}
+
 	return &EventItem{
 		position:  position,
 		w:         w,
@@ -210,10 +224,15 @@ func NewEventItem(position Vector2D, eventType EventType) *EventItem {
 		img:       img,
 		sheet:     sheet,
 		eventType: eventType,
+
+		sparkleEffect: se,
 	}
 }
 
 func (ei *EventItem) Update(_ *Player) {
+	if ei.sparkleEffect != nil {
+		ei.sparkleEffect.Update()
+	}
 }
 
 func (ei *EventItem) IsCollidingWith(p *Player) bool {
@@ -236,6 +255,10 @@ func (ei *EventItem) DrawPickUp(screen *ebiten.Image) {
 	op.GeoM.Scale(ei.scaleX, ei.scaleY)
 	op.GeoM.Translate(ei.position.x, ei.position.y)
 	screen.DrawImage(ei.img, op)
+
+	if ei.sparkleEffect != nil {
+		ei.sparkleEffect.Draw(screen, ei.position.x, ei.position.y)
+	}
 
 	if isDebugMode {
 		ei.drawCollisionBox(screen)

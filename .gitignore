@@ -10,3 +10,4 @@ go.sum
 */*.out
 **/personal
 boids/assets/25d
+**/node_modules

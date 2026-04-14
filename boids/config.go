@@ -3,7 +3,7 @@ package main
 // ── Global ───────────────────────────────────────────────────────────────────
 const (
 	// for debug
-	isDebugMode         = false
+	isDebugMode         = true
 	strokeWidth float32 = 3.0
 )
 
@@ -75,22 +75,6 @@ const (
 	playerCollisionH float64 = 0.36
 )
 
-// ── Ram ───────────────────────────────────────────────────────────────────
-const (
-	ramFrameDelay     = 10
-	ramSpeed          = 10.0
-	ramSizeX          = 140
-	ramSizeY          = 140
-	ramChargeDuration = 30
-	ramSleepDuration  = 10
-	ramHitDuration    = 32
-	ramHitRadius      = 120
-
-	// collision box
-	ramCollisionW float64 = 0.22
-	ramCollisionH float64 = 0.36
-)
-
 // ── Barn ───────────────────────────────────────────────────────────────────
 const (
 	barnSheetPath = "./assets/tiles/barn.png"
@@ -105,4 +89,27 @@ const (
 
 	barnEntryForce     = 1.0
 	barnEntryTolerance = 4.0
+)
+
+// ── Effects ───────────────────────────────────────────────────────────────────
+const (
+	sparkeSheetPath      = "./assets/tiles/sparkle_uniform.png"
+	sparkleTicksPerFrame = 6
+	sparkleFrameCount    = 10
+)
+
+// ── Ram ───────────────────────────────────────────────────────────────────
+const (
+	ramFrameDelay     = 10
+	ramSpeed          = 10.0
+	ramSizeX          = 140
+	ramSizeY          = 140
+	ramChargeDuration = 120
+	ramSleepDuration  = 150
+	ramHitDuration    = 32
+	ramHitRadius      = 120
+
+	// collision box
+	ramCollisionW float64 = 0.22
+	ramCollisionH float64 = 0.36
 )

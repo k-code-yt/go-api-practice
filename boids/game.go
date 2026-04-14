@@ -24,6 +24,7 @@ var (
 	bananaPeelSheet  *ebiten.Image
 	energySheet      *ebiten.Image
 	ramSheet         *ebiten.Image
+	sparkleSheet     *ebiten.Image
 )
 var scoreFont *text.GoTextFace
 var drawInt int
@@ -134,7 +135,7 @@ func (g *Game) Update() error {
 		p.Update()
 	}
 
-	g.eventManager.HandlePickUpCollision(g.players)
+	g.eventManager.Update(g.players)
 
 	activeBoids := 0
 	for _, b := range g.boids {
@@ -288,6 +289,12 @@ func init() {
 		log.Fatal("ram sprite:", err)
 	}
 	ramSheet = ram
+
+	sparkle, _, err := ebitenutil.NewImageFromFile(sparkeSheetPath)
+	if err != nil {
+		log.Fatal("sparkle sprite:", err)
+	}
+	sparkleSheet = sparkle
 
 	knightImg, _, err := ebitenutil.NewImageFromFile(KnightOpts.sheetPath)
 	if err != nil {
