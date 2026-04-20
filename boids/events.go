@@ -19,9 +19,9 @@ const (
 	RamEvent    EventType = iota
 )
 
-var TiggerableEventsTypes []EventType = []EventType{BananaEvent, EnergyEvent, RamEvent}
+// var TiggerableEventsTypes []EventType = []EventType{BananaEvent, EnergyEvent, RamEvent}
 
-// var TiggerableEventsTypes []EventType = []EventType{RamEvent}
+var TiggerableEventsTypes []EventType = []EventType{RamEvent}
 
 type EventManagerState int
 
@@ -118,7 +118,13 @@ func (em *EventManager) SpawnPickUp(bCount int, players [2]*Player) {
 	em.bCount = bCount
 	em.UpdateState(EventActionType_SpawnPickUp)
 	position := safeSpawnPosition(em.collChecker, nil)
-	et := em.pickRandomEvent()
+	var et EventType
+	if em.ramEventCount >= 1 {
+		et = em.pickRandomEvent([]EventType{BananaEvent, EnergyEvent})
+	} else {
+		et = em.pickRandomEvent(nil)
+	}
+
 	switch et {
 	case BananaEvent:
 		em.nextEvent = NewEventItem(position, BananaEvent)
@@ -127,11 +133,6 @@ func (em *EventManager) SpawnPickUp(bCount int, players [2]*Player) {
 		em.nextEvent = NewEventItem(position, EnergyEvent)
 		break
 	case RamEvent:
-		if em.ramEventCount >= 2 {
-			// TODO -> refactor
-			em.nextEvent = NewEventItem(position, EnergyEvent)
-			break
-		}
 		p := findNearestPlayer(players, position)
 		em.nextEvent = NewRam(position, p)
 		em.ramEventCount++
@@ -164,9 +165,12 @@ func (em *EventManager) DrawTrigger(screen *ebiten.Image) {
 
 }
 
-func (em *EventManager) pickRandomEvent() EventType {
-	idx := rand.Intn(len(TiggerableEventsTypes))
-	return TiggerableEventsTypes[idx]
+func (em *EventManager) pickRandomEvent(events []EventType) EventType {
+	if events == nil || len(events) == 0 {
+		events = TiggerableEventsTypes
+	}
+	idx := rand.Intn(len(events))
+	return events[idx]
 }
 
 type EventItem struct {
@@ -267,6 +271,9 @@ func (ei *EventItem) DrawPickUp(screen *ebiten.Image) {
 
 func (ei *EventItem) GetPosition() Vector2D {
 	return ei.position
+}
+func (ei *EventItem) IsDone() bool {
+	return false
 }
 func (ei *EventItem) IsLeft() bool {
 	return ei.isLeft

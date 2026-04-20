@@ -15,6 +15,13 @@ const (
 	PlayerStateSlipping PlayerState = iota
 )
 
+type TrailFrame struct {
+	position Vector2D
+	frame    *ebiten.Image
+	scaleX   float64
+	scaleY   float64
+}
+
 type Player struct {
 	position  Vector2D
 	dir       Direction
@@ -42,8 +49,10 @@ type Player struct {
 	state    PlayerState
 	slipTick int
 
-	// under energy event
-	energyTick int
+	// energy event active
+	energyTick     int
+	trailFrames    []*TrailFrame
+	trailSpawnTick int
 }
 
 type PlayerOpts struct {
@@ -81,6 +90,7 @@ func NewPlayer(collChecker CollisionChecker, opts *PlayerOpts) *Player {
 		frameIdx:    0,
 		collChecker: collChecker,
 		collishMap:  make(map[Direction]bool),
+		trailFrames: make([]*TrailFrame, trailMaxCount),
 	}
 
 	return p
@@ -97,9 +107,28 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	op.GeoM.Scale(sx, p.scaleY)
 	op.GeoM.Translate(p.position.x, p.position.y)
 	screen.DrawImage(p.currentFrame(), op)
+	p.drawTrail(screen)
 	if isDebugMode {
 		p.drawCollisionBox(screen)
 	}
+}
+
+func (p *Player) drawTrail(screen *ebiten.Image) {
+
+	for i, trail := range p.trailFrames {
+		if trail == nil {
+			continue
+		}
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(-float64(p.frameW)/2, -float64(p.frameH)/2)
+		op.GeoM.Scale(trail.scaleX, trail.scaleY)
+		op.GeoM.Translate(trail.position.x, trail.position.y)
+		alpha := float32(i+1) * trailAlphaMult
+		op.ColorScale.Scale(0.7, 0.5, 1.5, alpha)
+
+		screen.DrawImage(trail.frame, op)
+	}
+
 }
 
 func (p *Player) Update() {
@@ -118,6 +147,30 @@ func (p *Player) Update() {
 		if p.energyTick >= playerEnergyDuration {
 			p.state = PlayerStateNormal
 			p.energyTick = 0
+			p.trailFrames = p.trailFrames[:0]
+			p.trailSpawnTick = 0
+			break
+		}
+
+		p.trailSpawnTick++
+		if p.trailSpawnTick >= trailSpawnInterval {
+			p.trailSpawnTick = 0
+
+			sx := p.scaleX
+			if p.dir == DirRight {
+				sx = -p.scaleX
+			}
+
+			trailFrame := &TrailFrame{
+				position: p.position,
+				frame:    p.currentFrame(),
+				scaleX:   sx,
+				scaleY:   p.scaleY,
+			}
+			p.trailFrames = append(p.trailFrames, trailFrame)
+			if len(p.trailFrames) >= trailMaxCount {
+				p.trailFrames = p.trailFrames[1:]
+			}
 		}
 		break
 	}

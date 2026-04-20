@@ -1,5 +1,9 @@
 <!-- NEXT TODOs -->
 
+[x] add trailing on speed up
+[x] time limit for ram? -> or N-charges then remove him?
+[] add daze effect on collision w/ RAM
+
 [] refactor
 
 <!-- UI -->
@@ -8,12 +12,6 @@
 [] add menu -> select new_game, settings, exit
 [] add char select screen
 [] add more playble characters
-
-<!-- ram charge options -->
-
-[] time limit for ram? -> or N-charges then remove him?
-[] count -> allow re-spawn || once N-created they will be always there
-[] state transition -> idle after sleep -> then charge again
 
 <!-- events -->
 

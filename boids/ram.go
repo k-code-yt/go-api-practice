@@ -15,6 +15,7 @@ const (
 	RamStateMoving
 	RamStateHit
 	RamStateSleeping
+	RamStateExplosion
 )
 
 type Ram struct {
@@ -37,10 +38,14 @@ type Ram struct {
 	sparkleEffect *SparkleEffect
 
 	// ticks && state transition
-	state      RamState
-	chargeTick int
-	sleepTick  int
-	hitTick    int
+	state         RamState
+	chargeTick    int
+	sleepTick     int
+	hitTick       int
+	explosionTick int
+
+	hitCount int
+	isDone   bool
 }
 
 func NewRam(position Vector2D, target *Player) *Ram {
@@ -63,6 +68,10 @@ func (r *Ram) IsCollidingWith(p *Player) bool {
 }
 
 func (r *Ram) DrawPickUp(screen *ebiten.Image) {
+	if r.isDone {
+		return
+	}
+
 	if r.state == RamStateCharging {
 		vector.StrokeLine(screen, float32(r.position.x), float32(r.position.y), float32(r.target.position.x), float32(r.target.position.y), 1, color.RGBA{G: 255, A: 255}, false)
 	}
@@ -103,32 +112,11 @@ func (r *Ram) DrawPickUp(screen *ebiten.Image) {
 	r.prevScaleX = prevSx
 }
 
-// TODO -> fix explosion position!!!
-func (r *Ram) drawExplosion(screen *ebiten.Image, frame *ebiten.Image) {
-	bounds := frame.Bounds()
-	fw := float64(bounds.Dx())
-	fh := float64(bounds.Dy())
-
-	scaleX := ramSizeX / fw
-	scaleY := ramSizeY / fh
-
-	sx := scaleX
-	if r.hitDir.x < 0 {
-		sx = -scaleX
+func (r *Ram) Update(p *Player) {
+	if r.isDone {
+		return
 	}
 
-	// Place explosion at the ram's edge in the hit direction
-	ex := r.position.x + r.hitDir.x*(ramSizeX/3)
-	ey := r.position.y + r.hitDir.y*(ramSizeY/3)
-
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(-fw/2, -fh/2)
-	op.GeoM.Scale(sx/2, scaleY/2)
-	op.GeoM.Translate(ex, ey)
-	screen.DrawImage(frame, op)
-}
-
-func (r *Ram) Update(p *Player) {
 	switch r.state {
 	case RamStateIdle:
 		if r.sparkleEffect != nil {
@@ -168,6 +156,7 @@ func (r *Ram) Update(p *Player) {
 	case RamStateHit:
 		r.hitTick++
 		r.frameTick++
+
 		for i, e := range r.impactEffects {
 			e.Update()
 			if e.done {
@@ -180,9 +169,18 @@ func (r *Ram) Update(p *Player) {
 			r.ProgressState()
 		}
 		return
+	case RamStateExplosion:
+		r.frameTick++
+		r.explosionTick++
+		r.progressAnim(ramDirFrames[stateToDir[RamStateExplosion]], 12)
+		if r.explosionTick >= 25 {
+			r.isDone = true
+		}
+		return
+
 	case RamStateSleeping:
 		r.sleepTick++
-		r.progressAnim(ramDirFrames[stateToDir[RamStateSleeping]], 24)
+		r.progressAnim(ramDirFrames[stateToDir[RamStateSleeping]], 36)
 		if r.sleepTick >= ramSleepDuration {
 			r.state = RamStateCharging
 			r.sleepTick = 0
@@ -222,9 +220,16 @@ func (r *Ram) ProgressState() {
 }
 
 func (r *Ram) hit() {
-	r.state = RamStateHit
+	r.hitCount++
 	r.hitTick = 0
 	r.frameIdx = 0
+
+	if r.hitCount >= ramMaxHitCount {
+		r.state = RamStateExplosion
+		return
+	}
+
+	r.state = RamStateHit
 	r.hitDir = r.velocity.Normalize()
 	r.velocity = Vector2D{}
 
@@ -278,6 +283,8 @@ func (r *Ram) currentFrame() *ebiten.Image {
 		frameIds = ramDirFrames[DirHit]
 	case RamStateSleeping:
 		frameIds = ramDirFrames[DirSlip]
+	case RamStateExplosion:
+		frameIds = ramDirFrames[DirExplosion]
 	default:
 		return r.defautFrame()
 	}
@@ -340,13 +347,6 @@ func (r *Ram) drawCollisionBox(screen *ebiten.Image, w, h, scaleX, scaleY float6
 	x := float32(currX - hw)
 	y := float32(currY - hh)
 
-	// sideColor := func(dir Direction) color.RGBA {
-	// 	if r.collishMap[dir] {
-	// 		return color.RGBA{G: 255, A: 255}
-	// 	}
-	// 	return color.RGBA{R: 255, A: 255}
-	// }
-
 	// Left edge
 	vector.StrokeLine(screen, float32(x), float32(y), float32(x), float32(y+float32(hh)*2), strokeWidth, color.RGBA{G: 255, A: 255}, false)
 	// Right edge
@@ -355,6 +355,10 @@ func (r *Ram) drawCollisionBox(screen *ebiten.Image, w, h, scaleX, scaleY float6
 	vector.StrokeLine(screen, float32(x), float32(y), float32(x+float32(hw)*2), float32(y), strokeWidth, color.RGBA{G: 255, A: 255}, false)
 	// Bottom edge
 	vector.StrokeLine(screen, float32(x), float32(y+float32(hh)*2), float32(x+float32(hw)*2), float32(y+float32(hh)*2), strokeWidth, color.RGBA{G: 255, A: 255}, false)
+}
+
+func (r *Ram) IsDone() bool {
+	return r.isDone
 }
 
 // just a place holder for interface
@@ -411,15 +415,18 @@ var stateToDir = map[RamState]Direction{
 	RamStateSleeping: DirSlip,
 }
 
+// TODO -> rework dir to be separate for ram and player
 var ramDirFrames = map[Direction][]FrameID{
 	// RamStateIdle
 	DirDown: {RamWalk0, RamWalk1, RamWalk2},
 	// RamStateCharging
-	DirUp: {RamAttack0, RamAttack1, RamAttack2, RamAttack3},
+	DirUp: {RamHit2, RamHit0, RamAttack2, RamAttack3},
 	// RamStateMoving
-	DirRight: {RamHit0, RamHit1, RamHit2},
+	DirRight: {RamWalkLeft0, RamWalkLeft1},
 	// RamStateHit
 	DirHit: {RamHit0, RamHit1},
 	// RamStateSleeping
 	DirSlip: {RamWalkDown0, RamWalkDown1, RamWalkDown2, RamWalkDown3},
+	// RamStateSleeping
+	DirExplosion: {RamExplode0, RamExplode1},
 }

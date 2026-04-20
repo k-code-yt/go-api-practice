@@ -68,11 +68,16 @@ const (
 	playerSizeY                  = 140
 	collisionOffsetY     float64 = 0.18
 	playerSlipDuration           = 45
-	playerEnergyDuration         = 600
+	playerEnergyDuration         = 800
 
 	// collision box
 	playerCollisionW float64 = 0.22
 	playerCollisionH float64 = 0.36
+
+	// trailing effect
+	trailMaxCount      = 6
+	trailSpawnInterval = 3
+	trailAlphaMult     = 0.2
 )
 
 // ── Barn ───────────────────────────────────────────────────────────────────
@@ -108,6 +113,7 @@ const (
 	ramSleepDuration  = 150
 	ramHitDuration    = 32
 	ramHitRadius      = 120
+	ramMaxHitCount    = 3
 
 	// collision box
 	ramCollisionW float64 = 0.22

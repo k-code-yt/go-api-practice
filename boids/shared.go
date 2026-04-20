@@ -16,4 +16,5 @@ const (
 	DirUp
 	DirSlip
 	DirHit
+	DirExplosion
 )

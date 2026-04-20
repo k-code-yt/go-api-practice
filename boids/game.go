@@ -113,19 +113,29 @@ func (g *Game) StartJobs() {
 
 func (g *Game) Update() error {
 	for i, event := range g.eventManager.drawItems {
+		if event.IsDone() {
+			g.eventManager.drawItems = append(
+				g.eventManager.drawItems[:i],
+				g.eventManager.drawItems[i+1:]...,
+			)
+			g.eventManager.ramEventCount--
+			continue
+		}
 		p := findNearestPlayer(g.players, event.GetPosition())
 		event.Update(p)
+
 		if event.IsCollidingWith(p) {
-			if event.EventType() == BananaPeel {
+			et := event.EventType()
+			switch et {
+			case BananaPeel:
 				p.Slip()
-				// TODO(perf) -> optimize slice? ringbuffer?
-				// remove this peel from the slice
 				g.eventManager.drawItems = append(
 					g.eventManager.drawItems[:i],
 					g.eventManager.drawItems[i+1:]...,
 				)
-				break
+			default:
 			}
+
 		}
 	}
 

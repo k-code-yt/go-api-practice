@@ -4,6 +4,8 @@ import "github.com/hajimehoshi/ebiten/v2"
 
 type ImpactEffect struct {
 	position      Vector2D
+	target        *Vector2D
+	yOffset       float64
 	frameIdx      int
 	frameTick     int
 	done          bool
