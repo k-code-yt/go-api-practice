@@ -25,6 +25,7 @@ var (
 	energySheet      *ebiten.Image
 	ramSheet         *ebiten.Image
 	sparkleSheet     *ebiten.Image
+	dizzySheet       *ebiten.Image
 )
 var scoreFont *text.GoTextFace
 var drawInt int
@@ -53,7 +54,7 @@ func NewGame() *Game {
 		jobsCH: make(chan int, boidsCount),
 		accels: accels,
 		wg:     new(sync.WaitGroup),
-		sg:     NewSpiralGrid(screenWidth / 3),
+		sg:     NewSpiralGrid(screenWidth / 4),
 		barns:  [2]*Barn{},
 	}
 
@@ -263,6 +264,7 @@ func (g *Game) drawScore(screen *ebiten.Image) {
 	drawScoreSprite(screen, g.barns[1].SheepCount, screenWidth-rightW-24, 24)
 }
 
+// TODO -> refactor -> move to separate files
 func init() {
 	src, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
 	if err != nil {
@@ -272,12 +274,28 @@ func init() {
 		Source: src,
 		Size:   62,
 	}
+
+	// ----characters----
+	knightImg, _, err := ebitenutil.NewImageFromFile(KnightOpts.sheetPath)
+	if err != nil {
+		log.Fatal("player sprite:", err)
+	}
+	KnightOpts.img = knightImg
+
+	girlImg, _, err := ebitenutil.NewImageFromFile(GirlOpts.sheetPath)
+	if err != nil {
+		log.Fatal("player sprite:", err)
+	}
+	GirlOpts.img = girlImg
+
+	// ----boids----
 	sheep, _, err := ebitenutil.NewImageFromFile(sheepImgPath)
 	if err != nil {
 		log.Fatal("sheep sprite:", err)
 	}
 	sheepSheet = sheep
 
+	// ----events----
 	bananaEvent, _, err := ebitenutil.NewImageFromFile(bananaEventPath)
 	if err != nil {
 		log.Fatal("bananaEvent sprite:", err)
@@ -300,23 +318,19 @@ func init() {
 	}
 	ramSheet = ram
 
+	// ----effects----
 	sparkle, _, err := ebitenutil.NewImageFromFile(sparkeSheetPath)
 	if err != nil {
 		log.Fatal("sparkle sprite:", err)
 	}
 	sparkleSheet = sparkle
 
-	knightImg, _, err := ebitenutil.NewImageFromFile(KnightOpts.sheetPath)
+	dizzy, _, err := ebitenutil.NewImageFromFile(dizzySheetPath)
 	if err != nil {
-		log.Fatal("player sprite:", err)
+		log.Fatal("dizzy sprite:", err)
 	}
-	KnightOpts.img = knightImg
-
-	girlImg, _, err := ebitenutil.NewImageFromFile(GirlOpts.sheetPath)
-	if err != nil {
-		log.Fatal("player sprite:", err)
-	}
-	GirlOpts.img = girlImg
+	dizzySheet = dizzy
 
 	initScoreDisplay()
+	loadDizzyFrames()
 }

@@ -11,21 +11,25 @@ type BgCollisionMask struct {
 	height int
 }
 
+const maskScale = 6
+
 func NewBgCollisionMask(img image.Image) *BgCollisionMask {
 	bounds := img.Bounds()
-	w, h := bounds.Dx(), bounds.Dy()
+	w := bounds.Dx() / maskScale
+	h := bounds.Dy() / maskScale
 
 	mask := make([][]bool, h)
 	for y := range h {
 		mask[y] = make([]bool, w)
 		for x := range w {
-			r, g, b, _ := img.At(x+bounds.Min.X, y+bounds.Min.Y).RGBA()
+			// sample center of each macro-pixel
+			px := x*maskScale + maskScale/2
+			py := y*maskScale + maskScale/2
+			r, g, b, _ := img.At(px+bounds.Min.X, py+bounds.Min.Y).RGBA()
 			r8, g8, b8 := r>>8, g>>8, b>>8
-			isBush := g8 > 80 && g8 > r8+20 && g8 > b8+30
-			mask[y][x] = isBush
+			mask[y][x] = g8 > 80 && g8 > r8+20 && g8 > b8+30
 		}
 	}
-
 	return &BgCollisionMask{mask: mask, width: w, height: h}
 }
 

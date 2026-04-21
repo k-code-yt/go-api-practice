@@ -2,6 +2,7 @@ package main
 
 import (
 	"image/color"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -13,6 +14,7 @@ const (
 	PlayerStateNormal   PlayerState = iota
 	PlayerStateEnergy   PlayerState = iota
 	PlayerStateSlipping PlayerState = iota
+	PlayerStateDazed    PlayerState = iota
 )
 
 type TrailFrame struct {
@@ -53,6 +55,10 @@ type Player struct {
 	energyTick     int
 	trailFrames    []*TrailFrame
 	trailSpawnTick int
+
+	// daze
+	dazeTick      int
+	activeEffects []*ImpactEffect
 }
 
 type PlayerOpts struct {
@@ -77,20 +83,21 @@ func NewPlayer(collChecker CollisionChecker, opts *PlayerOpts) *Player {
 	}
 
 	p := &Player{
-		position:    position,
-		isLeft:      opts.isLeft,
-		charType:    opts.charaterType,
-		charOpts:    charOpts,
-		spritesheet: charOpts.spritesheet,
-		dir:         DirDown,
-		frameW:      fw,
-		frameH:      fh,
-		scaleX:      scaleX,
-		scaleY:      scaleY,
-		frameIdx:    0,
-		collChecker: collChecker,
-		collishMap:  make(map[Direction]bool),
-		trailFrames: make([]*TrailFrame, trailMaxCount),
+		position:      position,
+		isLeft:        opts.isLeft,
+		charType:      opts.charaterType,
+		charOpts:      charOpts,
+		spritesheet:   charOpts.spritesheet,
+		dir:           DirDown,
+		frameW:        fw,
+		frameH:        fh,
+		scaleX:        scaleX,
+		scaleY:        scaleY,
+		frameIdx:      0,
+		collChecker:   collChecker,
+		collishMap:    make(map[Direction]bool),
+		trailFrames:   make([]*TrailFrame, trailMaxCount),
+		activeEffects: make([]*ImpactEffect, 0),
 	}
 
 	return p
@@ -99,15 +106,31 @@ func NewPlayer(collChecker CollisionChecker, opts *PlayerOpts) *Player {
 func (p *Player) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	sx := p.scaleX
+
 	if p.dir == DirRight {
 		sx = -p.scaleX
 	}
 
-	op.GeoM.Translate(-float64(p.frameW)/2, -float64(p.frameH)/2)
-	op.GeoM.Scale(sx, p.scaleY)
-	op.GeoM.Translate(p.position.x, p.position.y)
+	if p.state == PlayerStateDazed {
+		swayAngle := math.Sin(float64(p.dazeTick)*0.15) * 0.12
+		op.GeoM.Translate(-float64(p.frameW)/2, -float64(p.frameH))
+		op.GeoM.Scale(sx, p.scaleY)
+		op.GeoM.Rotate(swayAngle)
+		op.GeoM.Translate(p.position.x, p.position.y+float64(p.frameH)/2*p.scaleY)
+	} else {
+		op.GeoM.Translate(-float64(p.frameW)/2, -float64(p.frameH)/2)
+		op.GeoM.Scale(sx, p.scaleY)
+		op.GeoM.Translate(p.position.x, p.position.y)
+	}
 	screen.DrawImage(p.currentFrame(), op)
 	p.drawTrail(screen)
+
+	if len(p.activeEffects) > 0 {
+		for _, effect := range p.activeEffects {
+			effect.Draw(screen)
+		}
+	}
+
 	if isDebugMode {
 		p.drawCollisionBox(screen)
 	}
@@ -132,6 +155,13 @@ func (p *Player) drawTrail(screen *ebiten.Image) {
 }
 
 func (p *Player) Update() {
+	for i := len(p.activeEffects) - 1; i >= 0; i-- {
+		p.activeEffects[i].Update()
+		if p.activeEffects[i].done {
+			p.activeEffects = append(p.activeEffects[:i], p.activeEffects[i+1:]...)
+		}
+	}
+
 	pSpeed := playerDefaultSpeed
 	switch p.state {
 	case PlayerStateSlipping:
@@ -141,14 +171,20 @@ func (p *Player) Update() {
 			p.slipTick = 0
 		}
 		return
+	case PlayerStateDazed:
+		p.dazeTick++
+		if p.dazeTick >= playerDizzyStateDuration {
+			p.state = PlayerStateNormal
+			p.dazeTick = 0
+			// TODO -> how to remove exactly daze effect?
+			p.activeEffects = p.activeEffects[:0]
+		}
+		return
 	case PlayerStateEnergy:
 		pSpeed = playerDefaultSpeed * playerEnergyMult
 		p.energyTick++
 		if p.energyTick >= playerEnergyDuration {
-			p.state = PlayerStateNormal
-			p.energyTick = 0
-			p.trailFrames = p.trailFrames[:0]
-			p.trailSpawnTick = 0
+			p.resetEnergy()
 			break
 		}
 
@@ -241,12 +277,43 @@ func (p *Player) Energy() {
 	p.energyTick = 0
 }
 
+func (p *Player) Daze() {
+	if p.state == PlayerStateDazed {
+		return
+	}
+	p.resetEnergy()
+	p.state = PlayerStateDazed
+	p.dazeTick = 0
+
+	sizeY := float64(p.frameH) * p.scaleY
+	yOffset := -sizeY / 2
+
+	effect := NewImpactEffectTarget(
+		dizzyFrames,
+		playerDizzyFrameDelay,
+		float64(p.frameW)*p.scaleX*1.25,
+		sizeY/1.6,
+		yOffset,
+		true,
+		&p.position,
+	)
+	p.activeEffects = append(p.activeEffects, effect)
+}
+
 func (p *Player) Slip() {
 	if p.state == PlayerStateSlipping {
 		return
 	}
+	p.resetEnergy()
 	p.state = PlayerStateSlipping
 	p.slipTick = 0
+}
+
+func (p *Player) resetEnergy() {
+	p.state = PlayerStateNormal
+	p.energyTick = 0
+	p.trailFrames = p.trailFrames[:0]
+	p.trailSpawnTick = 0
 }
 
 func (p *Player) currentFrame() *ebiten.Image {

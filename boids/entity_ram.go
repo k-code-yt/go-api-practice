@@ -143,8 +143,7 @@ func (r *Ram) Update(p *Player) {
 		r.progressAnim(ramDirFrames[stateToDir[RamStateMoving]], 12)
 		r.position = r.position.Add(r.velocity)
 		if r.position.Distance(p.position) < ramHitRadius {
-			// TODO -> add separate anim for hit player
-			p.Slip()
+			p.Daze()
 			r.hit()
 			return
 		}
@@ -156,7 +155,6 @@ func (r *Ram) Update(p *Player) {
 	case RamStateHit:
 		r.hitTick++
 		r.frameTick++
-
 		for i, e := range r.impactEffects {
 			e.Update()
 			if e.done {
@@ -238,12 +236,13 @@ func (r *Ram) hit() {
 		r.position.y + r.hitDir.y*(ramSizeY/3),
 	}
 	explostionFrames := []FrameID{RamExplode0, RamExplode1}
-	explosionEffect := NewImpactEffect(explosionPos,
+	explosionEffect := NewImpactEffectPos(explosionPos,
 		explostionFrames,
 		ramHitDuration/len(explostionFrames),
 		r.spritesheet,
 		ramSizeX,
 		ramSizeY,
+		1.5,
 	)
 	r.impactEffects = append(r.impactEffects, explosionEffect)
 }

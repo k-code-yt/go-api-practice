@@ -9,15 +9,15 @@ const (
 
 // ── Game ───────────────────────────────────────────────────────────────────
 const (
-	screenHeight    = 640 * 1.5
-	screenWidth     = 1080.00 * 1.5
+	screenHeight    = 640 * 2
+	screenWidth     = 1080.00 * 2
 	bgPath          = "./assets/bush_border/bush.png"
 	eventSpawnTicks = 900
 )
 
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────
 const (
-	boidsCount     = 80
+	boidsCount     = 150
 	targetBoidSize = 65
 	sheepImgPath   = "./assets/sheep/sheep_run.png"
 
@@ -78,6 +78,10 @@ const (
 	trailMaxCount      = 6
 	trailSpawnInterval = 3
 	trailAlphaMult     = 0.2
+
+	// dizzy
+	playerDizzyFrameDelay    = 6
+	playerDizzyStateDuration = 120
 )
 
 // ── Barn ───────────────────────────────────────────────────────────────────
@@ -101,6 +105,10 @@ const (
 	sparkeSheetPath      = "./assets/tiles/sparkle_uniform.png"
 	sparkleTicksPerFrame = 6
 	sparkleFrameCount    = 10
+	dizzySheetPath       = "./assets/tiles/dizzy.png"
+	dizzySheetCols       = 2
+	dizzySheetRows       = 3
+	dazeCrunchScale      = 0.65
 )
 
 // ── Ram ───────────────────────────────────────────────────────────────────

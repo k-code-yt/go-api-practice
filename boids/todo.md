@@ -2,8 +2,9 @@
 
 [x] add trailing on speed up
 [x] time limit for ram? -> or N-charges then remove him?
-[] add daze effect on collision w/ RAM
+[x] add daze effect on collision w/ RAM
 
+[] performance
 [] refactor
 
 <!-- UI -->
