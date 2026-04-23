@@ -411,7 +411,7 @@ func (p *Player) getCollisionBox() (float64, float64, float64) {
 }
 
 func findNearestPlayer(players [2]*Player, pos Vector2D) *Player {
-	if pos.Distance(players[0].position) < pos.Distance(players[1].position) {
+	if pos.DistanceSq(players[0].position) < pos.DistanceSq(players[1].position) {
 		return players[0]
 	}
 	return players[1]

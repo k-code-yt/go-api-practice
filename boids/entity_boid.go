@@ -54,9 +54,9 @@ func NewBoid(id int, img *SheepImage, collChecker CollisionChecker, gateChecker 
 	return b
 }
 
-func (b *Boid) Update(accel *Vector2D) {
+func (b *Boid) Update(accel Vector2D) {
 	b.updateState(b.nearestPlayer)
-	b.velocity = b.velocity.Add(*accel).LimitSpeed()
+	b.velocity = b.velocity.Add(accel).LimitSpeed()
 
 	if b.state != StateMovingToDoor && b.state != StateInBarn {
 		b.invertOnWall()
@@ -85,19 +85,26 @@ func (b *Boid) Draw(screen *ebiten.Image) {
 	if b.state == StateInBarn {
 		return
 	}
-	op := &ebiten.DrawImageOptions{}
 	img := b.img
 	frame := b.img.Frame(b.frameIdx)
+	bounds := frame.Bounds()
 
 	scaleX := img.scaleX
 	if b.facingLeft {
 		scaleX = -scaleX
 	}
-	op.GeoM.Translate(-b.img.frameW/2, -b.img.frameH/2)
-	op.GeoM.Scale(scaleX, img.scaleY)
-	op.GeoM.Translate(b.position.x, b.position.y)
-
-	screen.DrawImage(frame, op)
+	sharedBatch.Add(
+		b.position.x,
+		b.position.y,
+		bounds.Min.X,
+		bounds.Min.Y,
+		bounds.Dx(),
+		bounds.Dy(),
+		int(b.img.w),
+		int(b.img.h),
+		scaleX,
+		b.img.scaleY,
+	)
 }
 
 func (b *Boid) updateState(p *Player) {
@@ -149,7 +156,6 @@ func (b *Boid) updateState(p *Player) {
 
 }
 
-// TODO(perf) -> get neib only for flocking state
 func (b *Boid) calcAcceleration(g *Game, neib []int, players [2]*Player) Vector2D {
 	p := findNearestPlayer(players, b.position)
 	if b.nearestPlayer == nil || b.nearestPlayer != p {
@@ -164,6 +170,7 @@ func (b *Boid) calcAcceleration(g *Game, neib []int, players [2]*Player) Vector2
 		return Vector2D{}
 	}
 
+	// Flocking state = boid logic
 	avgVelocity := Vector2D{}
 	avgPosition := Vector2D{}
 	separation := Vector2D{}
@@ -172,12 +179,12 @@ func (b *Boid) calcAcceleration(g *Game, neib []int, players [2]*Player) Vector2
 
 	for _, otherIdx := range neib {
 		other := g.boids[otherIdx]
-		dist := b.position.Distance(other.position)
-		if dist <= sepRadius {
-			push := b.position.Sub(other.position).Div((sepRadius - dist) / dist).Normalize().Mul(sepForce)
+		dist := b.position.DistanceSq(other.position)
+		if dist <= sepRadius*sepRadius {
+			push := b.position.Sub(other.position).Div((sepRadius*sepRadius - dist) / dist).Normalize().Mul(sepForce)
 			separation = separation.Add(push)
 			countSep++
-		} else if dist < cohRadius {
+		} else if dist < cohRadius*cohRadius {
 			avgVelocity = avgVelocity.Add(other.velocity)
 			avgPosition = avgPosition.Add(other.position)
 			countCoh++
@@ -185,8 +192,7 @@ func (b *Boid) calcAcceleration(g *Game, neib []int, players [2]*Player) Vector2
 		}
 	}
 
-	accel := Vector2D{b.bounceOnBorder(b.position.x, screenWidth), b.bounceOnBorder(b.position.y, screenHeight)}
-	// accel := Vector2D{}
+	accel := Vector2D{}
 	if countCoh > 0 {
 		avgVelocity = avgVelocity.Div(countCoh).Sub(b.velocity)
 		avgPosition = avgPosition.Div(countCoh).Sub(b.position)
@@ -201,13 +207,9 @@ func (b *Boid) calcAcceleration(g *Game, neib []int, players [2]*Player) Vector2
 		accel = accel.Add(accelSep)
 	}
 
-	// wallSep := b.wallSeparation()
-	// accel = accel.Add(wallSep)
-
 	return accel
 }
 
-// TODO -> move out of calcAccel -> do not calc neighb if in this state
 func (b *Boid) fleeAccel(p *Player) Vector2D {
 	return b.position.Sub(p.position).Normalize().Mul(fleeForce)
 }

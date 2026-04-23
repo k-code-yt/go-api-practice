@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	testDur = time.Second * 30
+	testDur = time.Second * 10
 )
 
 func BenchmarkMain(b *testing.B) {

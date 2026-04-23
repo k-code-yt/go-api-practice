@@ -13,13 +13,17 @@ type BarnCollisionMask struct {
 
 func NewBarnCollisionMask(img image.Image) *BarnCollisionMask {
 	bounds := img.Bounds()
-	w, h := bounds.Dx(), bounds.Dy()
+	w := bounds.Dx() / maskScale
+	h := bounds.Dy() / maskScale
 
 	mask := make([][]bool, h)
 	for y := range h {
 		mask[y] = make([]bool, w)
 		for x := range w {
-			_, _, _, a := img.At(x+bounds.Min.X, y+bounds.Min.Y).RGBA()
+			px := x*maskScale + maskScale/2
+			py := y*maskScale + maskScale/2
+
+			_, _, _, a := img.At(px+bounds.Min.X, py+bounds.Min.Y).RGBA()
 			mask[y][x] = a > 128
 		}
 	}

@@ -11,7 +11,7 @@ type BgCollisionMask struct {
 	height int
 }
 
-const maskScale = 6
+const maskScale = 8
 
 func NewBgCollisionMask(img image.Image) *BgCollisionMask {
 	bounds := img.Bounds()
@@ -22,7 +22,6 @@ func NewBgCollisionMask(img image.Image) *BgCollisionMask {
 	for y := range h {
 		mask[y] = make([]bool, w)
 		for x := range w {
-			// sample center of each macro-pixel
 			px := x*maskScale + maskScale/2
 			py := y*maskScale + maskScale/2
 			r, g, b, _ := img.At(px+bounds.Min.X, py+bounds.Min.Y).RGBA()

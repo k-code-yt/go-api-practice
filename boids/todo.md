@@ -1,11 +1,7 @@
 <!-- NEXT TODOs -->
 
-[x] add trailing on speed up
-[x] time limit for ram? -> or N-charges then remove him?
-[x] add daze effect on collision w/ RAM
-
-[] performance
 [] refactor
+- go over all TODOs
 
 <!-- UI -->
 
@@ -93,3 +89,9 @@
 [x] sleep animation
 [x] rework animation to be generic impact effect
 [x] add animation to events -> make them visibly different
+[x] time limit for ram? -> or N-charges then remove him?
+
+<!-- events -->
+[x] add trailing on speed up
+[x] add daze effect on collision w/ RAM
+

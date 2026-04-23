@@ -34,7 +34,7 @@ type Game struct {
 	sg     *SpiralGrid
 	boids  []*Boid
 	jobsCH chan (int)
-	accels [boidsCount]*Vector2D
+	accels [boidsCount]Vector2D
 	wg     *sync.WaitGroup
 
 	bgImage           *ebiten.Image
@@ -48,13 +48,13 @@ type Game struct {
 }
 
 func NewGame() *Game {
-	accels := [boidsCount]*Vector2D{}
+	accels := [boidsCount]Vector2D{}
 
 	g := &Game{
 		jobsCH: make(chan int, boidsCount),
 		accels: accels,
 		wg:     new(sync.WaitGroup),
-		sg:     NewSpiralGrid(screenWidth / 4),
+		sg:     NewSpiralGrid(screenWidth / 10),
 		barns:  [2]*Barn{},
 	}
 
@@ -86,10 +86,7 @@ func (g *Game) Run() error {
 	ebiten.SetWindowTitle("boids game")
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	err := ebiten.RunGame(g)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (g *Game) StartJobs() {
@@ -104,7 +101,7 @@ func (g *Game) StartJobs() {
 					g.sg.GetNeighbours(b, &neibBuf)
 				}
 				acc := b.calcAcceleration(g, neibBuf, g.players)
-				g.accels[id] = &acc
+				g.accels[id] = acc
 				neibBuf = neibBuf[:0]
 				g.wg.Done()
 			}
@@ -184,21 +181,24 @@ func (g *Game) DrawBG(screen *ebiten.Image) {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.DrawBG(screen)
+	for _, barn := range g.barns {
+		barn.Draw(screen)
+	}
+
 	g.drawScore(screen)
+
+	for _, boid := range g.boids {
+		boid.Draw(screen)
+	}
+	sharedBatch.Flush(screen, sheepSheet)
 
 	for _, p := range g.players {
 		p.Draw(screen)
 	}
-	for _, barn := range g.barns {
-		barn.Draw(screen)
-	}
-	for _, boid := range g.boids {
-		boid.Draw(screen)
-	}
+
 	if g.eventManager.nextEvent != nil {
 		g.eventManager.nextEvent.DrawPickUp(screen)
 	}
-
 	g.eventManager.DrawTrigger(screen)
 
 	fps := fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS())

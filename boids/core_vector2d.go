@@ -35,6 +35,12 @@ func (currV Vector2D) Limit(lower, upper float64) Vector2D {
 	return Vector2D{math.Min(math.Max(currV.x, lower), upper), math.Min(math.Max(currV.y, lower), upper)}
 }
 
+func (currV Vector2D) DistanceSq(newV Vector2D) float64 {
+	dx := currV.x - newV.x
+	dy := currV.y - newV.y
+	return dx*dx + dy*dy
+}
+
 func (currV Vector2D) Distance(newV Vector2D) float64 {
 	return math.Sqrt(((currV.x - newV.x) * (currV.x - newV.x)) + ((currV.y - newV.y) * (currV.y - newV.y)))
 }

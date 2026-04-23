@@ -3,21 +3,22 @@ package main
 // ── Global ───────────────────────────────────────────────────────────────────
 const (
 	// for debug
-	isDebugMode         = true
+	isDebugMode         = false
 	strokeWidth float32 = 3.0
 )
 
 // ── Game ───────────────────────────────────────────────────────────────────
 const (
-	screenHeight    = 640 * 2
-	screenWidth     = 1080.00 * 2
+	windowScale     = 1.75
+	screenHeight    = 640 * windowScale
+	screenWidth     = 1080.00 * windowScale
 	bgPath          = "./assets/bush_border/bush.png"
 	eventSpawnTicks = 900
 )
 
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────
 const (
-	boidsCount     = 150
+	boidsCount     = 200
 	targetBoidSize = 65
 	sheepImgPath   = "./assets/sheep/sheep_run.png"
 
@@ -49,7 +50,7 @@ const (
 	energyEventPath          = "./assets/tiles/energy.png"
 	bananaPeelPath           = "./assets/tiles/banana_peel.png"
 	ramPath                  = "./assets/tiles/ram.png"
-	eventSize                = 100
+	eventSize                = targetBoidSize * 1.8
 	bananaCollisionW float64 = 0.38
 	bananaCollisionH float64 = 0.43
 
@@ -64,8 +65,8 @@ const (
 	playerFrameDelay             = 10
 	playerDefaultSpeed           = 5.0
 	playerEnergyMult             = 2.0
-	playerSizeX                  = 140
-	playerSizeY                  = 140
+	playerSizeX                  = targetBoidSize * 2.2
+	playerSizeY                  = targetBoidSize * 2.2
 	collisionOffsetY     float64 = 0.18
 	playerSlipDuration           = 45
 	playerEnergyDuration         = 800
