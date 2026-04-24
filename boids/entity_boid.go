@@ -86,8 +86,8 @@ func (b *Boid) Draw(screen *ebiten.Image) {
 		return
 	}
 	img := b.img
-	frame := b.img.Frame(b.frameIdx)
-	bounds := frame.Bounds()
+	frameWInt := int(img.frameW)
+	srcX := b.frameIdx * frameWInt
 
 	scaleX := img.scaleX
 	if b.facingLeft {
@@ -96,14 +96,11 @@ func (b *Boid) Draw(screen *ebiten.Image) {
 	sharedBatch.Add(
 		b.position.x,
 		b.position.y,
-		bounds.Min.X,
-		bounds.Min.Y,
-		bounds.Dx(),
-		bounds.Dy(),
-		int(b.img.w),
-		int(b.img.h),
+		srcX, 0,
+		frameWInt, int(img.frameH),
+		int(img.w), int(img.h),
 		scaleX,
-		b.img.scaleY,
+		img.scaleY,
 	)
 }
 

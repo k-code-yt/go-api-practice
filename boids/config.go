@@ -9,7 +9,7 @@ const (
 
 // ── Game ───────────────────────────────────────────────────────────────────
 const (
-	windowScale     = 1.75
+	windowScale     = 2
 	screenHeight    = 640 * windowScale
 	screenWidth     = 1080.00 * windowScale
 	bgPath          = "./assets/bush_border/bush.png"

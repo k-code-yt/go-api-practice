@@ -11,7 +11,7 @@ type BgCollisionMask struct {
 	height int
 }
 
-const maskScale = 8
+const maskScale = 12
 
 func NewBgCollisionMask(img image.Image) *BgCollisionMask {
 	bounds := img.Bounds()
