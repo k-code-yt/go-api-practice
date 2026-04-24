@@ -1,14 +1,26 @@
 <!-- NEXT TODOs -->
 
-[] refactor
-- go over all TODOs
-
 <!-- UI -->
 
-[] add good looking score -> invert on right side && add animation
 [] add menu -> select new_game, settings, exit
+- letter handling
+-- bitmap
+-- draw letters -> pass-in string && range over them
+
+- scene manager && transition to game
+-- update -> check which scene to use
+
+- menu scene 
+-- listen to btn clicks
+-- on space or mouse click switch to play
+
+[] add good looking score -> invert on right side && add animation
 [] add char select screen
 [] add more playble characters
+
+<!-- refactor -->
+[] Go over all TODOs
+
 
 <!-- events -->
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"runtime"
@@ -9,25 +8,11 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/text/v2"
-	"golang.org/x/image/font/gofont/goregular"
 
 	_ "image/jpeg"
 	_ "image/png"
 )
 
-// TODO -> move to separate file
-var (
-	sheepSheet       *ebiten.Image
-	barnSheet        *ebiten.Image
-	bananaEventSheet *ebiten.Image
-	bananaPeelSheet  *ebiten.Image
-	energySheet      *ebiten.Image
-	ramSheet         *ebiten.Image
-	sparkleSheet     *ebiten.Image
-	dizzySheet       *ebiten.Image
-)
-var scoreFont *text.GoTextFace
 var drawInt int
 
 type Game struct {
@@ -80,13 +65,6 @@ func NewGame() *Game {
 	g.boids = boids
 	g.StartJobs()
 	return g
-}
-
-func (g *Game) Run() error {
-	ebiten.SetWindowTitle("boids game")
-	ebiten.SetWindowSize(screenWidth, screenHeight)
-	err := ebiten.RunGame(g)
-	return err
 }
 
 func (g *Game) StartJobs() {
@@ -173,9 +151,7 @@ func (g *Game) Update() error {
 
 func (g *Game) DrawBG(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
-	scaleX := screenWidth / float64(g.bgImage.Bounds().Dx())
-	scaleY := screenHeight / float64(g.bgImage.Bounds().Dy())
-	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Scale(bgScaleX, bgScaleY)
 	screen.DrawImage(g.bgImage, op)
 }
 
@@ -214,12 +190,8 @@ func (g *Game) Layout(_, _ int) (sw, sh int) {
 }
 
 func (g *Game) loadBgImg() {
-	img, rawImg, err := ebitenutil.NewImageFromFile(bgPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	g.bgImage = img
-	g.bgCollisionMask = NewBgCollisionMask(rawImg)
+	g.bgImage = bgImage
+	g.bgCollisionMask = NewBgCollisionMask(rawBgImage)
 }
 
 func (g *Game) loadBarnMask() {
@@ -257,80 +229,10 @@ func (g *Game) buildGateChecker() func(x, y float64) *Barn {
 	}
 }
 
+// TODO -> move to ui_game
 func (g *Game) drawScore(screen *ebiten.Image) {
 	drawScoreSprite(screen, g.barns[0].SheepCount, 24, 24)
 
 	rightW := measureScoreSprite(g.barns[1].SheepCount)
 	drawScoreSprite(screen, g.barns[1].SheepCount, screenWidth-rightW-24, 24)
-}
-
-// TODO -> refactor -> move to separate files
-func init() {
-	src, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
-	if err != nil {
-		log.Fatal(err)
-	}
-	scoreFont = &text.GoTextFace{
-		Source: src,
-		Size:   62,
-	}
-
-	// ----characters----
-	knightImg, _, err := ebitenutil.NewImageFromFile(KnightOpts.sheetPath)
-	if err != nil {
-		log.Fatal("player sprite:", err)
-	}
-	KnightOpts.img = knightImg
-
-	girlImg, _, err := ebitenutil.NewImageFromFile(GirlOpts.sheetPath)
-	if err != nil {
-		log.Fatal("player sprite:", err)
-	}
-	GirlOpts.img = girlImg
-
-	// ----boids----
-	sheep, _, err := ebitenutil.NewImageFromFile(sheepImgPath)
-	if err != nil {
-		log.Fatal("sheep sprite:", err)
-	}
-	sheepSheet = sheep
-
-	// ----events----
-	bananaEvent, _, err := ebitenutil.NewImageFromFile(bananaEventPath)
-	if err != nil {
-		log.Fatal("bananaEvent sprite:", err)
-	}
-	bananaEventSheet = bananaEvent
-	bananaPeel, _, err := ebitenutil.NewImageFromFile(bananaPeelPath)
-	if err != nil {
-		log.Fatal("bananaPeel sprite:", err)
-	}
-	bananaPeelSheet = bananaPeel
-	energy, _, err := ebitenutil.NewImageFromFile(energyEventPath)
-	if err != nil {
-		log.Fatal("energy sprite:", err)
-	}
-	energySheet = energy
-
-	ram, _, err := ebitenutil.NewImageFromFile(ramPath)
-	if err != nil {
-		log.Fatal("ram sprite:", err)
-	}
-	ramSheet = ram
-
-	// ----effects----
-	sparkle, _, err := ebitenutil.NewImageFromFile(sparkeSheetPath)
-	if err != nil {
-		log.Fatal("sparkle sprite:", err)
-	}
-	sparkleSheet = sparkle
-
-	dizzy, _, err := ebitenutil.NewImageFromFile(dizzySheetPath)
-	if err != nil {
-		log.Fatal("dizzy sprite:", err)
-	}
-	dizzySheet = dizzy
-
-	initScoreDisplay()
-	loadDizzyFrames()
 }
