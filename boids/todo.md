@@ -1,46 +1,35 @@
 <!-- NEXT TODOs -->
 
-<!-- UI -->
+<!-- finilizing -->
 
-[] add menu -> select new_game, settings, exit
-- letter handling
--- bitmap
--- draw letters -> pass-in string && range over them
+[x] add menu -> select new_game, settings, exit
+[] end menu/screen -> restart, go main menu
+- game ending condition
+-- show game end screen -> winner icon -> start/exit 
 
-- scene manager && transition to game
--- update -> check which scene to use
-
-- menu scene 
--- listen to btn clicks
--- on space or mouse click switch to play
+[] settings menu item
+- boid count
+- screen size
 
 [] add good looking score -> invert on right side && add animation
-[] add char select screen
-[] add more playble characters
+[] add AI character mode
+[] some music
 
 <!-- refactor -->
 [] Go over all TODOs
-
-
-<!-- events -->
-
-[] add wolf hiding in bush event
-[] add some throwable item -> mud or something
-[x] check why no collision box for energy event
-[x] add banana slip event
-[x] make bananas spawn only on oppisite side
-[-] collide with feet only???
-[x] add energy/speed event
 
 <!-- performance -->
 
 [] go over per-ce todos
 
-<!-- pending/hanging -->
+<!-- HANGING/PENDING -->
 
+[] add wolf hiding in bush event
+[] add some throwable item -> mud or something
+[] add char select screen
+[] add more playble characters
 [] add collision unstuck logic -> N-ticks same pos -> disable coll
 [] improve collision -> https://claude.ai/chat/e6ac8b3a-e7a6-4f2f-ba99-62ee0418e295
-[] investigate why FPS drops on higher resolution
 [] investigate race condition error -> https://claude.ai/chat/db32d764-e9fa-4409-8d3f-2f82ffd5600e
 [] convert game to 2.5d
 
@@ -106,4 +95,8 @@
 <!-- events -->
 [x] add trailing on speed up
 [x] add daze effect on collision w/ RAM
-
+[x] check why no collision box for energy event
+[x] add banana slip event
+[x] make bananas spawn only on oppisite side
+[-] collide with feet only???
+[x] add energy/speed event

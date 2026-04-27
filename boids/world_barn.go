@@ -19,6 +19,7 @@ type Barn struct {
 	drawnW     float64
 	drawnH     float64
 	SheepCount int
+	isLeft     bool
 
 	mask *BarnCollisionMask
 }
@@ -42,6 +43,7 @@ func NewBarn(flipX bool, x, y float64, mask *BarnCollisionMask) *Barn {
 		drawnW: w * scaleX,
 		drawnH: h * scaleY,
 		mask:   mask,
+		isLeft: !flipX,
 	}
 
 	return b

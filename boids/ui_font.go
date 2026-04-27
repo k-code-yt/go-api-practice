@@ -69,11 +69,10 @@ func NewFontBitMap() *FontBitMap {
 	return f
 }
 
-func (f *FontBitMap) Draw(screen *ebiten.Image, val string) {
+func (f *FontBitMap) Draw(screen *ebiten.Image, val string, cy float64, scaleMult float64) {
 	strUpper := strings.ToUpper(val)
 	strWidth := letterWidth * len(strUpper)
 	cx := screenMiddleW - float64(strWidth/2)
-	cy := screenMiddleH + fontScale/2
 	for _, ch := range strUpper {
 		frame, ok := f.imageMap[ch]
 		if !ok {
@@ -82,7 +81,7 @@ func (f *FontBitMap) Draw(screen *ebiten.Image, val string) {
 		}
 		scale := f.scaleMap[ch]
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(scale[0], scale[1])
+		op.GeoM.Scale(scale[0]*scaleMult/0.85, scale[1]*scaleMult)
 		op.GeoM.Translate(cx, cy)
 		screen.DrawImage(frame, op)
 		cx = cx + letterWidth

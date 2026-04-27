@@ -3,17 +3,18 @@ package main
 // ── Global ───────────────────────────────────────────────────────────────────
 const (
 	// for debug
-	isDebugMode         = false
+	isDebugMode         = true
 	strokeWidth float32 = 3.0
 )
 
 // ── Game ───────────────────────────────────────────────────────────────────
 const (
-	windowScale     = 2
-	screenHeight    = 640 * windowScale
-	screenWidth     = 1080.00 * windowScale
-	bgPath          = "./assets/bush_border/bush.png"
-	eventSpawnTicks = 900
+	windowScale            = 1.75
+	screenHeight           = 640 * windowScale
+	screenWidth            = 1080.00 * windowScale
+	bgPath                 = "./assets/bush_border/bush.png"
+	eventSpawnTicks        = 900
+	sheepCountWinCondition = 2
 )
 
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────

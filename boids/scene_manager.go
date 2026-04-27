@@ -7,6 +7,7 @@ type SceneID int
 const (
 	SceneMenu SceneID = iota
 	ScenePlay
+	SceneGameEnd
 	SceneExit
 )
 
@@ -18,12 +19,14 @@ type Scene interface {
 type SceneManager struct {
 	currentID   SceneID
 	currenScene Scene
+	winSceneCH  chan *Player
 }
 
 func NewSceneManager() *SceneManager {
 	return &SceneManager{
 		currentID:   SceneMenu,
 		currenScene: NewMenuScene(menuFontBitMap),
+		winSceneCH:  make(chan *Player),
 	}
 }
 
@@ -32,12 +35,26 @@ func (s *SceneManager) Update() error {
 	if s.currentID == next {
 		return nil
 	}
+
+	var winner *Player
+	select {
+	case winner := <-s.winSceneCH:
+		s.currenScene = NewEndGameScene(menuFontBitMap, winner)
+		s.currentID = next
+		return nil
+	default:
+	}
+
 	switch next {
 	case SceneMenu:
 		s.currenScene = NewMenuScene(menuFontBitMap)
 		s.currentID = next
 	case ScenePlay:
-		s.currenScene = NewPlayScene()
+		s.currenScene = NewPlayScene(s.winSceneCH)
+		s.currentID = next
+		break
+	case SceneGameEnd:
+		s.currenScene = NewEndGameScene(menuFontBitMap, winner)
 		s.currentID = next
 		break
 	case SceneExit:

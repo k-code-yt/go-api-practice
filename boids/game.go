@@ -30,17 +30,19 @@ type Game struct {
 	barns   [2]*Barn
 
 	eventManager *EventManager
+	winSceneCH   chan *Player
 }
 
-func NewGame() *Game {
+func NewGame(winSceneCH chan *Player) *Game {
 	accels := [boidsCount]Vector2D{}
 
 	g := &Game{
-		jobsCH: make(chan int, boidsCount),
-		accels: accels,
-		wg:     new(sync.WaitGroup),
-		sg:     NewSpiralGrid(screenWidth / 10),
-		barns:  [2]*Barn{},
+		jobsCH:     make(chan int, boidsCount),
+		accels:     accels,
+		wg:         new(sync.WaitGroup),
+		sg:         NewSpiralGrid(screenWidth / 10),
+		barns:      [2]*Barn{},
+		winSceneCH: winSceneCH,
 	}
 
 	g.loadBarnMask()
@@ -88,6 +90,21 @@ func (g *Game) StartJobs() {
 }
 
 func (g *Game) Update() error {
+	for _, b := range g.barns {
+		if b.SheepCount >= sheepCountWinCondition {
+			for _, p := range g.players {
+				if b.isLeft && p.isLeft {
+					g.winSceneCH <- p
+					break
+				}
+				if !b.isLeft && !p.isLeft {
+					g.winSceneCH <- p
+					break
+				}
+			}
+		}
+	}
+
 	for i, event := range g.eventManager.drawItems {
 		if event.IsDone() {
 			g.eventManager.drawItems = append(
@@ -99,7 +116,6 @@ func (g *Game) Update() error {
 		}
 		p := findNearestPlayer(g.players, event.GetPosition())
 		event.Update(p)
-
 		if event.IsCollidingWith(p) {
 			et := event.EventType()
 			switch et {

@@ -9,38 +9,27 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-var (
-	keySpace, keyEnter, keyDown, keyUp = ebiten.KeySpace, ebiten.KeyEnter, ebiten.KeyArrowDown, ebiten.KeyArrowUp
-)
-
-// menu -> start, exit, settings -> menu item
-// update -> arrowup/down &&
-// --- on enter/space return different sceneID
-type menuItem struct {
-	label   string
-	sceneID SceneID
-}
-
-type MenuScene struct {
+type EndGameScene struct {
 	font      *FontBitMap
 	items     []menuItem
 	selected  int
 	pulseTick int
+	winner    *Player
 }
 
-func NewMenuScene(font *FontBitMap) *MenuScene {
-	return &MenuScene{
+func NewEndGameScene(font *FontBitMap, winner *Player) *EndGameScene {
+	return &EndGameScene{
 		font: font,
 		items: []menuItem{
-			{"START", ScenePlay},
-			{"SETTINGS", SceneExit},
-			{"EXIT", SceneExit},
+			{"GO AGAIN", ScenePlay},
+			{"MAIN MENU", SceneMenu},
 		},
 		selected: 0,
+		winner:   winner,
 	}
 }
 
-func (m *MenuScene) Update() SceneID {
+func (m *EndGameScene) Update() SceneID {
 	itemsLen := len(m.items)
 	m.pulseTick++
 	if inpututil.IsKeyJustPressed(keyDown) {
@@ -62,7 +51,7 @@ func (m *MenuScene) Update() SceneID {
 	return SceneMenu
 }
 
-func (m *MenuScene) Draw(screen *ebiten.Image) {
+func (m *EndGameScene) Draw(screen *ebiten.Image) {
 	m.DrawBG(screen)
 
 	darkGray := color.NRGBA{R: 30, G: 30, B: 30, A: 220}
@@ -83,7 +72,7 @@ func (m *MenuScene) Draw(screen *ebiten.Image) {
 	}
 }
 
-func (m *MenuScene) DrawBG(screen *ebiten.Image) {
+func (m *EndGameScene) DrawBG(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(bgScaleX, bgScaleY)
 	screen.DrawImage(bgImage, op)

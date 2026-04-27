@@ -6,8 +6,8 @@ type PlayScene struct {
 	game *Game
 }
 
-func NewPlayScene() *PlayScene {
-	return &PlayScene{game: NewGame()}
+func NewPlayScene(winConditionCH chan *Player) *PlayScene {
+	return &PlayScene{game: NewGame(winConditionCH)}
 }
 
 func (p *PlayScene) Update() SceneID {
