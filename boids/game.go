@@ -27,22 +27,24 @@ type Game struct {
 	barnCollisionMask *BarnCollisionMask
 
 	players [2]*Player
+	winner  *Player
 	barns   [2]*Barn
 
 	eventManager *EventManager
-	winSceneCH   chan *Player
+	winFN        WinSetter
+	hadEnded     bool
 }
 
-func NewGame(winSceneCH chan *Player) *Game {
+func NewGame(winFN WinSetter) *Game {
 	accels := [boidsCount]Vector2D{}
 
 	g := &Game{
-		jobsCH:     make(chan int, boidsCount),
-		accels:     accels,
-		wg:         new(sync.WaitGroup),
-		sg:         NewSpiralGrid(screenWidth / 10),
-		barns:      [2]*Barn{},
-		winSceneCH: winSceneCH,
+		jobsCH: make(chan int, boidsCount),
+		accels: accels,
+		wg:     new(sync.WaitGroup),
+		sg:     NewSpiralGrid(screenWidth / 10),
+		barns:  [2]*Barn{},
+		winFN:  winFN,
 	}
 
 	g.loadBarnMask()
@@ -76,7 +78,6 @@ func (g *Game) StartJobs() {
 			neibBuf := []int{}
 			for id := range g.jobsCH {
 				b := g.boids[id]
-				// TODO -> move to boid
 				if b.state == StateFlocking {
 					g.sg.GetNeighbours(b, &neibBuf)
 				}
@@ -90,16 +91,17 @@ func (g *Game) StartJobs() {
 }
 
 func (g *Game) Update() error {
+	if g.winner != nil || g.hadEnded {
+		return nil
+	}
+
 	for _, b := range g.barns {
 		if b.SheepCount >= sheepCountWinCondition {
 			for _, p := range g.players {
-				if b.isLeft && p.isLeft {
-					g.winSceneCH <- p
-					break
-				}
-				if !b.isLeft && !p.isLeft {
-					g.winSceneCH <- p
-					break
+				if b.isLeft == p.isLeft {
+					g.winFN(p)
+					g.winner = p
+					return nil
 				}
 			}
 		}
@@ -162,6 +164,11 @@ func (g *Game) Update() error {
 		acc := g.accels[b.id]
 		b.Update(acc)
 	}
+
+	if g.winner != nil {
+		g.Close()
+	}
+
 	return nil
 }
 
@@ -172,6 +179,10 @@ func (g *Game) DrawBG(screen *ebiten.Image) {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	if g.winner != nil || g.hadEnded {
+		return
+	}
+
 	g.DrawBG(screen)
 	for _, barn := range g.barns {
 		barn.Draw(screen)
@@ -203,6 +214,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 func (g *Game) Layout(_, _ int) (sw, sh int) {
 	return screenWidth, screenHeight
+}
+
+func (g *Game) Close() {
+	if g.hadEnded {
+		return
+	}
+
+	close(g.jobsCH)
+	g.hadEnded = true
 }
 
 func (g *Game) loadBgImg() {

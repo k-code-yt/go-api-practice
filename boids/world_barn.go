@@ -43,7 +43,7 @@ func NewBarn(flipX bool, x, y float64, mask *BarnCollisionMask) *Barn {
 		drawnW: w * scaleX,
 		drawnH: h * scaleY,
 		mask:   mask,
-		isLeft: !flipX,
+		isLeft: flipX,
 	}
 
 	return b

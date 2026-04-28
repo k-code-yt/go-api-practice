@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"log"
 	"strings"
@@ -25,21 +26,21 @@ var menuFontRects = map[rune]menuFontRect{
 	'H': {X: 474, Y: 16, W: 52, H: 51},
 	'I': {X: 536, Y: 16, W: 47, H: 51},
 	// Row 1 y=95, h=59
-	'J': {X: 37, Y: 95, W: 50, H: 59},
-	'K': {X: 98, Y: 95, W: 55, H: 59},
-	'L': {X: 164, Y: 95, W: 50, H: 59},
-	'M': {X: 224, Y: 95, W: 62, H: 59},
-	'N': {X: 296, Y: 95, W: 52, H: 59},
-	'O': {X: 356, Y: 95, W: 51, H: 59},
-	'P': {X: 418, Y: 95, W: 52, H: 59},
-	'Q': {X: 480, Y: 95, W: 50, H: 59},
-	'R': {X: 541, Y: 95, W: 50, H: 59},
+	'J': {X: 37, Y: 95, W: 50, H: 51},
+	'K': {X: 98, Y: 95, W: 55, H: 51},
+	'L': {X: 164, Y: 95, W: 50, H: 51},
+	'M': {X: 224, Y: 95, W: 64, H: 51},
+	'N': {X: 296, Y: 95, W: 52, H: 51},
+	'O': {X: 356, Y: 95, W: 51, H: 51},
+	'P': {X: 418, Y: 95, W: 52, H: 51},
+	'Q': {X: 480, Y: 95, W: 50, H: 51},
+	'R': {X: 541, Y: 95, W: 50, H: 51},
 	// Row 2 y=174, h=51
 	'S': {X: 24, Y: 174, W: 53, H: 51},
 	'T': {X: 84, Y: 174, W: 47, H: 51},
 	'U': {X: 142, Y: 174, W: 50, H: 51},
 	'V': {X: 203, Y: 174, W: 51, H: 51},
-	'W': {X: 265, Y: 174, W: 59, H: 51},
+	'W': {X: 265, Y: 174, W: 64, H: 51},
 	'X': {X: 335, Y: 174, W: 50, H: 51},
 	'Y': {X: 396, Y: 174, W: 55, H: 51},
 	'Z': {X: 462, Y: 174, W: 50, H: 51},
@@ -55,6 +56,7 @@ const (
 	fontScale     = 60.0
 	screenMiddleW = float64(screenWidth / 2)
 	screenMiddleH = float64(screenHeight / 2)
+	letterMiddleH = screenMiddleH + fontScale/2
 	letterWidth   = fontScale * 1.1
 )
 
@@ -71,20 +73,25 @@ func NewFontBitMap() *FontBitMap {
 
 func (f *FontBitMap) Draw(screen *ebiten.Image, val string, cy float64, scaleMult float64) {
 	strUpper := strings.ToUpper(val)
-	strWidth := letterWidth * len(strUpper)
-	cx := screenMiddleW - float64(strWidth/2)
+	strWidth := letterWidth * float64(len(strUpper)) * scaleMult
+	cx := screenMiddleW - strWidth/2
 	for _, ch := range strUpper {
+		if ch == ' ' {
+			cx += letterWidth * scaleMult
+			continue
+		}
+
 		frame, ok := f.imageMap[ch]
 		if !ok {
-			log.Fatal("letter not found")
+			log.Fatalf("letter not found => %s", string(ch))
 			continue
 		}
 		scale := f.scaleMap[ch]
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(scale[0]*scaleMult/0.85, scale[1]*scaleMult)
+		op.GeoM.Scale(scale[0]*scaleMult, scale[1]*scaleMult)
 		op.GeoM.Translate(cx, cy)
 		screen.DrawImage(frame, op)
-		cx = cx + letterWidth
+		cx = cx + letterWidth*scaleMult
 	}
 }
 
@@ -96,9 +103,13 @@ func (f *FontBitMap) loadFontImages() {
 		frame := menuFontSheet.SubImage(rectV).(*ebiten.Image)
 		imageMap[keyV] = frame
 		bounds := frame.Bounds()
-		scaleX := fontScale / bounds.Dx()
-		scaleY := fontScale / bounds.Dy()
-		scaleMap[keyV] = [2]float64{float64(scaleX), float64(scaleY)}
+		if keyV == 'M' {
+			dx := bounds.Dx()
+			fmt.Println("here", dx)
+		}
+		scaleX := fontScale / float64(bounds.Dy())
+		scaleY := scaleX
+		scaleMap[keyV] = [2]float64{scaleX, scaleY}
 	}
 	f.imageMap = imageMap
 	f.scaleMap = scaleMap

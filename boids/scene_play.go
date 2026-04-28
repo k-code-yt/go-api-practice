@@ -6,12 +6,15 @@ type PlayScene struct {
 	game *Game
 }
 
-func NewPlayScene(winConditionCH chan *Player) *PlayScene {
-	return &PlayScene{game: NewGame(winConditionCH)}
+func NewPlayScene(winFN WinSetter) *PlayScene {
+	return &PlayScene{game: NewGame(winFN)}
 }
 
 func (p *PlayScene) Update() SceneID {
 	p.game.Update()
+	if p.game.winner != nil {
+		return SceneGameEnd
+	}
 	return ScenePlay
 }
 

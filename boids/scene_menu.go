@@ -75,7 +75,7 @@ func (m *MenuScene) Draw(screen *ebiten.Image) {
 	for idx, item := range m.items {
 		scaleMult := 1.0
 		if m.selected == idx {
-			scaleMult = 1.0 + 0.07*math.Sin(float64(m.pulseTick)*0.15)
+			scaleMult = 1.0 + 0.01*math.Sin(float64(m.pulseTick)*0.15)
 		}
 
 		m.font.Draw(screen, item.label, cy, scaleMult)

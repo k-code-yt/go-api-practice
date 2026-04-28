@@ -14,7 +14,7 @@ const (
 	screenWidth            = 1080.00 * windowScale
 	bgPath                 = "./assets/bush_border/bush.png"
 	eventSpawnTicks        = 900
-	sheepCountWinCondition = 2
+	sheepCountWinCondition = 1
 )
 
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────

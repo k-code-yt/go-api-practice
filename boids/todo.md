@@ -4,8 +4,11 @@
 
 [x] add menu -> select new_game, settings, exit
 [] end menu/screen -> restart, go main menu
-- game ending condition
--- show game end screen -> winner icon -> start/exit 
+- game end screen
+-- fix letter M
+-- score not working for left 
+-- no scene transition end screen menu
+
 
 [] settings menu item
 - boid count

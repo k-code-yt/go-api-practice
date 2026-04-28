@@ -1,6 +1,8 @@
 package main
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 type SceneID int
 
@@ -11,6 +13,8 @@ const (
 	SceneExit
 )
 
+type WinSetter func(p *Player)
+
 type Scene interface {
 	Update() SceneID
 	Draw(screen *ebiten.Image)
@@ -19,15 +23,18 @@ type Scene interface {
 type SceneManager struct {
 	currentID   SceneID
 	currenScene Scene
-	winSceneCH  chan *Player
 }
 
 func NewSceneManager() *SceneManager {
 	return &SceneManager{
 		currentID:   SceneMenu,
 		currenScene: NewMenuScene(menuFontBitMap),
-		winSceneCH:  make(chan *Player),
 	}
+}
+
+func (s *SceneManager) WinSetter(p *Player) {
+	s.currenScene = NewEndGameScene(menuFontBitMap, p)
+	s.currentID = SceneGameEnd
 }
 
 func (s *SceneManager) Update() error {
@@ -36,27 +43,18 @@ func (s *SceneManager) Update() error {
 		return nil
 	}
 
-	var winner *Player
-	select {
-	case winner := <-s.winSceneCH:
-		s.currenScene = NewEndGameScene(menuFontBitMap, winner)
-		s.currentID = next
-		return nil
-	default:
-	}
-
 	switch next {
 	case SceneMenu:
 		s.currenScene = NewMenuScene(menuFontBitMap)
 		s.currentID = next
 	case ScenePlay:
-		s.currenScene = NewPlayScene(s.winSceneCH)
+		s.currenScene = NewPlayScene(s.WinSetter)
 		s.currentID = next
 		break
 	case SceneGameEnd:
+		winner := s.currenScene.(*PlayScene).game.winner
 		s.currenScene = NewEndGameScene(menuFontBitMap, winner)
 		s.currentID = next
-		break
 	case SceneExit:
 		return ebiten.Termination
 	}
