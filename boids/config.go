@@ -3,7 +3,7 @@ package main
 // ── Global ───────────────────────────────────────────────────────────────────
 const (
 	// for debug
-	isDebugMode         = false
+	isDebugMode         = true
 	strokeWidth float32 = 3.0
 )
 
@@ -87,12 +87,15 @@ const (
 
 // ── AI Player ─────────────────────────────────────────────────────────────────
 const (
-	aiSafeMarginX   = screenWidth * 0.12
-	aiSafeMarginY   = screenHeight * 0.10
-	aiSearchRadius  = screenWidth * 0.35
-	aiHerdOffset    = targetBoidSize * 3.5
-	aiRetargetTicks = 30
-	aiSpeed         = playerDefaultSpeed
+	aiSafeMarginX        = screenWidth * 0.2
+	aiSafeMarginY        = screenHeight * 0.2
+	aiSearchRadius       = screenWidth * 0.35
+	aiHerdOffset         = targetBoidSize * 3.5
+	aiSpeed              = playerDefaultSpeed
+	aiTargetSwitchDist   = screenWidth * 0.25
+	aiTargetFleeingTicks = 60
+	aiGateSnapRadius     = targetBoidSize * 4
+	snapSq               = aiGateSnapRadius * aiGateSnapRadius
 )
 
 // ── Barn ───────────────────────────────────────────────────────────────────

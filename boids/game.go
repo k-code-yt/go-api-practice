@@ -27,9 +27,10 @@ type Game struct {
 	bgCollisionMask   *BgCollisionMask
 	barnCollisionMask *BarnCollisionMask
 
-	players [2]*Player
-	winner  *Player
-	barns   [2]*Barn
+	players   [2]*Player
+	aiPlayers [2]*AIPlayer
+	winner    *Player
+	barns     [2]*Barn
 
 	eventManager *EventManager
 	winFN        WinSetter
@@ -65,8 +66,7 @@ func NewGame(winFN WinSetter) *Game {
 	g.loadBgImg()
 
 	collChecker := g.buildCollisionChecker()
-	g.players[0] = NewPlayer(collChecker, &PlayerOpts{isLeft: true, charaterType: KnightCharacter})
-	g.players[1] = NewPlayer(collChecker, &PlayerOpts{isLeft: false, charaterType: GirlCharacter})
+
 	sheepImg := NewSheepImage(sheepSheet, 5)
 	g.eventManager = NewEventManager(collChecker, bananaEventSheet, bananaPeelSheet, energySheet)
 
@@ -78,6 +78,24 @@ func NewGame(winFN WinSetter) *Game {
 	}
 
 	g.boids = boids
+
+	g.players[0] = NewPlayer(collChecker, &PlayerOpts{
+		isLeft:       true,
+		charaterType: ScientistCharacter,
+		IsAI:         ActiveAIFlags[0],
+	})
+	g.players[1] = NewPlayer(collChecker, &PlayerOpts{
+		isLeft:       false,
+		charaterType: GirlCharacter,
+		IsAI:         ActiveAIFlags[1],
+	})
+	if ActiveAIFlags[0] {
+		g.aiPlayers[0] = NewAIPlayer(g.players[0], g.barns[0], g.boids, g.eventManager)
+	}
+	if ActiveAIFlags[1] {
+		g.aiPlayers[1] = NewAIPlayer(g.players[1], g.barns[1], g.boids, g.eventManager)
+	}
+
 	g.StartJobs()
 	return g
 }
@@ -149,7 +167,14 @@ func (g *Game) Update() error {
 	g.sg.Clean()
 
 	for _, p := range g.players {
-		p.Update()
+		if !p.IsAI {
+			p.Update()
+		}
+	}
+	for _, p := range g.aiPlayers {
+		if p != nil {
+			p.Update()
+		}
 	}
 
 	g.eventManager.Update(g.players)

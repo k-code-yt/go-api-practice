@@ -59,11 +59,15 @@ type Player struct {
 	// daze
 	dazeTick      int
 	activeEffects []*ImpactEffect
+
+	// AI
+	IsAI bool
 }
 
 type PlayerOpts struct {
 	isLeft       bool
 	charaterType CharacterType
+	IsAI         bool
 }
 
 func NewPlayer(collChecker CollisionChecker, opts *PlayerOpts) *Player {
@@ -98,6 +102,7 @@ func NewPlayer(collChecker CollisionChecker, opts *PlayerOpts) *Player {
 		collishMap:    make(map[Direction]bool),
 		trailFrames:   make([]*TrailFrame, trailMaxCount),
 		activeEffects: make([]*ImpactEffect, 0),
+		IsAI:          opts.IsAI,
 	}
 
 	return p
@@ -176,7 +181,6 @@ func (p *Player) Update() {
 		if p.dazeTick >= playerDizzyStateDuration {
 			p.state = PlayerStateNormal
 			p.dazeTick = 0
-			// TODO -> how to remove exactly daze effect?
 			p.activeEffects = p.activeEffects[:0]
 		}
 		return
@@ -187,16 +191,13 @@ func (p *Player) Update() {
 			p.resetEnergy()
 			break
 		}
-
 		p.trailSpawnTick++
 		if p.trailSpawnTick >= trailSpawnInterval {
 			p.trailSpawnTick = 0
-
 			sx := p.scaleX
 			if p.dir == DirRight {
 				sx = -p.scaleX
 			}
-
 			trailFrame := &TrailFrame{
 				position: p.position,
 				frame:    p.currentFrame(),
@@ -208,13 +209,12 @@ func (p *Player) Update() {
 				p.trailFrames = p.trailFrames[1:]
 			}
 		}
-		break
 	}
 
-	p.UpdateMovement(pSpeed)
+	p.updateMovement(pSpeed)
 }
 
-func (p *Player) UpdateMovement(pSpeed float64) {
+func (p *Player) updateMovement(pSpeed float64) {
 	dx, dy := 0.0, 0.0
 	p.isMoving = false
 
@@ -249,6 +249,10 @@ func (p *Player) UpdateMovement(pSpeed float64) {
 		p.isMoving = true
 	}
 
+	p.applyMovement(dx, dy, pSpeed)
+}
+
+func (p *Player) applyMovement(dx, dy, pSpeed float64) {
 	p.detectCollision(dx, dy)
 
 	if p.isMoving {

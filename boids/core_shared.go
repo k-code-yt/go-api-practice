@@ -15,6 +15,7 @@ const (
 	DirRight
 	DirUp
 	DirSlip
+	DirIdle
 	DirHit
 	DirExplosion
 )

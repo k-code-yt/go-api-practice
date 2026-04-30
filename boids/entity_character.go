@@ -6,6 +6,11 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+const (
+	madSciFrameW = 236
+	madSciFrameH = 172
+)
+
 // ── Frame identity ────────────────────────────────────────────────────────────
 
 // FrameID is a typed int so the compiler catches wrong values in direction maps.
@@ -60,6 +65,22 @@ const (
 	RamWalkDown1 // row6: walking down, step 2
 	RamWalkDown2 // row6: walking down, step 3
 	RamWalkDown3 // row6: walking down, step 4
+
+	MadSciFrontIdle FrameID = iota + 30 // offset avoids collision with other chars
+
+	MadSciFrontWalk // unused in dirFrames but kept for completeness
+
+	MadSciWalkR0
+	MadSciWalkR1
+	MadSciWalkR2
+
+	MadSciSlip0
+	MadSciSlip1
+	MadSciSlip2
+
+	MadSciWalkL0
+	MadSciWalkL1
+	MadSciWalkL2
 )
 
 type FrameRect struct{ X, Y, W, H int }
@@ -92,6 +113,27 @@ var girlRects = map[FrameID]FrameRect{
 	GirlExtra3:      {X: 365, Y: 360, W: 92, H: 171},
 }
 
+var madSciRects = map[FrameID]FrameRect{
+	// Row 0
+	MadSciFrontIdle: {X: 0, Y: 0, W: 158, H: 172},
+	MadSciFrontWalk: {X: 158, Y: 0, W: 158, H: 172},
+
+	// Row 1 — right walk
+	MadSciWalkR0: {X: 0, Y: 172, W: 158, H: 171},
+	MadSciWalkR1: {X: 158, Y: 172, W: 158, H: 171},
+	MadSciWalkR2: {X: 316, Y: 172, W: 158, H: 171},
+
+	// Row 2 — slip
+	MadSciSlip0: {X: 0, Y: 343, W: 158, H: 165},
+	MadSciSlip1: {X: 158, Y: 343, W: 158, H: 165},
+	MadSciSlip2: {X: 316, Y: 343, W: 158, H: 165},
+
+	// Row 3 — left walk (pre-mirrored in sprite sheet)
+	MadSciWalkL0: {X: 0, Y: 508, W: 158, H: 171},
+	MadSciWalkL1: {X: 158, Y: 508, W: 158, H: 171},
+	MadSciWalkL2: {X: 316, Y: 508, W: 158, H: 171},
+}
+
 // ── Direction → frame sequence ────────────────────────────────────────────────
 
 var knightDirFrames = map[Direction][]FrameID{
@@ -110,6 +152,14 @@ var girlDirFrames = map[Direction][]FrameID{
 	DirSlip:  {GirlFrontWalk, GirlSideWalk2, GirlSlip},
 }
 
+var madSciDirFrames = map[Direction][]FrameID{
+	DirDown:  {MadSciWalkR0, MadSciWalkR1, MadSciWalkR2},
+	DirUp:    {MadSciWalkR0, MadSciWalkR1, MadSciWalkR2},
+	DirRight: {MadSciWalkR0, MadSciWalkR1, MadSciWalkR2},
+	DirLeft:  {MadSciWalkR0, MadSciWalkR1, MadSciWalkR2},
+	DirSlip:  {MadSciSlip0, MadSciSlip1, MadSciSlip2},
+}
+
 // ── Spritesheet ───────────────────────────────────────────────────────────────
 
 type CharacterType int
@@ -117,6 +167,7 @@ type CharacterType int
 const (
 	KnightCharacter CharacterType = iota
 	GirlCharacter
+	ScientistCharacter
 )
 
 type CharacterOpts struct {
@@ -139,6 +190,12 @@ var GirlOpts = &CharacterOpts{
 	sheetRows: 3,
 }
 
+var MadSciOpts = &CharacterOpts{
+	sheetPath: "./assets/character/mad_scientist.png",
+	sheetCols: 3,
+	sheetRows: 3,
+}
+
 func NewCharacterOpts(cType CharacterType) *CharacterOpts {
 	switch cType {
 	case KnightCharacter:
@@ -153,6 +210,12 @@ func NewCharacterOpts(cType CharacterType) *CharacterOpts {
 		}
 		GirlOpts.spritesheet = NewGirlSpritesheet(GirlOpts.img)
 		return GirlOpts
+	case ScientistCharacter:
+		if MadSciOpts.img == nil {
+			panic("mad scientist img was not loaded")
+		}
+		MadSciOpts.spritesheet = NewMadSciSpritesheet(MadSciOpts.img)
+		return MadSciOpts
 	}
 	return nil
 }
@@ -181,6 +244,10 @@ func NewGirlSpritesheet(sheet *ebiten.Image) *Spritesheet {
 
 func NewRamSpritesheet(sheet *ebiten.Image) *Spritesheet {
 	return NewSpritesheet(sheet, ramRects, ramDirFrames)
+}
+
+func NewMadSciSpritesheet(sheet *ebiten.Image) *Spritesheet {
+	return NewSpritesheet(sheet, madSciRects, madSciDirFrames)
 }
 
 func (s *Spritesheet) Frame(id FrameID) *ebiten.Image {

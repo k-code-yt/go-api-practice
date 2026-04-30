@@ -15,6 +15,7 @@ import (
 var (
 	ActiveWindowScale float64 = windowScale
 	ActiveBoidsCount  int     = boidsCount
+	ActiveAIFlags     [2]bool = [2]bool{false, true} // [leftPlayer, rightPlayer]
 )
 
 // ── Option tables ─────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ type settingsRow int
 const (
 	rowScale settingsRow = iota
 	rowBoids
+	rowAI
 	rowBack
 	rowTotalCount
 )
@@ -54,6 +56,7 @@ type SettingsScene struct {
 	focusRow  settingsRow
 	scaleIdx  int
 	boidsIdx  int
+	aiFlags   [2]bool
 }
 
 func NewSettingsScene(font *FontBitMap) *SettingsScene {
@@ -76,6 +79,7 @@ func NewSettingsScene(font *FontBitMap) *SettingsScene {
 		scaleIdx: scaleIdx,
 		boidsIdx: boidsIdx,
 		focusRow: rowScale,
+		aiFlags:  ActiveAIFlags,
 	}
 }
 
@@ -109,6 +113,13 @@ func (s *SettingsScene) Update() SceneID {
 		if wentRight && s.boidsIdx < len(boidsCountOptions)-1 {
 			s.boidsIdx++
 		}
+	case rowAI:
+		if wentLeft {
+			s.aiFlags[0] = !s.aiFlags[0]
+		}
+		if wentRight {
+			s.aiFlags[1] = !s.aiFlags[1]
+		}
 	}
 
 	if inpututil.IsKeyJustPressed(keySpace) || inpututil.IsKeyJustPressed(keyEnter) {
@@ -124,6 +135,7 @@ func (s *SettingsScene) Update() SceneID {
 func (s *SettingsScene) applySettings() {
 	ActiveWindowScale = scaleOptions[s.scaleIdx].value
 	ActiveBoidsCount = boidsCountOptions[s.boidsIdx].value
+	ActiveAIFlags = s.aiFlags
 	newW := int(1080.0 * ActiveWindowScale)
 	newH := int(640.0 * ActiveWindowScale)
 	ebiten.SetWindowSize(newW, newH)
@@ -147,6 +159,8 @@ func (s *SettingsScene) Draw(screen *ebiten.Image) {
 
 	s.drawSettingRow(screen, "SHEEP", boidsOptionLabels(), s.boidsIdx,
 		s.focusRow == rowBoids, startY+float64(rowBoids)*rowH)
+
+	s.drawAIRow(screen, s.focusRow == rowAI, startY+float64(rowAI)*rowH)
 
 	backY := startY + float64(rowBack)*rowH + rowH*0.15
 	backMult := 1.0
@@ -177,6 +191,81 @@ func boidsOptionLabels() []string {
 		out[i] = o.label
 	}
 	return out
+}
+
+// drawAIRow renders a bespoke two-chip row for AI player selection.
+// Left chip = Knight (player 1), Right chip = Girl (player 2).
+// Each chip is independently toggled: lit = AI, dim = human.
+func (s *SettingsScene) drawAIRow(screen *ebiten.Image, active bool, cy float64) {
+	const textScale = 0.75
+	chipPadX := fontScale * 0.50
+	chipPadY := fontScale * 0.10
+	chipGap := fontScale * 0.35
+	labelGap := fontScale * 0.8
+	label := "AI"
+	labelW := float64(len(label)) * letterWidth * textScale
+
+	labels := []string{"KNIGHT", "GIRL"}
+	chipWidths := make([]float64, 2)
+	for i, l := range labels {
+		chipWidths[i] = s.measureMixedText(l, textScale) + chipPadX*2
+	}
+	totalChipsW := chipWidths[0] + chipWidths[1] + chipGap
+
+	totalRowW := labelW + labelGap + totalChipsW
+	startX := screenMiddleW - totalRowW/2
+
+	// Label
+	labelMult := textScale
+	if active {
+		labelMult = textScale * (1.0 + 0.012*math.Sin(float64(s.pulseTick)*0.15))
+	}
+	s.drawTextAt(screen, label, startX, cy, labelMult)
+
+	chipH := fontScale*textScale + chipPadY*2
+	chipX := startX + labelW + labelGap
+
+	for i, lbl := range labels {
+		on := s.aiFlags[i]
+		cw := chipWidths[i]
+
+		var chipBg, chipBorder color.NRGBA
+		if on {
+			chipBg = color.NRGBA{R: 190, G: 130, B: 0, A: 255}
+			chipBorder = color.NRGBA{R: 255, G: 215, B: 80, A: 255}
+		} else {
+			chipBg = color.NRGBA{R: 50, G: 50, B: 55, A: 210}
+			chipBorder = color.NRGBA{R: 100, G: 100, B: 110, A: 180}
+		}
+
+		chipTop := cy - fontScale*textScale/2 - chipPadY
+		vector.FillRect(screen, float32(chipX), float32(chipTop),
+			float32(cw), float32(chipH), chipBg, false)
+		vector.StrokeRect(screen, float32(chipX), float32(chipTop),
+			float32(cw), float32(chipH), 2.5, chipBorder, false)
+
+		txtW := s.measureMixedText(lbl, textScale)
+		tx := chipX + cw/2 - txtW/2
+		s.drawMixedTextAt(screen, lbl, tx, cy, textScale)
+
+		chipX += cw + chipGap
+	}
+
+	// Hint arrows when row is active
+	if active {
+		alpha := uint8(180 + 75*math.Sin(float64(s.pulseTick)*0.12))
+		ac := color.NRGBA{R: 255, G: 215, B: 0, A: alpha}
+		sz := float32(fontScale * textScale * 0.55)
+		mid := float32(cy)
+
+		lx := float32(startX - fontScale*0.9)
+		vector.StrokeLine(screen, lx+sz, mid-sz/2, lx, mid, 3, ac, false)
+		vector.StrokeLine(screen, lx, mid, lx+sz, mid+sz/2, 3, ac, false)
+
+		rx := float32(startX + totalRowW + fontScale*0.3)
+		vector.StrokeLine(screen, rx, mid-sz/2, rx+sz, mid, 3, ac, false)
+		vector.StrokeLine(screen, rx+sz, mid, rx, mid+sz/2, 3, ac, false)
+	}
 }
 
 // drawSettingRow renders:  LABEL  [OPT1] [OPT2] [OPT3]  all centered as a unit.
