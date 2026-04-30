@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"log"
 	"strings"
@@ -103,10 +102,6 @@ func (f *FontBitMap) loadFontImages() {
 		frame := menuFontSheet.SubImage(rectV).(*ebiten.Image)
 		imageMap[keyV] = frame
 		bounds := frame.Bounds()
-		if keyV == 'M' {
-			dx := bounds.Dx()
-			fmt.Println("here", dx)
-		}
 		scaleX := fontScale / float64(bounds.Dy())
 		scaleY := scaleX
 		scaleMap[keyV] = [2]float64{scaleX, scaleY}

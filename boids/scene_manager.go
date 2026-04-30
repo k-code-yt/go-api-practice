@@ -9,6 +9,7 @@ type SceneID int
 const (
 	SceneMenu SceneID = iota
 	ScenePlay
+	SceneSettings
 	SceneGameEnd
 	SceneExit
 )
@@ -50,7 +51,9 @@ func (s *SceneManager) Update() error {
 	case ScenePlay:
 		s.currenScene = NewPlayScene(s.WinSetter)
 		s.currentID = next
-		break
+	case SceneSettings:
+		s.currenScene = NewSettingsScene(menuFontBitMap)
+		s.currentID = next
 	case SceneGameEnd:
 		winner := s.currenScene.(*PlayScene).game.winner
 		s.currenScene = NewEndGameScene(menuFontBitMap, winner)

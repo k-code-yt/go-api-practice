@@ -3,18 +3,12 @@
 <!-- finilizing -->
 
 [x] add menu -> select new_game, settings, exit
-[] end menu/screen -> restart, go main menu
-- game end screen
--- fix letter M
--- score not working for left 
--- no scene transition end screen menu
+[x] settings menu item
+[x] add good looking score -> invert on right side && add animation
+[x] end menu/screen -> restart, go main menu
+-- add red colour to letters that are selected
 
 
-[] settings menu item
-- boid count
-- screen size
-
-[] add good looking score -> invert on right side && add animation
 [] add AI character mode
 [] some music
 

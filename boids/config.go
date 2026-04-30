@@ -3,23 +3,22 @@ package main
 // ── Global ───────────────────────────────────────────────────────────────────
 const (
 	// for debug
-	isDebugMode         = true
+	isDebugMode         = false
 	strokeWidth float32 = 3.0
 )
 
 // ── Game ───────────────────────────────────────────────────────────────────
 const (
-	windowScale            = 1.75
-	screenHeight           = 640 * windowScale
-	screenWidth            = 1080.00 * windowScale
-	bgPath                 = "./assets/bush_border/bush.png"
-	eventSpawnTicks        = 900
-	sheepCountWinCondition = 1
+	windowScale     = 1.75
+	screenHeight    = 640 * windowScale
+	screenWidth     = 1080.00 * windowScale
+	bgPath          = "./assets/bush_border/bush.png"
+	eventSpawnTicks = 900
 )
 
 // ── Sheep/Boid ───────────────────────────────────────────────────────────────────
 const (
-	boidsCount     = 200
+	boidsCount     = 250
 	targetBoidSize = 65
 	sheepImgPath   = "./assets/sheep/sheep_run.png"
 
@@ -84,6 +83,16 @@ const (
 	// dizzy
 	playerDizzyFrameDelay    = 6
 	playerDizzyStateDuration = 120
+)
+
+// ── AI Player ─────────────────────────────────────────────────────────────────
+const (
+	aiSafeMarginX   = screenWidth * 0.12
+	aiSafeMarginY   = screenHeight * 0.10
+	aiSearchRadius  = screenWidth * 0.35
+	aiHerdOffset    = targetBoidSize * 3.5
+	aiRetargetTicks = 30
+	aiSpeed         = playerDefaultSpeed
 )
 
 // ── Barn ───────────────────────────────────────────────────────────────────

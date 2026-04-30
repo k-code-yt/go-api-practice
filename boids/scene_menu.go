@@ -13,9 +13,6 @@ var (
 	keySpace, keyEnter, keyDown, keyUp = ebiten.KeySpace, ebiten.KeyEnter, ebiten.KeyArrowDown, ebiten.KeyArrowUp
 )
 
-// menu -> start, exit, settings -> menu item
-// update -> arrowup/down &&
-// --- on enter/space return different sceneID
 type menuItem struct {
 	label   string
 	sceneID SceneID
@@ -33,7 +30,7 @@ func NewMenuScene(font *FontBitMap) *MenuScene {
 		font: font,
 		items: []menuItem{
 			{"START", ScenePlay},
-			{"SETTINGS", SceneExit},
+			{"SETTINGS", SceneSettings},
 			{"EXIT", SceneExit},
 		},
 		selected: 0,

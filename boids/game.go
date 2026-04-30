@@ -16,11 +16,12 @@ import (
 var drawInt int
 
 type Game struct {
-	sg     *SpiralGrid
-	boids  []*Boid
-	jobsCH chan (int)
-	accels [boidsCount]Vector2D
-	wg     *sync.WaitGroup
+	sg              *SpiralGrid
+	boids           []*Boid
+	activeBoidCount int // actual count used this game (from ActiveBoidsCount)
+	jobsCH          chan (int)
+	accels          [boidsCount]Vector2D
+	wg              *sync.WaitGroup
 
 	bgImage           *ebiten.Image
 	bgCollisionMask   *BgCollisionMask
@@ -38,13 +39,23 @@ type Game struct {
 func NewGame(winFN WinSetter) *Game {
 	accels := [boidsCount]Vector2D{}
 
+	// Clamp ActiveBoidsCount to the compile-time upper bound.
+	activeBoidCount := ActiveBoidsCount
+	if activeBoidCount > boidsCount {
+		activeBoidCount = boidsCount
+	}
+	if activeBoidCount < 1 {
+		activeBoidCount = 1
+	}
+
 	g := &Game{
-		jobsCH: make(chan int, boidsCount),
-		accels: accels,
-		wg:     new(sync.WaitGroup),
-		sg:     NewSpiralGrid(screenWidth / 10),
-		barns:  [2]*Barn{},
-		winFN:  winFN,
+		jobsCH:          make(chan int, boidsCount),
+		accels:          accels,
+		wg:              new(sync.WaitGroup),
+		sg:              NewSpiralGrid(screenWidth / 10),
+		barns:           [2]*Barn{},
+		winFN:           winFN,
+		activeBoidCount: activeBoidCount,
 	}
 
 	g.loadBarnMask()
@@ -59,8 +70,8 @@ func NewGame(winFN WinSetter) *Game {
 	sheepImg := NewSheepImage(sheepSheet, 5)
 	g.eventManager = NewEventManager(collChecker, bananaEventSheet, bananaPeelSheet, energySheet)
 
-	boids := make([]*Boid, boidsCount)
-	for id := range boidsCount {
+	boids := make([]*Boid, activeBoidCount)
+	for id := range activeBoidCount {
 		b := NewBoid(id, sheepImg, collChecker, g.buildGateChecker())
 		boids[id] = b
 		g.sg.Insert(b)
@@ -95,8 +106,10 @@ func (g *Game) Update() error {
 		return nil
 	}
 
+	winThreshold := g.activeBoidCount / 3
+
 	for _, b := range g.barns {
-		if b.SheepCount >= sheepCountWinCondition {
+		if b.SheepCount >= winThreshold {
 			for _, p := range g.players {
 				if b.isLeft == p.isLeft {
 					g.winFN(p)
@@ -154,7 +167,7 @@ func (g *Game) Update() error {
 		g.eventManager.SpawnPickUp(activeBoids, g.players)
 	}
 
-	g.wg.Add(boidsCount)
+	g.wg.Add(g.activeBoidCount)
 	for _, b := range g.boids {
 		g.jobsCH <- b.id
 	}
@@ -164,6 +177,8 @@ func (g *Game) Update() error {
 		acc := g.accels[b.id]
 		b.Update(acc)
 	}
+
+	UpdateScoreAnim()
 
 	if g.winner != nil {
 		g.Close()
@@ -265,10 +280,11 @@ func (g *Game) buildGateChecker() func(x, y float64) *Barn {
 	}
 }
 
-// TODO -> move to ui_game
 func (g *Game) drawScore(screen *ebiten.Image) {
-	drawScoreSprite(screen, g.barns[0].SheepCount, 24, 24)
+	const margin = 24.0
+
+	drawScoreSprite(screen, g.barns[0].SheepCount, margin, margin)
 
 	rightW := measureScoreSprite(g.barns[1].SheepCount)
-	drawScoreSprite(screen, g.barns[1].SheepCount, screenWidth-rightW-24, 24)
+	drawScoreSpriteRight(screen, g.barns[1].SheepCount, screenWidth-rightW-margin, margin)
 }
