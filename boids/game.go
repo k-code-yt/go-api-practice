@@ -81,18 +81,18 @@ func NewGame(winFN WinSetter) *Game {
 
 	g.players[0] = NewPlayer(collChecker, &PlayerOpts{
 		isLeft:       true,
-		charaterType: ScientistCharacter,
-		IsAI:         ActiveAIFlags[0],
+		charaterType: ActiveCharP1,
+		IsAI:         ActiveAIPlayer == 1,
 	})
 	g.players[1] = NewPlayer(collChecker, &PlayerOpts{
 		isLeft:       false,
-		charaterType: GirlCharacter,
-		IsAI:         ActiveAIFlags[1],
+		charaterType: ActiveCharP2,
+		IsAI:         ActiveAIPlayer == 2,
 	})
-	if ActiveAIFlags[0] {
+	if ActiveAIPlayer == 1 {
 		g.aiPlayers[0] = NewAIPlayer(g.players[0], g.barns[0], g.boids, g.eventManager)
 	}
-	if ActiveAIFlags[1] {
+	if ActiveAIPlayer == 2 {
 		g.aiPlayers[1] = NewAIPlayer(g.players[1], g.barns[1], g.boids, g.eventManager)
 	}
 

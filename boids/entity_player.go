@@ -108,13 +108,23 @@ func NewPlayer(collChecker CollisionChecker, opts *PlayerOpts) *Player {
 	return p
 }
 
+func (p *Player) drawScaleX() float64 {
+	if p.spritesheet.FacesRight {
+		// native facing = right; flip only when going left
+		if p.dir == DirLeft {
+			return -p.scaleX
+		}
+		return p.scaleX
+	}
+	if p.dir == DirRight {
+		return -p.scaleX
+	}
+	return p.scaleX
+}
+
 func (p *Player) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
-	sx := p.scaleX
-
-	if p.dir == DirRight {
-		sx = -p.scaleX
-	}
+	sx := p.drawScaleX()
 
 	if p.state == PlayerStateDazed {
 		swayAngle := math.Sin(float64(p.dazeTick)*0.15) * 0.12
@@ -142,7 +152,6 @@ func (p *Player) Draw(screen *ebiten.Image) {
 }
 
 func (p *Player) drawTrail(screen *ebiten.Image) {
-
 	for i, trail := range p.trailFrames {
 		if trail == nil {
 			continue
@@ -153,10 +162,8 @@ func (p *Player) drawTrail(screen *ebiten.Image) {
 		op.GeoM.Translate(trail.position.x, trail.position.y)
 		alpha := float32(i+1) * trailAlphaMult
 		op.ColorScale.Scale(0.7, 0.5, 1.5, alpha)
-
 		screen.DrawImage(trail.frame, op)
 	}
-
 }
 
 func (p *Player) Update() {
@@ -194,10 +201,7 @@ func (p *Player) Update() {
 		p.trailSpawnTick++
 		if p.trailSpawnTick >= trailSpawnInterval {
 			p.trailSpawnTick = 0
-			sx := p.scaleX
-			if p.dir == DirRight {
-				sx = -p.scaleX
-			}
+			sx := p.drawScaleX()
 			trailFrame := &TrailFrame{
 				position: p.position,
 				frame:    p.currentFrame(),
@@ -267,12 +271,23 @@ func (p *Player) applyMovement(dx, dy, pSpeed float64) {
 			}
 		}
 	} else {
-		p.frameIdx = 0
-		p.frameTick = 0
-		p.dir = DirDown
+		idleFrames := p.spritesheet.dirFrames[DirIdle]
+		if len(idleFrames) > 1 {
+			p.dir = DirIdle
+			p.frameTick++
+			if p.frameTick >= playerIdleFrameDelay {
+				p.frameTick = 0
+				p.frameIdx = (p.frameIdx + 1) % len(idleFrames)
+			}
+		} else {
+			p.frameIdx = 0
+			p.frameTick = 0
+			p.dir = DirDown
+		}
 	}
 	p.wasMoving = p.isMoving
 }
+
 func (p *Player) Energy() {
 	if p.state == PlayerStateEnergy {
 		return
@@ -374,7 +389,6 @@ func (p *Player) detectCollision(dx, dy float64) {
 			p.collishMap[DirUp] = true
 		}
 		p.collishMap[DirDown] = false
-
 	}
 }
 

@@ -53,11 +53,11 @@ func init() {
 	}
 	GirlOpts.img = girlImg
 
-	madSciImg, _, err := ebitenutil.NewImageFromFile(MadSciOpts.sheetPath)
+	madSciImg, _, err := ebitenutil.NewImageFromFile(ScientistOpts.sheetPath)
 	if err != nil {
 		log.Fatal("mad scientist sprite:", err)
 	}
-	MadSciOpts.img = madSciImg
+	ScientistOpts.img = madSciImg
 
 	// ----boids----
 	sheep, _, err := ebitenutil.NewImageFromFile(sheepImgPath)

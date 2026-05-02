@@ -83,6 +83,8 @@ const (
 	// dizzy
 	playerDizzyFrameDelay    = 6
 	playerDizzyStateDuration = 120
+
+	playerIdleFrameDelay = 30
 )
 
 // ── AI Player ─────────────────────────────────────────────────────────────────

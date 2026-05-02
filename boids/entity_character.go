@@ -6,11 +6,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-const (
-	madSciFrameW = 236
-	madSciFrameH = 172
-)
-
 // ── Frame identity ────────────────────────────────────────────────────────────
 
 // FrameID is a typed int so the compiler catches wrong values in direction maps.
@@ -66,21 +61,19 @@ const (
 	RamWalkDown2 // row6: walking down, step 3
 	RamWalkDown3 // row6: walking down, step 4
 
-	MadSciFrontIdle FrameID = iota + 30 // offset avoids collision with other chars
-
-	MadSciFrontWalk // unused in dirFrames but kept for completeness
-
-	MadSciWalkR0
-	MadSciWalkR1
-	MadSciWalkR2
-
-	MadSciSlip0
-	MadSciSlip1
-	MadSciSlip2
-
-	MadSciWalkL0
-	MadSciWalkL1
-	MadSciWalkL2
+	// Mad Scientist frames
+	// Sheet: 455×549, black background (RGB)
+	// row0 Y=0–174   H=175 — idle (2 frames, sprite faces RIGHT in the sheet)
+	// row1 Y=185–355 H=171 — walk (3 frames, sprite faces RIGHT in the sheet)
+	// row2 Y=380–548 H=169 — slip (3 frames)
+	ScientistIdle0
+	ScientistIdle1
+	ScientistWalk0
+	ScientistWalk1
+	ScientistWalk2
+	ScientistSlip0
+	ScientistSlip1
+	ScientistSlip2
 )
 
 type FrameRect struct{ X, Y, W, H int }
@@ -113,25 +106,19 @@ var girlRects = map[FrameID]FrameRect{
 	GirlExtra3:      {X: 365, Y: 360, W: 92, H: 171},
 }
 
-var madSciRects = map[FrameID]FrameRect{
-	// Row 0
-	MadSciFrontIdle: {X: 0, Y: 0, W: 158, H: 172},
-	MadSciFrontWalk: {X: 158, Y: 0, W: 158, H: 172},
+// Mad Scientist: 455×549, black background.
+// Sprite faces RIGHT in the source sheet (FacesRight = true).
+var scientistRects = map[FrameID]FrameRect{
+	ScientistIdle0: {X: 13, Y: 0, W: 99, H: 175},
+	ScientistIdle1: {X: 149, Y: 0, W: 114, H: 175},
 
-	// Row 1 — right walk
-	MadSciWalkR0: {X: 0, Y: 172, W: 158, H: 171},
-	MadSciWalkR1: {X: 158, Y: 172, W: 158, H: 171},
-	MadSciWalkR2: {X: 316, Y: 172, W: 158, H: 171},
+	ScientistWalk0: {X: 7, Y: 185, W: 104, H: 171},
+	ScientistWalk1: {X: 136, Y: 185, W: 97, H: 171},
+	ScientistWalk2: {X: 262, Y: 185, W: 116, H: 171},
 
-	// Row 2 — slip
-	MadSciSlip0: {X: 0, Y: 343, W: 158, H: 165},
-	MadSciSlip1: {X: 158, Y: 343, W: 158, H: 165},
-	MadSciSlip2: {X: 316, Y: 343, W: 158, H: 165},
-
-	// Row 3 — left walk (pre-mirrored in sprite sheet)
-	MadSciWalkL0: {X: 0, Y: 508, W: 158, H: 171},
-	MadSciWalkL1: {X: 158, Y: 508, W: 158, H: 171},
-	MadSciWalkL2: {X: 316, Y: 508, W: 158, H: 171},
+	ScientistSlip0: {X: 6, Y: 380, W: 102, H: 169},
+	ScientistSlip1: {X: 136, Y: 380, W: 158, H: 169},
+	ScientistSlip2: {X: 319, Y: 380, W: 136, H: 169},
 }
 
 // ── Direction → frame sequence ────────────────────────────────────────────────
@@ -152,15 +139,18 @@ var girlDirFrames = map[Direction][]FrameID{
 	DirSlip:  {GirlFrontWalk, GirlSideWalk2, GirlSlip},
 }
 
-var madSciDirFrames = map[Direction][]FrameID{
-	DirDown:  {MadSciWalkR0, MadSciWalkR1, MadSciWalkR2},
-	DirUp:    {MadSciWalkR0, MadSciWalkR1, MadSciWalkR2},
-	DirRight: {MadSciWalkR0, MadSciWalkR1, MadSciWalkR2},
-	DirLeft:  {MadSciWalkR0, MadSciWalkR1, MadSciWalkR2},
-	DirSlip:  {MadSciSlip0, MadSciSlip1, MadSciSlip2},
+// All four movement dirs share the same walk frames.
+// Mirroring is handled in Player.Draw based on Spritesheet.FacesRight.
+var scientistDirFrames = map[Direction][]FrameID{
+	DirIdle:  {ScientistIdle0, ScientistIdle1},
+	DirDown:  {ScientistWalk0, ScientistWalk1, ScientistWalk2},
+	DirUp:    {ScientistWalk0, ScientistWalk1, ScientistWalk2},
+	DirRight: {ScientistWalk0, ScientistWalk1, ScientistWalk2},
+	DirLeft:  {ScientistWalk0, ScientistWalk1, ScientistWalk2},
+	DirSlip:  {ScientistSlip0, ScientistSlip1, ScientistSlip2},
 }
 
-// ── Spritesheet ───────────────────────────────────────────────────────────────
+// ── Character types ───────────────────────────────────────────────────────────
 
 type CharacterType int
 
@@ -169,6 +159,33 @@ const (
 	GirlCharacter
 	ScientistCharacter
 )
+
+func (ct CharacterType) CharacterName() string {
+	switch ct {
+	case KnightCharacter:
+		return "KNIGHT"
+	case GirlCharacter:
+		return "GIRL"
+	case ScientistCharacter:
+		return "SCIENTIST"
+	}
+	return "UNKNOWN"
+}
+
+var AllCharacterTypes = []CharacterType{
+	KnightCharacter,
+	GirlCharacter,
+	ScientistCharacter,
+}
+
+// ── Runtime character selections (persisted across play sessions) ─────────────
+
+var (
+	ActiveCharacterP1 CharacterType = KnightCharacter
+	ActiveCharacterP2 CharacterType = GirlCharacter
+)
+
+// ── CharacterOpts ─────────────────────────────────────────────────────────────
 
 type CharacterOpts struct {
 	sheetPath   string
@@ -190,7 +207,7 @@ var GirlOpts = &CharacterOpts{
 	sheetRows: 3,
 }
 
-var MadSciOpts = &CharacterOpts{
+var ScientistOpts = &CharacterOpts{
 	sheetPath: "./assets/character/mad_scientist.png",
 	sheetCols: 3,
 	sheetRows: 3,
@@ -211,43 +228,58 @@ func NewCharacterOpts(cType CharacterType) *CharacterOpts {
 		GirlOpts.spritesheet = NewGirlSpritesheet(GirlOpts.img)
 		return GirlOpts
 	case ScientistCharacter:
-		if MadSciOpts.img == nil {
-			panic("mad scientist img was not loaded")
+		if ScientistOpts.img == nil {
+			panic("scientist img was not loaded")
 		}
-		MadSciOpts.spritesheet = NewMadSciSpritesheet(MadSciOpts.img)
-		return MadSciOpts
+		ScientistOpts.spritesheet = NewScientistSpritesheet(ScientistOpts.img)
+		return ScientistOpts
 	}
 	return nil
 }
 
+// ── Spritesheet ───────────────────────────────────────────────────────────────
+
+// Spritesheet holds sliced frames and the direction→frame-sequence map.
+//
+// FacesRight signals the default facing direction of the source art:
+//   - false (Knight, Girl): art faces LEFT. Player.Draw negates scaleX when
+//     dir == DirRight to flip the sprite rightward (original convention).
+//   - true (Scientist): art faces RIGHT. Player.Draw negates scaleX when
+//     dir == DirLeft so the sprite faces left correctly.
 type Spritesheet struct {
-	frames    map[FrameID]*ebiten.Image
-	dirFrames map[Direction][]FrameID
+	frames     map[FrameID]*ebiten.Image
+	dirFrames  map[Direction][]FrameID
+	FacesRight bool
 }
 
-func NewSpritesheet(sheet *ebiten.Image, rects map[FrameID]FrameRect, dirFrames map[Direction][]FrameID) *Spritesheet {
+func NewSpritesheet(
+	sheet *ebiten.Image,
+	rects map[FrameID]FrameRect,
+	dirFrames map[Direction][]FrameID,
+	facesRight bool,
+) *Spritesheet {
 	frames := make(map[FrameID]*ebiten.Image, len(rects))
 	for id, r := range rects {
 		rect := image.Rect(r.X, r.Y, r.X+r.W, r.Y+r.H)
 		frames[id] = sheet.SubImage(rect).(*ebiten.Image)
 	}
-	return &Spritesheet{frames: frames, dirFrames: dirFrames}
+	return &Spritesheet{frames: frames, dirFrames: dirFrames, FacesRight: facesRight}
 }
 
 func NewKnightSpritesheet(sheet *ebiten.Image) *Spritesheet {
-	return NewSpritesheet(sheet, knightRects, knightDirFrames)
+	return NewSpritesheet(sheet, knightRects, knightDirFrames, false)
 }
 
 func NewGirlSpritesheet(sheet *ebiten.Image) *Spritesheet {
-	return NewSpritesheet(sheet, girlRects, girlDirFrames)
+	return NewSpritesheet(sheet, girlRects, girlDirFrames, false)
 }
 
 func NewRamSpritesheet(sheet *ebiten.Image) *Spritesheet {
-	return NewSpritesheet(sheet, ramRects, ramDirFrames)
+	return NewSpritesheet(sheet, ramRects, ramDirFrames, false)
 }
 
-func NewMadSciSpritesheet(sheet *ebiten.Image) *Spritesheet {
-	return NewSpritesheet(sheet, madSciRects, madSciDirFrames)
+func NewScientistSpritesheet(sheet *ebiten.Image) *Spritesheet {
+	return NewSpritesheet(sheet, scientistRects, scientistDirFrames, true)
 }
 
 func (s *Spritesheet) Frame(id FrameID) *ebiten.Image {
@@ -260,6 +292,10 @@ func (s *Spritesheet) FrameForState(dir Direction, state PlayerState, frameIdx, 
 	}
 
 	ids := s.dirFrames[dir]
+
+	if len(ids) == 0 {
+		ids = s.dirFrames[DirDown]
+	}
 
 	var id FrameID
 	if state == PlayerStateSlipping {
