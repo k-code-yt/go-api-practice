@@ -160,6 +160,7 @@ const (
 	ScientistCharacter
 )
 
+// CharacterName returns the display label used in the settings UI.
 func (ct CharacterType) CharacterName() string {
 	switch ct {
 	case KnightCharacter:
@@ -172,6 +173,7 @@ func (ct CharacterType) CharacterName() string {
 	return "UNKNOWN"
 }
 
+// AllCharacterTypes lists every selectable character in order.
 var AllCharacterTypes = []CharacterType{
 	KnightCharacter,
 	GirlCharacter,
@@ -207,6 +209,8 @@ var GirlOpts = &CharacterOpts{
 	sheetRows: 3,
 }
 
+// ScientistOpts — sheetCols/Rows used by NewPlayer to derive baseline frame
+// size. Use the widest row (3 cols) and tallest row count (3 rows).
 var ScientistOpts = &CharacterOpts{
 	sheetPath: "./assets/character/mad_scientist.png",
 	sheetCols: 3,
@@ -293,6 +297,8 @@ func (s *Spritesheet) FrameForState(dir Direction, state PlayerState, frameIdx, 
 
 	ids := s.dirFrames[dir]
 
+	// Fallback: if this direction isn't in the map (e.g. DirIdle on Knight),
+	// use DirDown so we never index into a nil slice.
 	if len(ids) == 0 {
 		ids = s.dirFrames[DirDown]
 	}
@@ -310,4 +316,34 @@ func (s *Spritesheet) FrameForState(dir Direction, state PlayerState, frameIdx, 
 	}
 
 	return s.frames[id]
+}
+
+// characterIdleFrame slices and returns the first idle frame for a character
+// directly from the raw sheet, without requiring a full Spritesheet or Player.
+// Safe to call from settings scenes before any game is constructed.
+func characterIdleFrame(cType CharacterType) *ebiten.Image {
+	var img *ebiten.Image
+	var r FrameRect
+	switch cType {
+	case KnightCharacter:
+		img = KnightOpts.img
+		r = knightRects[KnightFrontIdle]
+	case GirlCharacter:
+		img = GirlOpts.img
+		r = girlRects[GirlFrontIdle]
+	case ScientistCharacter:
+		img = ScientistOpts.img
+		r = scientistRects[ScientistIdle0]
+	default:
+		return nil
+	}
+	if img == nil {
+		return nil
+	}
+	return img.SubImage(imageRect(r)).(*ebiten.Image)
+}
+
+// imageRect converts a FrameRect to an image.Rectangle.
+func imageRect(r FrameRect) image.Rectangle {
+	return image.Rect(r.X, r.Y, r.X+r.W, r.Y+r.H)
 }

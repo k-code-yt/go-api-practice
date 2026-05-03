@@ -57,6 +57,7 @@ var aiOptions = []struct {
 	{"NONE", 0},
 	{"P1", 1},
 	{"P2", 2},
+	{"BOTH", 3},
 }
 
 // ── Player colours ────────────────────────────────────────────────────────────
@@ -80,8 +81,8 @@ type settingsRow int
 const (
 	rowScale settingsRow = iota
 	rowBoids
-	rowChar
 	rowAI
+	rowChar // single row — both players pick here simultaneously, placed last before BACK
 	rowBack
 	rowTotalCount
 )
@@ -89,14 +90,18 @@ const (
 // ── Scene struct ──────────────────────────────────────────────────────────────
 
 type SettingsScene struct {
-	font      *FontBitMap
-	pulseTick int
+	font       *FontBitMap
+	pulseTick  int
+	charFrames []*ebiten.Image // idle preview frame per characterOptions entry
 
+	// shared rows (only P1 WASD navigates these — arrows do same for parity)
 	focusRow settingsRow
 	scaleIdx int
 	boidsIdx int
 	aiIdx    int
 
+	// per-player character focus — each player navigates their own row
+	// using their own keys (WASD for P1, arrows for P2)
 	charIdxP1 int
 	charIdxP2 int
 }
@@ -137,14 +142,21 @@ func NewSettingsScene(font *FontBitMap) *SettingsScene {
 			break
 		}
 	}
+
+	charFrames := make([]*ebiten.Image, len(characterOptions))
+	for i, o := range characterOptions {
+		charFrames[i] = characterIdleFrame(o.value)
+	}
+
 	return &SettingsScene{
-		font:      font,
-		scaleIdx:  scaleIdx,
-		boidsIdx:  boidsIdx,
-		aiIdx:     aiIdx,
-		charIdxP1: charIdxP1,
-		charIdxP2: charIdxP2,
-		focusRow:  rowScale,
+		font:       font,
+		charFrames: charFrames,
+		scaleIdx:   scaleIdx,
+		boidsIdx:   boidsIdx,
+		aiIdx:      aiIdx,
+		charIdxP1:  charIdxP1,
+		charIdxP2:  charIdxP2,
+		focusRow:   rowScale,
 	}
 }
 
@@ -172,6 +184,7 @@ func (s *SettingsScene) Update() SceneID {
 	p2Left := inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft)
 	p2Right := inpututil.IsKeyJustPressed(ebiten.KeyArrowRight)
 
+	// Shared rows: either player can adjust (original behaviour)
 	wentLeft := p1Left || p2Left
 	wentRight := p1Right || p2Right
 
@@ -191,6 +204,8 @@ func (s *SettingsScene) Update() SceneID {
 			s.boidsIdx++
 		}
 
+	// Character row: both players move their own cursor simultaneously —
+	// P1 uses A/D, P2 uses ←/→, no gating needed.
 	case rowChar:
 		if p1Left && s.charIdxP1 > 0 {
 			s.charIdxP1--
@@ -213,6 +228,7 @@ func (s *SettingsScene) Update() SceneID {
 		}
 	}
 
+	// Confirm / back
 	confirm := inpututil.IsKeyJustPressed(ebiten.KeySpace) ||
 		inpututil.IsKeyJustPressed(ebiten.KeyEnter)
 	if confirm && s.focusRow == rowBack {
@@ -244,29 +260,40 @@ func (s *SettingsScene) Draw(screen *ebiten.Image) {
 		color.NRGBA{R: 20, G: 20, B: 20, A: 215}, false)
 
 	rowH := fontScale * 1.5
-	startY := screenMiddleH - float64(rowTotalCount-1)*rowH/2
+	const charChipSize = fontScale * 2.2
+	const charRowExtra = charChipSize - fontScale*1.5
 
+	// Helper: Y position for a row, accounting for the extra char-row height.
+	rowY := func(row settingsRow) float64 {
+		y := screenMiddleH - float64(rowTotalCount-1)*rowH/2 + float64(row)*rowH*1.25
+		if row > rowChar {
+			y += charRowExtra
+		}
+		return y
+	}
+
+	startY := rowY(0)
 	s.font.Draw(screen, "SETTINGS", startY-rowH*1.8, 1.4)
 
 	s.drawSettingRow(screen, "SIZE", scaleOptionLabels(), s.scaleIdx,
-		s.focusRow == rowScale, startY+float64(rowScale)*rowH, -1)
+		s.focusRow == rowScale, rowY(rowScale), -1)
 
 	s.drawSettingRow(screen, "SHEEP", boidsOptionLabels(), s.boidsIdx,
-		s.focusRow == rowBoids, startY+float64(rowBoids)*rowH, -1)
-
-	s.drawCharRow(screen, "CHARACTER", s.focusRow == rowChar,
-		startY+float64(rowChar)*rowH)
+		s.focusRow == rowBoids, rowY(rowBoids), -1)
 
 	s.drawSettingRow(screen, "AI", aiOptionLabels(), s.aiIdx,
-		s.focusRow == rowAI, startY+float64(rowAI)*rowH, -1)
+		s.focusRow == rowAI, rowY(rowAI), -1)
 
-	backY := startY + float64(rowBack)*rowH + rowH*0.15
+	s.drawCharRow(screen, "CHARACTER", s.focusRow == rowChar, rowY(rowChar))
+
+	backY := rowY(rowBack) + rowH*0.3
 	backMult := 1.0
 	if s.focusRow == rowBack {
 		backMult = 1.0 + 0.018*math.Sin(float64(s.pulseTick)*0.15)
 	}
 	s.font.Draw(screen, "BACK", backY, backMult)
 
+	// Hint line
 	divY := float32(screenHeight - fontScale*2.0)
 	vector.StrokeLine(screen,
 		float32(screenMiddleW-fontScale*5), divY,
@@ -275,6 +302,9 @@ func (s *SettingsScene) Draw(screen *ebiten.Image) {
 	s.font.Draw(screen, "WS DN SELECT  AD CHANGE", screenHeight-fontScale*1.75, 0.32)
 }
 
+// drawCharRow renders the single shared character-selection row using idle
+// sprite previews instead of text labels. Both players' cursors are shown
+// simultaneously with distinct border colours.
 func (s *SettingsScene) drawCharRow(
 	screen *ebiten.Image,
 	label string,
@@ -282,33 +312,20 @@ func (s *SettingsScene) drawCharRow(
 	cy float64,
 ) {
 	const textScale = 0.75
+	const chipSize = fontScale * 2.2 // square chip — enough room for a sprite
+	const nameLabelScale = 0.32      // small name below each chip
+	const chipGap = fontScale * 0.45
+	const labelGap = fontScale * 0.8
+	const borderW = float32(3.0)
+
 	charW := letterWidth * textScale
-
-	chipPadX := fontScale * 0.50
-	chipPadY := fontScale * 0.10
-	chipGap := fontScale * 0.35
-	labelGap := fontScale * 0.8
-
 	labelW := float64(len(label)) * charW
-
-	options := make([]string, len(characterOptions))
-	for i, o := range characterOptions {
-		options[i] = o.label
-	}
-
-	chipWidths := make([]float64, len(options))
-	for i, opt := range options {
-		chipWidths[i] = s.measureMixedText(opt, textScale) + chipPadX*2
-	}
-	totalChipsW := 0.0
-	for _, cw := range chipWidths {
-		totalChipsW += cw
-	}
-	totalChipsW += float64(len(options)-1) * chipGap
-
+	n := len(characterOptions)
+	totalChipsW := float64(n)*chipSize + float64(n-1)*chipGap
 	totalRowW := labelW + labelGap + totalChipsW
 	startX := screenMiddleW - totalRowW/2
 
+	// Row label (e.g. "CHARACTER")
 	labelMult := textScale
 	if active {
 		labelMult = textScale * (1.0 + 0.012*math.Sin(float64(s.pulseTick)*0.15))
@@ -316,80 +333,112 @@ func (s *SettingsScene) drawCharRow(
 	s.drawTextAt(screen, label, startX, cy, labelMult)
 
 	chipX := startX + labelW + labelGap
-	chipH := fontScale*textScale + chipPadY*2
+	chipTop := cy - chipSize/2
 
-	for i, opt := range options {
-		cw := chipWidths[i]
+	for i, opt := range characterOptions {
 		isP1 := i == s.charIdxP1
 		isP2 := i == s.charIdxP2
 
+		// ── Background ──────────────────────────────────────────────────────
 		var chipBg color.NRGBA
-		var chipBorder color.NRGBA
 		switch {
 		case isP1 && isP2:
 			chipBg = colorBothBg
-			chipBorder = colorBothBorder
 		case isP1:
 			chipBg = colorP1Bg
-			chipBorder = colorP1Border
 		case isP2:
 			chipBg = colorP2Bg
-			chipBorder = colorP2Border
 		default:
 			chipBg = color.NRGBA{R: 50, G: 50, B: 55, A: 210}
-			chipBorder = color.NRGBA{R: 100, G: 100, B: 110, A: 180}
+		}
+		vector.FillRect(screen, float32(chipX), float32(chipTop),
+			float32(chipSize), float32(chipSize), chipBg, false)
+
+		// ── Sprite preview ──────────────────────────────────────────────────
+		if frame := s.charFrames[i]; frame != nil {
+			b := frame.Bounds()
+			fw, fh := float64(b.Dx()), float64(b.Dy())
+			// Fit inside chip with padding, preserving aspect ratio
+			pad := chipSize * 0.08
+			available := chipSize - pad*2
+			sc := available / fh
+			if fw*sc > available {
+				sc = available / fw
+			}
+			drawW := fw * sc
+			drawH := fh * sc
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Scale(sc, sc)
+			op.GeoM.Translate(
+				chipX+chipSize/2-drawW/2,
+				chipTop+chipSize/2-drawH/2,
+			)
+			screen.DrawImage(frame, op)
 		}
 
-		chipTop := cy - fontScale*textScale/2 - chipPadY
-
-		vector.FillRect(screen, float32(chipX), float32(chipTop),
-			float32(cw), float32(chipH), chipBg, false)
+		// ── Outer border (P2 colour or default) ─────────────────────────────
+		var outerBorder color.NRGBA
+		switch {
+		case isP1 && isP2:
+			outerBorder = colorBothBorder
+		case isP2:
+			outerBorder = colorP2Border
+		case isP1:
+			outerBorder = colorP1Border
+		default:
+			outerBorder = color.NRGBA{R: 100, G: 100, B: 110, A: 180}
+		}
 		vector.StrokeRect(screen, float32(chipX), float32(chipTop),
-			float32(cw), float32(chipH), 2.5, chipBorder, false)
+			float32(chipSize), float32(chipSize), borderW, outerBorder, false)
 
+		// ── Inner border in P1 colour when both share the chip ──────────────
 		if isP1 && isP2 {
-			inset := float32(4)
+			inset := float32(5)
 			vector.StrokeRect(screen,
 				float32(chipX)+inset, float32(chipTop)+inset,
-				float32(cw)-inset*2, float32(chipH)-inset*2,
+				float32(chipSize)-inset*2, float32(chipSize)-inset*2,
 				1.5, colorP1Border, false)
 		}
 
-		legendY := cy + chipH/2 + fontScale*textScale*0.3
-		if isP1 {
-			s.drawTextAt(screen, "P1", chipX+cw/2-letterWidth*textScale*0.5, legendY, textScale*0.4)
-		}
-		if isP2 {
-			offset := 0.0
-			if isP1 {
-				offset = letterWidth * textScale * 1.2
-			}
-			s.drawTextAt(screen, "P2", chipX+cw/2-letterWidth*textScale*0.5+offset, legendY, textScale*0.4)
+		// ── Character name below chip ────────────────────────────────────────
+		nameY := chipTop + chipSize + fontScale*nameLabelScale*0.9
+		nameW := float64(len(opt.label)) * letterWidth * nameLabelScale
+		s.drawTextAt(screen, opt.label, chipX+chipSize/2-nameW/2, nameY, nameLabelScale)
+
+		// ── P1 / P2 badges below the name ───────────────────────────────────
+		badgeY := nameY + fontScale*nameLabelScale*1.1
+		badgeScale := nameLabelScale * 0.9
+		badgeW := letterWidth * badgeScale * 2 // "P1" or "P2" = 2 chars
+		if isP1 && isP2 {
+			gap := badgeW * 0.3
+			s.drawTextAt(screen, "P1", chipX+chipSize/2-badgeW-gap/2, badgeY, badgeScale)
+			s.drawTextAt(screen, "P2", chipX+chipSize/2+gap/2, badgeY, badgeScale)
+		} else if isP1 {
+			s.drawTextAt(screen, "P1", chipX+chipSize/2-badgeW/2, badgeY, badgeScale)
+		} else if isP2 {
+			s.drawTextAt(screen, "P2", chipX+chipSize/2-badgeW/2, badgeY, badgeScale)
 		}
 
-		txtW := s.measureMixedText(opt, textScale)
-		tx := chipX + cw/2 - txtW/2
-		s.drawMixedTextAt(screen, opt, tx, cy, textScale)
-
-		chipX += cw + chipGap
+		chipX += chipSize + chipGap
 	}
 
+	// ── Arrows (both player colours, stacked vertically) ─────────────────────
 	if active {
 		alpha := uint8(180 + 75*math.Sin(float64(s.pulseTick)*0.12))
 		sz := float32(fontScale * textScale * 0.55)
 		mid := float32(cy)
 		lx := float32(startX - fontScale*0.9)
 		rx := float32(startX + totalRowW + fontScale*0.3)
-
 		p1c := color.NRGBA{R: colorP1Border.R, G: colorP1Border.G, B: colorP1Border.B, A: alpha}
 		p2c := color.NRGBA{R: colorP2Border.R, G: colorP2Border.G, B: colorP2Border.B, A: alpha}
 
 		offset := sz * 0.55
+		// P1 arrows — slightly above centre
 		vector.StrokeLine(screen, lx+sz, mid-offset-sz/2, lx, mid-offset, 3, p1c, false)
 		vector.StrokeLine(screen, lx, mid-offset, lx+sz, mid-offset+sz/2, 3, p1c, false)
 		vector.StrokeLine(screen, rx, mid-offset-sz/2, rx+sz, mid-offset, 3, p1c, false)
 		vector.StrokeLine(screen, rx+sz, mid-offset, rx, mid-offset+sz/2, 3, p1c, false)
-
+		// P2 arrows — slightly below centre
 		vector.StrokeLine(screen, lx+sz, mid+offset-sz/2, lx, mid+offset, 3, p2c, false)
 		vector.StrokeLine(screen, lx, mid+offset, lx+sz, mid+offset+sz/2, 3, p2c, false)
 		vector.StrokeLine(screen, rx, mid+offset-sz/2, rx+sz, mid+offset, 3, p2c, false)
@@ -397,6 +446,8 @@ func (s *SettingsScene) drawCharRow(
 	}
 }
 
+// drawSettingRow renders a standard single-cursor row (SIZE, SHEEP).
+// pass playerNum = -1 for the default gold colour.
 func (s *SettingsScene) drawSettingRow(
 	screen *ebiten.Image,
 	label string,

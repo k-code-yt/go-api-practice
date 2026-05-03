@@ -10,7 +10,7 @@ const (
 // ── Game ───────────────────────────────────────────────────────────────────
 const (
 	windowScale     = 1.75
-	screenHeight    = 640 * windowScale
+	screenHeight    = 560 * windowScale
 	screenWidth     = 1080.00 * windowScale
 	bgPath          = "./assets/bush_border/bush.png"
 	eventSpawnTicks = 900

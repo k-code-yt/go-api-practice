@@ -82,17 +82,17 @@ func NewGame(winFN WinSetter) *Game {
 	g.players[0] = NewPlayer(collChecker, &PlayerOpts{
 		isLeft:       true,
 		charaterType: ActiveCharP1,
-		IsAI:         ActiveAIPlayer == 1,
+		IsAI:         ActiveAIPlayer == 1 || ActiveAIPlayer == 3,
 	})
 	g.players[1] = NewPlayer(collChecker, &PlayerOpts{
 		isLeft:       false,
 		charaterType: ActiveCharP2,
-		IsAI:         ActiveAIPlayer == 2,
+		IsAI:         ActiveAIPlayer == 2 || ActiveAIPlayer == 3,
 	})
-	if ActiveAIPlayer == 1 {
+	if ActiveAIPlayer == 1 || ActiveAIPlayer == 3 {
 		g.aiPlayers[0] = NewAIPlayer(g.players[0], g.barns[0], g.boids, g.eventManager)
 	}
-	if ActiveAIPlayer == 2 {
+	if ActiveAIPlayer == 2 || ActiveAIPlayer == 3 {
 		g.aiPlayers[1] = NewAIPlayer(g.players[1], g.barns[1], g.boids, g.eventManager)
 	}
 
@@ -138,31 +138,21 @@ func (g *Game) Update() error {
 		}
 	}
 
-	for i, event := range g.eventManager.drawItems {
+	kept := g.eventManager.drawItems[:0]
+	for _, event := range g.eventManager.drawItems {
 		if event.IsDone() {
-			g.eventManager.drawItems = append(
-				g.eventManager.drawItems[:i],
-				g.eventManager.drawItems[i+1:]...,
-			)
 			g.eventManager.ramEventCount--
 			continue
 		}
 		p := findNearestPlayer(g.players, event.GetPosition())
 		event.Update(p)
-		if event.IsCollidingWith(p) {
-			et := event.EventType()
-			switch et {
-			case BananaPeel:
-				p.Slip()
-				g.eventManager.drawItems = append(
-					g.eventManager.drawItems[:i],
-					g.eventManager.drawItems[i+1:]...,
-				)
-			default:
-			}
-
+		if event.IsCollidingWith(p) && event.EventType() == BananaPeel {
+			p.Slip()
+			continue
 		}
+		kept = append(kept, event)
 	}
+	g.eventManager.drawItems = kept
 
 	g.sg.Clean()
 
